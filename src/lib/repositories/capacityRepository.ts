@@ -28,3 +28,8 @@ export function listCapacityForSprint(sprintId: string): Promise<CapacityEntry[]
     orderBy: { name: "asc" },
   });
 }
+
+/** Löscht einen Kapazitätseintrag. */
+export function removeCapacityEntry(id: string): Promise<CapacityEntry> {
+  return prisma.capacityEntry.delete({ where: { id } });
+}
