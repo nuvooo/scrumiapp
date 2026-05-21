@@ -24,3 +24,13 @@ export function listTeams(): Promise<Team[]> {
 export function getTeam(id: string): Promise<Team | null> {
   return prisma.team.findUnique({ where: { id } });
 }
+
+export interface SyncStatusUpdate {
+  lastSyncedAt?: Date;
+  lastSyncError: string | null;
+}
+
+/** Aktualisiert den Sync-Status eines Teams (nur übergebene Felder). */
+export function updateTeamSyncStatus(teamId: string, status: SyncStatusUpdate): Promise<Team> {
+  return prisma.team.update({ where: { id: teamId }, data: status });
+}

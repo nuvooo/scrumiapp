@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
-import { createTeam, listTeams, getTeam } from "./teamRepository";
+import { createTeam, listTeams, getTeam, updateTeamSyncStatus } from "./teamRepository";
 
 const created: string[] = [];
 
@@ -30,5 +30,19 @@ describe("teamRepository", () => {
 
     const all = await listTeams();
     expect(all.some((t) => t.id === team.id)).toBe(true);
+  });
+
+  it("updates sync status (lastSyncedAt and lastSyncError)", async () => {
+    const team = await createTeam({ name: "Sync", jiraBoardId: "1" });
+    created.push(team.id);
+
+    const ok = await updateTeamSyncStatus(team.id, { lastSyncedAt: new Date(), lastSyncError: null });
+    expect(ok.lastSyncedAt).not.toBeNull();
+    expect(ok.lastSyncError).toBeNull();
+
+    const failed = await updateTeamSyncStatus(team.id, { lastSyncError: "boom" });
+    expect(failed.lastSyncError).toBe("boom");
+    // lastSyncedAt unchanged because it was not provided
+    expect(failed.lastSyncedAt).not.toBeNull();
   });
 });
