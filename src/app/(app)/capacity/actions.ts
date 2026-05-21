@@ -1,23 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addCapacityEntry, removeCapacityEntry } from "@/lib/repositories/capacityRepository";
+import { upsertCapacityEntry } from "@/lib/repositories/capacityRepository";
 
-export async function addCapacity(formData: FormData) {
+export async function upsertCapacity(formData: FormData) {
   const sprintId = String(formData.get("sprintId") ?? "");
+  const teamMemberId = String(formData.get("teamMemberId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const personDays = Number(formData.get("personDays") ?? "0");
-  if (!sprintId || !name || !Number.isFinite(personDays) || personDays <= 0) return;
+  const plannedPersonDays = Number(formData.get("plannedPersonDays") ?? "0");
+  const actualPersonDays = Number(formData.get("actualPersonDays") ?? "0");
+  if (!sprintId || !teamMemberId || !name) return;
+  if (!Number.isFinite(plannedPersonDays) || plannedPersonDays < 0) return;
+  if (!Number.isFinite(actualPersonDays) || actualPersonDays < 0) return;
 
-  await addCapacityEntry(sprintId, { name, personDays });
-  revalidatePath("/capacity");
-  revalidatePath("/dashboard");
-}
-
-export async function deleteCapacity(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  if (!id) return;
-  await removeCapacityEntry(id);
+  await upsertCapacityEntry(sprintId, teamMemberId, { name, plannedPersonDays, actualPersonDays });
   revalidatePath("/capacity");
   revalidatePath("/dashboard");
 }
