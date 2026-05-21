@@ -26,8 +26,8 @@ describe("toDomainBurndownPoint", () => {
 });
 
 describe("toDomainCapacityEntry", () => {
-  it("maps name and personDays", () => {
-    const entry = toDomainCapacityEntry({ id: "c1", sprintId: "s1", teamMemberId: null, name: "Alice", personDays: 8 });
-    expect(entry).toEqual({ name: "Alice", personDays: 8 });
+  it("maps teamMemberId, name and planned/actual person days", () => {
+    const entry = toDomainCapacityEntry({ id: "c1", sprintId: "s1", teamMemberId: "m1", name: "Alice", plannedPersonDays: 8, actualPersonDays: 6 });
+    expect(entry).toEqual({ teamMemberId: "m1", name: "Alice", plannedPersonDays: 8, actualPersonDays: 6 });
   });
 });
