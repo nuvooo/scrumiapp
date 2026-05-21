@@ -11,6 +11,7 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: ["src/**/*.test.ts"],
+          fileParallelism: false,
         },
       },
       {
