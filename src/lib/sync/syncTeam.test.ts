@@ -84,7 +84,10 @@ describe("syncTeam", () => {
     );
     await syncTeam(team.id, client);
     const [sprint] = await listSprintsForTeam(team.id);
-    await prisma.capacityEntry.create({ data: { sprintId: sprint.id, name: "Alice", personDays: 8 } });
+    const member = await prisma.teamMember.create({ data: { teamId: team.id, name: "Alice" } });
+    await prisma.capacityEntry.create({
+      data: { sprintId: sprint.id, teamMemberId: member.id, name: "Alice", plannedPersonDays: 8, actualPersonDays: 8 },
+    });
 
     await syncTeam(team.id, client);
 
