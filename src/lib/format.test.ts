@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatPoints, formatDateShort, trendSymbol, roundTo1 } from "./format";
+import { formatPoints, formatDateShort, trendSymbol, roundTo1, formatDelta } from "./format";
 
 describe("formatPoints", () => {
   it("shows up to one decimal, trims trailing zeros", () => {
@@ -26,5 +26,19 @@ describe("roundTo1", () => {
   it("rounds to one decimal place", () => {
     expect(roundTo1(2.55)).toBe(2.6);
     expect(roundTo1(40)).toBe(40);
+  });
+});
+
+describe("formatDelta", () => {
+  it("prefixes a plus for positive values", () => {
+    expect(formatDelta(3)).toBe("+3");
+  });
+
+  it("uses a real minus sign for negative values", () => {
+    expect(formatDelta(-2)).toBe("−2");
+  });
+
+  it("shows ±0 for zero", () => {
+    expect(formatDelta(0)).toBe("±0");
   });
 });

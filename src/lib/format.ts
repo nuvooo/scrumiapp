@@ -18,3 +18,10 @@ export function trendSymbol(trend: TrendDirection): string {
 export function roundTo1(value: number): number {
   return Math.round(value * 10) / 10;
 }
+
+/** Vorzeichenbehaftete Differenz: "+3", "−2", "±0" (de-DE). */
+export function formatDelta(value: number): string {
+  if (value === 0) return "±0";
+  const sign = value > 0 ? "+" : "−";
+  return sign + new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(Math.abs(value));
+}
