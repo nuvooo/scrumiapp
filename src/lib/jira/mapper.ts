@@ -29,7 +29,9 @@ export function mapIssue(raw: JiraIssueRaw, storyPointsField: string): DomainIss
   const storyPoints = typeof rawPoints === "number" ? rawPoints : 0;
   return {
     jiraKey: raw.key,
+    summary: raw.fields.summary,
     storyPoints,
+    status: raw.fields.status.name,
     statusCategory: mapStatusCategory(raw.fields.status.statusCategory.key),
     resolvedAt: raw.fields.resolutiondate ? new Date(raw.fields.resolutiondate) : null,
     addedAfterSprintStart: false,

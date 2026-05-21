@@ -36,7 +36,9 @@ describe("mapIssue", () => {
   it("maps a raw issue using the configured story points field", () => {
     const issue = mapIssue(rawIssue("AB-1", 5, "done", "2026-05-20T10:00:00.000Z"), FIELD);
     expect(issue.jiraKey).toBe("AB-1");
+    expect(issue.summary).toBe("Issue AB-1");
     expect(issue.storyPoints).toBe(5);
+    expect(issue.status).toBe("done");
     expect(issue.statusCategory).toBe("DONE");
     expect(issue.resolvedAt).toEqual(new Date("2026-05-20T10:00:00.000Z"));
     expect(issue.addedAfterSprintStart).toBe(false);

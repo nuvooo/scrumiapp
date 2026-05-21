@@ -37,8 +37,8 @@ describe("syncTeam", () => {
       [{ jiraSprintId: "100", name: "Sprint 1", state: "ACTIVE",
          startDate: new Date("2026-05-18"), endDate: new Date("2026-05-22"), completeDate: null }],
       { "100": [
-        { jiraKey: "AB-1", storyPoints: 5, statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
-        { jiraKey: "AB-2", storyPoints: 3, statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-1", summary: "AB-1", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-2", summary: "AB-2", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
       ] },
     );
 

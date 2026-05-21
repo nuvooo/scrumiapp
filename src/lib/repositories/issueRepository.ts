@@ -16,9 +16,9 @@ export async function replaceIssuesForSprint(
       data: issues.map((i) => ({
         sprintId,
         jiraKey: i.jiraKey,
-        summary: i.jiraKey,
+        summary: i.summary,
         storyPoints: i.storyPoints,
-        status: i.statusCategory,
+        status: i.status,
         statusCategory: i.statusCategory,
         resolvedAt: i.resolvedAt,
         addedAfterSprintStart: i.addedAfterSprintStart,
