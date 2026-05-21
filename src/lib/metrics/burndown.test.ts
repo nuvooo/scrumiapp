@@ -21,8 +21,8 @@ describe("calcBurndown", () => {
 
   it("passes actual points through sorted by date", () => {
     const points: DomainBurndownPoint[] = [
-      { date: new Date("2026-05-19"), remainingPoints: 30, completedPoints: 10, remainingBugs: 3 },
-      { date: new Date("2026-05-18"), remainingPoints: 40, completedPoints: 0, remainingBugs: 5 },
+      { date: new Date("2026-05-19"), remainingPoints: 30, completedPoints: 10, remainingBugs: 3, remainingTickets: 0 },
+      { date: new Date("2026-05-18"), remainingPoints: 40, completedPoints: 0, remainingBugs: 5, remainingTickets: 0 },
     ];
     const result = calcBurndown(sprint(40, "2026-05-18", "2026-05-22"), points);
     expect(result.actual.map((p) => p.remainingPoints)).toEqual([40, 30]);
@@ -45,7 +45,7 @@ describe("calcBurndown", () => {
 
 describe("calcBugBurndown", () => {
   const points = (vals: Array<[string, number]>): DomainBurndownPoint[] =>
-    vals.map(([d, bugs]) => ({ date: new Date(d), remainingPoints: 0, completedPoints: 0, remainingBugs: bugs }));
+    vals.map(([d, bugs]) => ({ date: new Date(d), remainingPoints: 0, completedPoints: 0, remainingBugs: bugs, remainingTickets: 0 }));
 
   it("builds an ideal line from the first snapshot's bug count to zero", () => {
     const result = calcBugBurndown(sprint(0, "2026-05-18", "2026-05-22"), points([["2026-05-18", 8]]));

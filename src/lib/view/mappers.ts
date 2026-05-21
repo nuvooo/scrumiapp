@@ -15,7 +15,13 @@ export function toDomainSprint(s: Sprint): DomainSprint {
 }
 
 export function toDomainBurndownPoint(p: BurndownPoint): DomainBurndownPoint {
-  return { date: p.date, remainingPoints: p.remainingPoints, completedPoints: p.completedPoints, remainingBugs: p.remainingBugs };
+  return {
+    date: p.date,
+    remainingPoints: p.remainingPoints,
+    completedPoints: p.completedPoints,
+    remainingBugs: p.remainingBugs,
+    remainingTickets: p.remainingTickets,
+  };
 }
 
 export function toDomainCapacityEntry(c: CapacityEntry): DomainCapacityEntry {

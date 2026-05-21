@@ -29,6 +29,7 @@ export interface DomainBurndownPoint {
   remainingPoints: number;
   completedPoints: number;
   remainingBugs: number;
+  remainingTickets: number;
 }
 
 export interface DomainCapacityEntry {
