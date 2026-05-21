@@ -8,7 +8,7 @@ export interface BurndownRow {
   actual: number | null;
 }
 
-export function BurndownChart({ data }: { data: BurndownRow[] }) {
+export function BurndownChart({ data, actualName = "Ist" }: { data: BurndownRow[]; actualName?: string }) {
   return (
     <ResponsiveContainer width="100%" height={360}>
       <LineChart data={data} margin={{ top: 16, right: 24, bottom: 8, left: 0 }}>
@@ -18,7 +18,7 @@ export function BurndownChart({ data }: { data: BurndownRow[] }) {
         <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155" }} />
         <Legend />
         <Line type="monotone" dataKey="ideal" name="Ideal" stroke="#64748b" strokeDasharray="5 5" dot={false} connectNulls />
-        <Line type="monotone" dataKey="actual" name="Ist" stroke="#34d399" strokeWidth={2} connectNulls />
+        <Line type="monotone" dataKey="actual" name={actualName} stroke="#34d399" strokeWidth={2} connectNulls />
       </LineChart>
     </ResponsiveContainer>
   );

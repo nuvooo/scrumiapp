@@ -35,14 +35,37 @@ export default async function BurndownPage({
   }
   const rows = [...byLabel.values()];
 
+  const bugByLabel = new Map<string, BurndownRow>();
+  for (const p of data.bugBurndown.ideal) {
+    const label = formatDateShort(p.date);
+    bugByLabel.set(label, { label, ideal: roundTo1(p.remainingBugs), actual: null });
+  }
+  for (const p of data.bugBurndown.actual) {
+    const label = formatDateShort(p.date);
+    const row = bugByLabel.get(label) ?? { label, ideal: null, actual: null };
+    row.actual = p.remainingBugs;
+    bugByLabel.set(label, row);
+  }
+  const bugRows = [...bugByLabel.values()];
+
   return (
-    <div>
-      <h1 className="mb-4 text-2xl font-bold">Burndown · {data.sprintName}</h1>
-      {rows.length === 0 ? (
-        <p className="text-slate-400">Dieser Sprint hat noch keine Burndown-Punkte.</p>
-      ) : (
-        <BurndownChart data={rows} />
-      )}
+    <div className="space-y-10">
+      <div>
+        <h1 className="mb-4 text-2xl font-bold">Burndown · {data.sprintName}</h1>
+        {rows.length === 0 ? (
+          <p className="text-slate-400">Dieser Sprint hat noch keine Burndown-Punkte.</p>
+        ) : (
+          <BurndownChart data={rows} />
+        )}
+      </div>
+      <div>
+        <h2 className="mb-4 text-xl font-bold">Bug-Burndown · Offene Bugs</h2>
+        {bugRows.length === 0 ? (
+          <p className="text-slate-400">Für diesen Sprint wurden noch keine Bug-Daten erfasst.</p>
+        ) : (
+          <BurndownChart data={bugRows} actualName="Offene Bugs" />
+        )}
+      </div>
     </div>
   );
 }
