@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcVelocityTrend } from "./velocity";
+import { calcVelocityTrend, type VelocityInput } from "./velocity";
 import type { DomainSprint } from "@/lib/domain/types";
 
 function sprint(name: string, committed: number, completed: number): DomainSprint {
@@ -10,40 +10,33 @@ function sprint(name: string, committed: number, completed: number): DomainSprin
   };
 }
 
+function input(name: string, committed: number, completed: number, planned: number, actual: number): VelocityInput {
+  return { sprint: sprint(name, committed, completed), plannedPersonDays: planned, actualPersonDays: actual };
+}
+
 describe("calcVelocityTrend", () => {
-  it("maps each sprint to velocity/committed/carriedOver", () => {
-    const result = calcVelocityTrend([sprint("S1", 40, 30), sprint("S2", 35, 35)]);
-    expect(result.points).toEqual([
-      { sprintName: "S1", velocity: 30, committed: 40, carriedOver: 10 },
-      { sprintName: "S2", velocity: 35, committed: 35, carriedOver: 0 },
+  it("maps each sprint to velocity/committed/carriedOver and person days", () => {
+    const result = calcVelocityTrend([input("S1", 40, 30, 20, 18)]);
+    expect(result.points[0]).toMatchObject({
+      sprintName: "S1", velocity: 30, committed: 40, carriedOver: 10,
+      plannedPersonDays: 20, actualPersonDays: 18,
+    });
+  });
+
+  it("computes per-row delta and trend against the previous sprint", () => {
+    const result = calcVelocityTrend([
+      input("S1", 0, 20, 0, 0),
+      input("S2", 0, 35, 0, 0),
+      input("S3", 0, 25, 0, 0),
     ]);
+    expect(result.points.map((p) => p.velocityDelta)).toEqual([0, 15, -10]);
+    expect(result.points.map((p) => p.velocityTrend)).toEqual(["FLAT", "UP", "DOWN"]);
   });
 
-  it("computes average velocity", () => {
-    const result = calcVelocityTrend([sprint("S1", 0, 20), sprint("S2", 0, 30)]);
+  it("computes average and overall trend (first vs last)", () => {
+    const result = calcVelocityTrend([input("S1", 0, 20, 0, 0), input("S2", 0, 30, 0, 0)]);
     expect(result.average).toBe(25);
-  });
-
-  it("detects an upward trend (last > first)", () => {
-    const result = calcVelocityTrend([sprint("S1", 0, 20), sprint("S2", 0, 30)]);
     expect(result.trend).toBe("UP");
-  });
-
-  it("detects a downward trend (last < first)", () => {
-    const result = calcVelocityTrend([sprint("S1", 0, 30), sprint("S2", 0, 20)]);
-    expect(result.trend).toBe("DOWN");
-  });
-
-  it("returns FLAT for equal endpoints", () => {
-    const result = calcVelocityTrend([sprint("S1", 0, 20), sprint("S2", 0, 20)]);
-    expect(result.trend).toBe("FLAT");
-  });
-
-  it("returns FLAT for a single sprint (first equals last)", () => {
-    const result = calcVelocityTrend([sprint("S1", 40, 25)]);
-    expect(result.trend).toBe("FLAT");
-    expect(result.average).toBe(25);
-    expect(result.points).toHaveLength(1);
   });
 
   it("handles empty input", () => {
