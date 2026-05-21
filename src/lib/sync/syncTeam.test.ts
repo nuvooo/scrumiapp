@@ -37,12 +37,14 @@ describe("syncTeam", () => {
       [{ jiraSprintId: "100", name: "Sprint 1", state: "ACTIVE",
          startDate: new Date("2026-05-18"), endDate: new Date("2026-05-22"), completeDate: null }],
       { "100": [
-        { jiraKey: "AB-1", summary: "AB-1", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
-        { jiraKey: "AB-2", summary: "AB-2", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-2", summary: "AB-2", issueType: "Story", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-3", summary: "AB-3", issueType: "Bug", storyPoints: 0, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-4", summary: "AB-4", issueType: "Bug", storyPoints: 0, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
       ] },
     );
 
-    await syncTeam(team.id, client);
+    await syncTeam(team.id, client, new Set(["bug"]));
 
     const sprints = await listSprintsForTeam(team.id);
     expect(sprints.length).toBe(1);
@@ -50,11 +52,12 @@ describe("syncTeam", () => {
     expect(sprints[0].completedPoints).toBe(5);
 
     const issues = await listIssuesForSprint(sprints[0].id);
-    expect(issues.length).toBe(2);
+    expect(issues.length).toBe(4);
 
     const burndown = await listBurndownForSprint(sprints[0].id);
     expect(burndown.length).toBe(1);
     expect(burndown[0].remainingPoints).toBe(3);
+    expect(burndown[0].remainingBugs).toBe(1);
 
     const refreshed = await prisma.team.findUnique({ where: { id: team.id } });
     expect(refreshed?.lastSyncedAt).not.toBeNull();

@@ -1,5 +1,6 @@
 import type { JiraClient } from "@/lib/jira/jiraClient";
-import { computeSprintPoints } from "@/lib/jira/mapper";
+import { getBugIssueTypes } from "@/lib/jira/jiraClient";
+import { computeSprintPoints, countOpenBugs } from "@/lib/jira/mapper";
 import { getTeam, updateTeamSyncStatus } from "@/lib/repositories/teamRepository";
 import { upsertSprint } from "@/lib/repositories/sprintRepository";
 import { replaceIssuesForSprint } from "@/lib/repositories/issueRepository";
@@ -10,7 +11,11 @@ import { recordBurndownPoint } from "@/lib/repositories/burndownRepository";
  * festgehalten, damit ein fehlschlagendes Team andere nicht blockiert. Manuelle
  * Kapazitätsdaten werden nie angefasst.
  */
-export async function syncTeam(teamId: string, client: JiraClient): Promise<void> {
+export async function syncTeam(
+  teamId: string,
+  client: JiraClient,
+  bugTypes: Set<string> = getBugIssueTypes(),
+): Promise<void> {
   const team = await getTeam(teamId);
   if (!team) return;
 
@@ -40,6 +45,7 @@ export async function syncTeam(teamId: string, client: JiraClient): Promise<void
           new Date(),
           Math.max(0, committedPoints - completedPoints),
           completedPoints,
+          countOpenBugs(issues, bugTypes),
         );
       }
     }
