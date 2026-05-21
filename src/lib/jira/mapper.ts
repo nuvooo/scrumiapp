@@ -54,3 +54,10 @@ export function computeSprintPoints(issues: DomainIssue[]): SprintPoints {
   }
   return { committedPoints, completedPoints };
 }
+
+/** Anzahl offener (nicht-DONE) Bugs. bugTypes ist ein Set lowercased Vorgangstyp-Namen. */
+export function countOpenBugs(issues: DomainIssue[], bugTypes: Set<string>): number {
+  return issues.filter(
+    (i) => bugTypes.has(i.issueType.toLowerCase()) && i.statusCategory !== "DONE",
+  ).length;
+}

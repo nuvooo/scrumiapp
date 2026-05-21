@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState } from "./mapper";
+import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState, countOpenBugs } from "./mapper";
 import type { JiraIssueRaw } from "./types";
 
 const FIELD = "customfield_10016";
@@ -81,5 +81,29 @@ describe("computeSprintPoints", () => {
 
   it("returns zeros for an empty sprint", () => {
     expect(computeSprintPoints([])).toEqual({ committedPoints: 0, completedPoints: 0 });
+  });
+});
+
+describe("countOpenBugs", () => {
+  const bugTypes = new Set(["bug", "fehler"]);
+  const issue = (type: string, cat: "new" | "indeterminate" | "done") =>
+    mapIssue(rawIssue(`X-${type}-${cat}`, 0, cat, null, type), FIELD);
+
+  it("counts only non-DONE issues whose type is a configured bug type", () => {
+    const issues = [
+      issue("Bug", "new"),          // open bug -> counts
+      issue("Fehler", "indeterminate"), // open bug -> counts
+      issue("Bug", "done"),         // resolved bug -> excluded
+      issue("Story", "new"),        // not a bug -> excluded
+    ];
+    expect(countOpenBugs(issues, bugTypes)).toBe(2);
+  });
+
+  it("matches bug types case-insensitively", () => {
+    expect(countOpenBugs([issue("BUG", "new")], bugTypes)).toBe(1);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(countOpenBugs([], bugTypes)).toBe(0);
   });
 });

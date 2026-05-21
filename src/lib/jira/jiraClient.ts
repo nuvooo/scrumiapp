@@ -98,3 +98,14 @@ export function jiraConfigFromEnv(): JiraConfig {
     storyPointsField: process.env.JIRA_STORY_POINTS_FIELD ?? "customfield_10016",
   };
 }
+
+/**
+ * Liest die als Bug geltenden Vorgangstypen aus JIRA_BUG_ISSUE_TYPES
+ * (kommagetrennt, case-insensitive). Default: "Bug", "Fehler".
+ */
+export function getBugIssueTypes(): Set<string> {
+  const raw = process.env.JIRA_BUG_ISSUE_TYPES;
+  const source = raw && raw.trim() ? raw.split(",") : ["Bug", "Fehler"];
+  const list = source.map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return new Set(list.length ? list : ["bug", "fehler"]);
+}
