@@ -87,11 +87,14 @@ model TeamMember {
 }
 
 model CapacityEntry {
-  id           String      @id @default(cuid())
-  sprint       Sprint      @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  sprintId     String
-  teamMember   TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
-  teamMemberId String?
-  name         String
-  personDays   Float
+  id                String      @id @default(cuid())
+  sprint            Sprint      @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId          String
+  teamMember        TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+  teamMemberId      String?
+  name              String
+  plannedPersonDays Float       @default(0)
+  actualPersonDays  Float       @default(0)
+
+  @@unique([sprintId, teamMemberId])
 }
