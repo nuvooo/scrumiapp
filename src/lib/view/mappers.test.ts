@@ -18,10 +18,10 @@ describe("toDomainSprint", () => {
 });
 
 describe("toDomainBurndownPoint", () => {
-  it("maps date and remaining/completed points", () => {
+  it("maps date, remaining/completed points and remaining bugs", () => {
     const date = new Date("2026-05-19");
-    const point = toDomainBurndownPoint({ id: "b1", sprintId: "s1", date, remainingPoints: 30, completedPoints: 10 });
-    expect(point).toEqual({ date, remainingPoints: 30, completedPoints: 10 });
+    const point = toDomainBurndownPoint({ id: "b1", sprintId: "s1", date, remainingPoints: 30, completedPoints: 10, remainingBugs: 4 });
+    expect(point).toEqual({ date, remainingPoints: 30, completedPoints: 10, remainingBugs: 4 });
   });
 });
 
