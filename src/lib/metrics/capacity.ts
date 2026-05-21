@@ -11,6 +11,7 @@ export function calcCapacityEfficiency(
   entries: DomainCapacityEntry[],
 ): CapacityResult {
   const totalPersonDays = entries.reduce((sum, e) => sum + e.personDays, 0);
+  // Effizienz = Durchsatz pro Personentag; daher bewusst completedPoints (nicht committedPoints).
   const efficiency = totalPersonDays === 0 ? 0 : sprint.completedPoints / totalPersonDays;
   return { totalPersonDays, efficiency };
 }

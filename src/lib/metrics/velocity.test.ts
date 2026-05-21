@@ -39,6 +39,13 @@ describe("calcVelocityTrend", () => {
     expect(result.trend).toBe("FLAT");
   });
 
+  it("returns FLAT for a single sprint (first equals last)", () => {
+    const result = calcVelocityTrend([sprint("S1", 40, 25)]);
+    expect(result.trend).toBe("FLAT");
+    expect(result.average).toBe(25);
+    expect(result.points).toHaveLength(1);
+  });
+
   it("handles empty input", () => {
     const result = calcVelocityTrend([]);
     expect(result.points).toEqual([]);

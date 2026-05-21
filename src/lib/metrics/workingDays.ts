@@ -1,4 +1,10 @@
-/** Liste der Arbeitstage (Mo–Fr) inklusive Start und Ende, normalisiert auf Mitternacht UTC. */
+/**
+ * Liste der Arbeitstage (Mo–Fr) inklusive Start und Ende, normalisiert auf Mitternacht UTC.
+ *
+ * Annahme: Die übergebenen Date-Objekte müssen so erzeugt sein, dass ihr UTC-Kalenderdatum
+ * dem gewünschten Tag entspricht. Daten, die aus Jira-Datetime-Strings geparst werden,
+ * erfüllen diese Bedingung bereits, da die Jira-API Datumswerte in UTC liefert.
+ */
 export function workingDaysBetween(start: Date, end: Date): Date[] {
   const days: Date[] = [];
   const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));

@@ -33,6 +33,9 @@ export function calcBurndown(
     ),
   }));
 
+  // Ist-Linie: In v1 wird nur remainingPoints geplottet. Das in DomainBurndownPoint
+  // enthaltene completedPoints wird zwar gespeichert/persistiert, aber hier bewusst
+  // nicht dargestellt.
   const actual: BurndownLinePoint[] = [...points]
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((p) => ({ date: p.date, remainingPoints: p.remainingPoints }));
