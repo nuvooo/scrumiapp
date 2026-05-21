@@ -28,7 +28,7 @@ export default async function DashboardPage({
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Velocity" value={formatPoints(data.velocity)} hint="erledigte Story Points" />
         <KpiCard label="Commitment" value={formatPoints(data.committed)} hint={`${formatPoints(data.carriedOver)} mitgenommen`} />
-        <KpiCard label="Kapazität" value={`${formatPoints(data.totalPersonDays)} PT`} hint="Personentage" />
+        <KpiCard label="Kapazität" value={`${formatPoints(data.totalActual)} PT`} hint={`Ist · Soll ${formatPoints(data.totalPlanned)} PT`} />
         <KpiCard label="Effizienz" value={formatPoints(data.efficiency)} hint="SP pro Personentag" />
       </div>
     </div>
