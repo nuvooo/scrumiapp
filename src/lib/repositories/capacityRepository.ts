@@ -7,7 +7,8 @@ export interface CapacityEntryInput {
   teamMemberId?: string | null;
 }
 
-export function setCapacityEntry(
+// Fügt einen neuen Kapazitätseintrag hinzu (append, kein Überschreiben)
+export function addCapacityEntry(
   sprintId: string,
   input: CapacityEntryInput,
 ): Promise<CapacityEntry> {

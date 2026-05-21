@@ -32,6 +32,6 @@ export function upsertSprint(teamId: string, input: UpsertSprintInput): Promise<
 export function listSprintsForTeam(teamId: string): Promise<Sprint[]> {
   return prisma.sprint.findMany({
     where: { teamId },
-    orderBy: { startDate: "asc" },
+    orderBy: { startDate: { sort: "asc", nulls: "last" } },
   });
 }

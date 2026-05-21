@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { createTeam } from "./teamRepository";
 import { upsertSprint } from "./sprintRepository";
-import { setCapacityEntry, listCapacityForSprint } from "./capacityRepository";
+import { addCapacityEntry, listCapacityForSprint } from "./capacityRepository";
 
 const teams: string[] = [];
 
@@ -27,8 +27,8 @@ async function makeSprint() {
 describe("capacityRepository", () => {
   it("adds capacity entries for a sprint", async () => {
     const sprintId = await makeSprint();
-    await setCapacityEntry(sprintId, { name: "Alice", personDays: 8 });
-    await setCapacityEntry(sprintId, { name: "Bob", personDays: 6 });
+    await addCapacityEntry(sprintId, { name: "Alice", personDays: 8 });
+    await addCapacityEntry(sprintId, { name: "Bob", personDays: 6 });
 
     const entries = await listCapacityForSprint(sprintId);
     expect(entries.length).toBe(2);
