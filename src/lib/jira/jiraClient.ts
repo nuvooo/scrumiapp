@@ -50,6 +50,7 @@ export class JiraCloudClient implements JiraClient {
     const sprints: MappedSprint[] = [];
     let startAt = 0;
     for (;;) {
+      // v1 lädt bewusst nur `active` und `closed` Sprints – FUTURE-Sprints werden in den Auswertungen nicht benötigt.
       const page = await this.getJson<JiraSprintPage>(
         `/rest/agile/1.0/board/${boardId}/sprint?state=active%2Cclosed&startAt=${startAt}&maxResults=50`,
       );
@@ -80,8 +81,9 @@ export class JiraCloudClient implements JiraClient {
       for (const raw of page.issues) {
         issues.push(mapIssue(raw, this.config.storyPointsField));
       }
+      if (page.issues.length === 0) break;
       startAt += page.issues.length;
-      if (startAt >= page.total || page.issues.length === 0) break;
+      if (startAt >= page.total) break;
     }
     return issues;
   }

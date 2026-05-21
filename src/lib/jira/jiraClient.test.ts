@@ -55,6 +55,16 @@ describe("JiraCloudClient.fetchBoardSprints", () => {
 
     await expect(client.fetchBoardSprints("42")).rejects.toThrow(/401/);
   });
+
+  it("returns an empty array for an empty board (single page, isLast true)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ values: [], isLast: true }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.fetchBoardSprints("42");
+
+    expect(result).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("JiraCloudClient.fetchSprintIssues", () => {

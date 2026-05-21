@@ -19,6 +19,7 @@ export function mapSprintState(state: string): SprintState {
     case "closed":
       return "CLOSED";
     default:
+      // "future" und unbekannte Zustände werden bewusst auf FUTURE abgebildet.
       return "FUTURE";
   }
 }

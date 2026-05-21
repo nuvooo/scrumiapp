@@ -9,7 +9,7 @@ export interface JiraSprintRaw {
 
 export interface JiraSprintPage {
   values: JiraSprintRaw[];
-  isLast: boolean;
+  isLast?: boolean;
 }
 
 export interface JiraStatusCategory {
