@@ -5,16 +5,25 @@ Burndown, Velocity-Trend und Kapazität/Effizienz — mit Jira-Cloud-Sync.
 
 ## Schnellstart (Self-Hosting)
 
-1. `.env` anlegen (siehe `.env.example`) und `JIRA_BASE_URL`, `JIRA_EMAIL`,
-   `JIRA_API_TOKEN` setzen.
-2. Postgres starten: `docker compose up -d postgres`
-3. Migration: `npx prisma migrate deploy`
-4. Build & Start: `npm run build && npm start`
-5. Im Browser: `http://localhost:3000` → unter **Teams / Jira** ein Team mit
+Voraussetzung: Docker + Docker Compose.
+
+1. `.env` anlegen (siehe `.env.example`) und die `JIRA_*`-Variablen setzen
+   (für den ersten Start optional — Teams lassen sich auch ohne Sync anlegen).
+2. Alles starten: `docker compose up -d`
+   — startet Postgres **und** Scrumi; die Datenbank-Migrationen laufen beim
+   Start des Scrumi-Containers automatisch (`prisma migrate deploy`).
+3. Im Browser: `http://localhost:3000` → unter **Teams / Jira** ein Team mit
    Jira-Board-ID anlegen.
 
 Der Sync läuft automatisch im Intervall `SYNC_DEFAULT_INTERVAL` (Minuten) und
 kann jederzeit über **🔄 Jetzt synchronisieren** ausgelöst werden.
+
+### Ohne Docker (lokal)
+
+1. Postgres bereitstellen und `DATABASE_URL` in `.env` setzen.
+2. `npm ci`
+3. `npx prisma migrate deploy`
+4. `npm run build && npm start`
 
 ## Hinweise
 - Kein eingebautes Login — für den Betrieb im geschützten internen Netz gedacht

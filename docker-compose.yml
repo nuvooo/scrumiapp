@@ -11,5 +11,20 @@ services:
     volumes:
       - scrumi_pgdata:/var/lib/postgresql/data
 
+  scrumi:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "postgresql://scrumi:scrumi@postgres:5432/scrumi?schema=public"
+      JIRA_BASE_URL: "${JIRA_BASE_URL:-}"
+      JIRA_EMAIL: "${JIRA_EMAIL:-}"
+      JIRA_API_TOKEN: "${JIRA_API_TOKEN:-}"
+      JIRA_STORY_POINTS_FIELD: "${JIRA_STORY_POINTS_FIELD:-customfield_10016}"
+      SYNC_DEFAULT_INTERVAL: "${SYNC_DEFAULT_INTERVAL:-60}"
+
 volumes:
   scrumi_pgdata:
