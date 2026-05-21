@@ -10,12 +10,12 @@ export function VelocityTable({ points }: { points: VelocityPoint[] }) {
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
-          <th className="py-2 pr-4">Sprint</th>
-          <th className="py-2 pr-4 text-right">Commitment (SP)</th>
-          <th className="py-2 pr-4 text-right">PT Soll</th>
-          <th className="py-2 pr-4 text-right">PT Ist</th>
-          <th className="py-2 pr-4 text-right">Velocity (SP)</th>
-          <th className="py-2 pr-4 text-right">Δ Vorsprint</th>
+          <th scope="col" className="py-2 pr-4">Sprint</th>
+          <th scope="col" className="py-2 pr-4 text-right">Commitment (SP)</th>
+          <th scope="col" className="py-2 pr-4 text-right">PT Soll</th>
+          <th scope="col" className="py-2 pr-4 text-right">PT Ist</th>
+          <th scope="col" className="py-2 pr-4 text-right">Velocity (SP)</th>
+          <th scope="col" className="py-2 pr-4 text-right">Δ Vorsprint</th>
         </tr>
       </thead>
       <tbody>
