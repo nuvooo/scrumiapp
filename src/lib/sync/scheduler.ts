@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { syncAllTeams } from "./syncAll";
 
 let started = false;
+let running = false;
 
 /**
  * Startet den Intervall-Sync. Das Intervall (Minuten) kommt aus SYNC_DEFAULT_INTERVAL.
@@ -14,8 +15,16 @@ export function startScheduler(): void {
   const minutes = Number(process.env.SYNC_DEFAULT_INTERVAL ?? "60");
   const expression = `*/${Math.max(1, minutes)} * * * *`;
 
-  cron.schedule(expression, () => {
-    syncAllTeams().catch((err) => console.error("[scrumi] sync run failed:", err));
+  cron.schedule(expression, async () => {
+    if (running) return;
+    running = true;
+    try {
+      await syncAllTeams();
+    } catch (err) {
+      console.error("[scrumi] sync run failed:", err);
+    } finally {
+      running = false;
+    }
   });
 
   console.log(`[scrumi] sync scheduler started (every ${minutes} min)`);

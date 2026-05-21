@@ -47,6 +47,7 @@ export async function syncTeam(teamId: string, client: JiraClient): Promise<void
     await updateTeamSyncStatus(teamId, { lastSyncedAt: new Date(), lastSyncError: null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error(`[scrumi] syncTeam failed for ${teamId}:`, message);
     await updateTeamSyncStatus(teamId, { lastSyncError: message });
   }
 }
