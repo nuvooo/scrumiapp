@@ -74,6 +74,7 @@ model BurndownPoint {
   remainingPoints Float
   completedPoints Float
   remainingBugs   Int      @default(0)
+  remainingTickets Int      @default(0)
 
   @@unique([sprintId, date])
 }
