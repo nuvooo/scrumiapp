@@ -1,7 +1,7 @@
 import { BurndownChart, type BurndownRow } from "@/components/charts/BurndownChart";
 import { loadTeams, loadSprints, loadBurndown } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, roundTo1 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,12 @@ export default async function BurndownPage({
   const byLabel = new Map<string, BurndownRow>();
   for (const p of data.ideal) {
     const label = formatDateShort(p.date);
-    byLabel.set(label, { label, ideal: round(p.remainingPoints), actual: null });
+    byLabel.set(label, { label, ideal: roundTo1(p.remainingPoints), actual: null });
   }
   for (const p of data.actual) {
     const label = formatDateShort(p.date);
     const row = byLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = round(p.remainingPoints);
+    row.actual = roundTo1(p.remainingPoints);
     byLabel.set(label, row);
   }
   const rows = [...byLabel.values()];
@@ -45,8 +45,4 @@ export default async function BurndownPage({
       )}
     </div>
   );
-}
-
-function round(n: number): number {
-  return Math.round(n * 10) / 10;
 }

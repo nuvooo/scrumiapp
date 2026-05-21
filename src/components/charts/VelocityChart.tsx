@@ -1,6 +1,7 @@
 "use client";
 
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { roundTo1 } from "@/lib/format";
 
 export interface VelocityRow {
   sprintName: string;
@@ -10,7 +11,7 @@ export interface VelocityRow {
 }
 
 export function VelocityChart({ data, average }: { data: VelocityRow[]; average: number }) {
-  const withAvg = data.map((d) => ({ ...d, average: round(average) }));
+  const withAvg = data.map((d) => ({ ...d, average: roundTo1(average) }));
   return (
     <ResponsiveContainer width="100%" height={360}>
       <ComposedChart data={withAvg} margin={{ top: 16, right: 24, bottom: 8, left: 0 }}>
@@ -25,8 +26,4 @@ export function VelocityChart({ data, average }: { data: VelocityRow[]; average:
       </ComposedChart>
     </ResponsiveContainer>
   );
-}
-
-function round(n: number): number {
-  return Math.round(n * 10) / 10;
 }

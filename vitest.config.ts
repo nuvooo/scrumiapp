@@ -16,11 +16,14 @@ export default defineConfig({
       },
       {
         extends: true,
+        esbuild: { jsx: "automatic" },
         test: {
           name: "dom",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
           setupFiles: ["./vitest.setup.ts"],
+          // Node 22 flag to allow require() of ESM modules (needed for jsdom 27 CSS deps)
+          execArgv: ["--experimental-require-module"],
         },
       },
     ],

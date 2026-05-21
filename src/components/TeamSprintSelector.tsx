@@ -24,6 +24,7 @@ export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprint
   return (
     <div className="flex items-center gap-3">
       <select
+        aria-label="Team"
         className={selectClass}
         value={params.get("team") ?? ""}
         onChange={(e) => update("team", e.target.value)}
@@ -34,6 +35,7 @@ export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprint
         ))}
       </select>
       <select
+        aria-label="Sprint"
         className={selectClass}
         value={params.get("sprint") ?? ""}
         onChange={(e) => update("sprint", e.target.value)}

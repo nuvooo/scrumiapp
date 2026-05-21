@@ -25,6 +25,7 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={href}
+            aria-current={active ? "page" : undefined}
             className={`rounded px-3 py-2 text-sm ${active ? "bg-slate-700 font-semibold" : "hover:bg-slate-800"}`}
           >
             {item.label}

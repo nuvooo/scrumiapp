@@ -13,3 +13,8 @@ export function formatDateShort(date: Date): string {
 export function trendSymbol(trend: TrendDirection): string {
   return trend === "UP" ? "▲" : trend === "DOWN" ? "▼" : "▬";
 }
+
+/** Rundet auf eine Nachkommastelle. */
+export function roundTo1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
