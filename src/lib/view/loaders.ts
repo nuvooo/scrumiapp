@@ -54,10 +54,23 @@ export async function loadBurndown(sprintId: string) {
 }
 
 export async function loadVelocity(teamId: string) {
-  const sprints = (await listSprintsForTeam(teamId))
-    .filter((s) => s.state !== "FUTURE")
-    .map(toDomainSprint);
-  return calcVelocityTrend(sprints);
+  const sprints = (await listSprintsForTeam(teamId)).filter((s) => s.state !== "FUTURE");
+  const caps = await listCapacityForSprints(sprints.map((s) => s.id));
+
+  const plannedBySprint = new Map<string, number>();
+  const actualBySprint = new Map<string, number>();
+  for (const c of caps) {
+    plannedBySprint.set(c.sprintId, (plannedBySprint.get(c.sprintId) ?? 0) + c.plannedPersonDays);
+    actualBySprint.set(c.sprintId, (actualBySprint.get(c.sprintId) ?? 0) + c.actualPersonDays);
+  }
+
+  const inputs = sprints.map((s) => ({
+    sprint: toDomainSprint(s),
+    plannedPersonDays: plannedBySprint.get(s.id) ?? 0,
+    actualPersonDays: actualBySprint.get(s.id) ?? 0,
+  }));
+
+  return calcVelocityTrend(inputs);
 }
 
 export async function loadCapacity(sprintId: string) {
