@@ -11,24 +11,26 @@ function sprint(completed: number): DomainSprint {
 }
 
 const entries: DomainCapacityEntry[] = [
-  { name: "Alice", personDays: 8 },
-  { name: "Bob", personDays: 8 },
+  { teamMemberId: "a", name: "Alice", plannedPersonDays: 8, actualPersonDays: 6 },
+  { teamMemberId: "b", name: "Bob", plannedPersonDays: 8, actualPersonDays: 8 },
 ];
 
 describe("calcCapacityEfficiency", () => {
-  it("sums person days", () => {
-    const result = calcCapacityEfficiency(sprint(32), entries);
-    expect(result.totalPersonDays).toBe(16);
+  it("sums planned and actual person days separately", () => {
+    const result = calcCapacityEfficiency(sprint(28), entries);
+    expect(result.totalPlanned).toBe(16);
+    expect(result.totalActual).toBe(14);
   });
 
-  it("computes story points per person day", () => {
-    const result = calcCapacityEfficiency(sprint(32), entries);
+  it("computes efficiency on the actual (Ist) person days", () => {
+    const result = calcCapacityEfficiency(sprint(28), entries);
     expect(result.efficiency).toBe(2);
   });
 
-  it("returns 0 efficiency when there is no capacity (no divide-by-zero)", () => {
-    const result = calcCapacityEfficiency(sprint(32), []);
-    expect(result.totalPersonDays).toBe(0);
+  it("returns 0 efficiency when there is no actual capacity (no divide-by-zero)", () => {
+    const result = calcCapacityEfficiency(sprint(28), []);
+    expect(result.totalPlanned).toBe(0);
+    expect(result.totalActual).toBe(0);
     expect(result.efficiency).toBe(0);
   });
 });

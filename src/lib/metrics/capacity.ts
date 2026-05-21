@@ -1,17 +1,19 @@
 import type { DomainSprint, DomainCapacityEntry } from "@/lib/domain/types";
 
 export interface CapacityResult {
-  totalPersonDays: number;
-  efficiency: number; // Story Points pro Personentag
+  totalPlanned: number; // Soll-Personentage
+  totalActual: number; // Ist-Personentage
+  efficiency: number; // Story Points pro Ist-Personentag
 }
 
-/** Gesamtkapazität (Summe Personentage) und Effizienz (completedPoints / Personentage). */
+/** Soll-/Ist-Summen und Effizienz (completedPoints / Ist-Personentage). */
 export function calcCapacityEfficiency(
   sprint: DomainSprint,
   entries: DomainCapacityEntry[],
 ): CapacityResult {
-  const totalPersonDays = entries.reduce((sum, e) => sum + e.personDays, 0);
-  // Effizienz = Durchsatz pro Personentag; daher bewusst completedPoints (nicht committedPoints).
-  const efficiency = totalPersonDays === 0 ? 0 : sprint.completedPoints / totalPersonDays;
-  return { totalPersonDays, efficiency };
+  const totalPlanned = entries.reduce((sum, e) => sum + e.plannedPersonDays, 0);
+  const totalActual = entries.reduce((sum, e) => sum + e.actualPersonDays, 0);
+  // Effizienz = Durchsatz pro tatsächlich verfügbarem Personentag (Ist).
+  const efficiency = totalActual === 0 ? 0 : sprint.completedPoints / totalActual;
+  return { totalPlanned, totalActual, efficiency };
 }
