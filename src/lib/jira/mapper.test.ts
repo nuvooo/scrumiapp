@@ -64,7 +64,7 @@ describe("mapIssue", () => {
 
   it("falls back to empty string when issue type is missing", () => {
     const raw = rawIssue("AB-10", 0, "new", null);
-    delete (raw.fields as { issuetype?: unknown }).issuetype;
+    delete raw.fields.issuetype;
     expect(mapIssue(raw, FIELD).issueType).toBe("");
   });
 });

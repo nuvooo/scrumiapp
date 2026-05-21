@@ -73,8 +73,8 @@ export class JiraCloudClient implements JiraClient {
   async fetchSprintIssues(sprintId: string): Promise<DomainIssue[]> {
     const issues: DomainIssue[] = [];
     let startAt = 0;
+    const fields = ["summary", "resolutiondate", "status", "issuetype", this.config.storyPointsField].join(",");
     for (;;) {
-      const fields = ["summary", "resolutiondate", "status", "issuetype", this.config.storyPointsField].join(",");
       const page = await this.getJson<JiraIssuePage>(
         `/rest/agile/1.0/sprint/${sprintId}/issue?startAt=${startAt}&maxResults=50&fields=${fields}`,
       );
