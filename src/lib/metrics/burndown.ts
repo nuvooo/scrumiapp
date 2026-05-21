@@ -42,3 +42,44 @@ export function calcBurndown(
 
   return { ideal, actual };
 }
+
+export interface BugBurndownLinePoint {
+  date: Date;
+  remainingBugs: number;
+}
+
+export interface BugBurndown {
+  ideal: BugBurndownLinePoint[];
+  actual: BugBurndownLinePoint[];
+}
+
+/**
+ * Bug-Burndown: Ist-Linie aus den gespeicherten remainingBugs (nach Datum sortiert)
+ * und eine lineare Ideallinie vom Bug-Stand des ersten Snapshots auf 0 über die
+ * Arbeitstage. Ohne Sprint-Daten oder ohne Snapshots: leere Linien.
+ */
+export function calcBugBurndown(
+  sprint: DomainSprint,
+  points: DomainBurndownPoint[],
+): BugBurndown {
+  if (!sprint.startDate || !sprint.endDate || points.length === 0) {
+    return { ideal: [], actual: [] };
+  }
+
+  const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const startBugs = sorted[0].remainingBugs;
+
+  const days = workingDaysBetween(sprint.startDate, sprint.endDate);
+  const steps = days.length <= 1 ? 1 : days.length - 1;
+  const ideal: BugBurndownLinePoint[] = days.map((date, i) => ({
+    date,
+    remainingBugs: Math.max(0, days.length === 1 ? 0 : startBugs * (1 - i / steps)),
+  }));
+
+  const actual: BugBurndownLinePoint[] = sorted.map((p) => ({
+    date: p.date,
+    remainingBugs: p.remainingBugs,
+  }));
+
+  return { ideal, actual };
+}
