@@ -56,6 +56,7 @@ model Issue {
   sprintId             String
   jiraKey              String
   summary              String
+  issueType            String         @default("")
   storyPoints          Float          @default(0)
   status               String
   statusCategory       StatusCategory
@@ -72,6 +73,7 @@ model BurndownPoint {
   date            DateTime
   remainingPoints Float
   completedPoints Float
+  remainingBugs   Int      @default(0)
 
   @@unique([sprintId, date])
 }
