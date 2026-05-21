@@ -4,7 +4,7 @@ import { listBurndownForSprint } from "@/lib/repositories/burndownRepository";
 import { listCapacityForSprint } from "@/lib/repositories/capacityRepository";
 import { prisma } from "@/lib/db";
 import { toDomainSprint, toDomainBurndownPoint, toDomainCapacityEntry } from "./mappers";
-import { calcBurndown } from "@/lib/metrics/burndown";
+import { calcBurndown, calcBugBurndown } from "@/lib/metrics/burndown";
 import { calcVelocityTrend } from "@/lib/metrics/velocity";
 import { calcCapacityEfficiency } from "@/lib/metrics/capacity";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
@@ -40,9 +40,11 @@ export async function loadDashboard(sprintId: string) {
 export async function loadBurndown(sprintId: string) {
   const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
   if (!sprint) return null;
+  const domain = toDomainSprint(sprint);
   const points = (await listBurndownForSprint(sprintId)).map(toDomainBurndownPoint);
-  const burndown = calcBurndown(toDomainSprint(sprint), points);
-  return { sprintName: sprint.name, ...burndown };
+  const burndown = calcBurndown(domain, points);
+  const bugBurndown = calcBugBurndown(domain, points);
+  return { sprintName: sprint.name, ...burndown, bugBurndown };
 }
 
 export async function loadVelocity(teamId: string) {
