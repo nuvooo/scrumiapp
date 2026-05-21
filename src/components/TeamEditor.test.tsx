@@ -15,6 +15,7 @@ describe("TeamEditor", () => {
     );
     expect((screen.getByLabelText("Teamname") as HTMLInputElement).value).toBe("Alpha");
     expect((screen.getByLabelText("Jira Board-ID") as HTMLInputElement).value).toBe("42");
+    expect((screen.getByLabelText("Sync-Intervall (min)") as HTMLInputElement).value).toBe("30");
     const hidden = container.querySelector('input[name="id"]') as HTMLInputElement;
     expect(hidden.value).toBe("t1");
   });

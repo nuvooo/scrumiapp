@@ -17,7 +17,7 @@ export function TeamMembers({ teamId, members }: TeamMembersProps) {
           <li key={m.id} className="flex items-center gap-2">
             <form action={editMember} className="flex items-center gap-2">
               <input type="hidden" name="id" value={m.id} />
-              <input name="name" defaultValue={m.name} className="rounded bg-slate-800 px-2 py-1 text-sm text-slate-100" />
+              <input name="name" defaultValue={m.name} aria-label={`Name von ${m.name}`} className="rounded bg-slate-800 px-2 py-1 text-sm text-slate-100" />
               <button type="submit" className="text-xs text-slate-400 hover:text-emerald-400">Umbenennen</button>
             </form>
             <form action={deleteMember}>
