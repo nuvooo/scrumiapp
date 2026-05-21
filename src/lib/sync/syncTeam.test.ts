@@ -58,6 +58,7 @@ describe("syncTeam", () => {
     expect(burndown.length).toBe(1);
     expect(burndown[0].remainingPoints).toBe(3);
     expect(burndown[0].remainingBugs).toBe(1);
+    expect(burndown[0].remainingTickets).toBe(2);
 
     const refreshed = await prisma.team.findUnique({ where: { id: team.id } });
     expect(refreshed?.lastSyncedAt).not.toBeNull();

@@ -1,6 +1,6 @@
 import type { JiraClient } from "@/lib/jira/jiraClient";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
-import { computeSprintPoints, countOpenBugs } from "@/lib/jira/mapper";
+import { computeSprintPoints, countOpenBugs, countOpenTickets } from "@/lib/jira/mapper";
 import { getTeam, updateTeamSyncStatus } from "@/lib/repositories/teamRepository";
 import { upsertSprint } from "@/lib/repositories/sprintRepository";
 import { replaceIssuesForSprint } from "@/lib/repositories/issueRepository";
@@ -46,6 +46,7 @@ export async function syncTeam(
           Math.max(0, committedPoints - completedPoints),
           completedPoints,
           countOpenBugs(issues, bugTypes),
+          countOpenTickets(issues),
         );
       }
     }
