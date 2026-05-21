@@ -29,12 +29,13 @@ describe("burndownRepository", () => {
     const sprintId = await makeSprint();
     const day = new Date("2026-05-20T00:00:00.000Z");
 
-    await recordBurndownPoint(sprintId, day, 30, 10);
-    await recordBurndownPoint(sprintId, day, 25, 15);
+    await recordBurndownPoint(sprintId, day, 30, 10, 4);
+    await recordBurndownPoint(sprintId, day, 25, 15, 2);
 
     const points = await listBurndownForSprint(sprintId);
     expect(points.length).toBe(1);
     expect(points[0].remainingPoints).toBe(25);
     expect(points[0].completedPoints).toBe(15);
+    expect(points[0].remainingBugs).toBe(2);
   });
 });

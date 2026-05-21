@@ -11,12 +11,13 @@ export function recordBurndownPoint(
   date: Date,
   remainingPoints: number,
   completedPoints: number,
+  remainingBugs: number,
 ): Promise<BurndownPoint> {
   const day = atMidnightUtc(date);
   return prisma.burndownPoint.upsert({
     where: { sprintId_date: { sprintId, date: day } },
-    create: { sprintId, date: day, remainingPoints, completedPoints },
-    update: { remainingPoints, completedPoints },
+    create: { sprintId, date: day, remainingPoints, completedPoints, remainingBugs },
+    update: { remainingPoints, completedPoints, remainingBugs },
   });
 }
 
