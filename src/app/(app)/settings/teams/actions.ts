@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createTeam } from "@/lib/repositories/teamRepository";
+import { createTeam, updateTeam, deleteTeam } from "@/lib/repositories/teamRepository";
+import { addMember, renameMember, removeMember } from "@/lib/repositories/teamMemberRepository";
 
 export async function addTeam(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -14,5 +15,50 @@ export async function addTeam(formData: FormData) {
     jiraBoardId,
     syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) ? syncIntervalMinutes : 60,
   });
+  revalidatePath("/settings/teams");
+}
+
+export async function editTeam(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const jiraBoardId = String(formData.get("jiraBoardId") ?? "").trim();
+  const syncIntervalMinutes = Number(formData.get("syncIntervalMinutes") ?? "60");
+  if (!id || !name || !jiraBoardId) return;
+
+  await updateTeam(id, {
+    name,
+    jiraBoardId,
+    syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) ? syncIntervalMinutes : 60,
+  });
+  revalidatePath("/settings/teams");
+}
+
+export async function removeTeam(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  await deleteTeam(id);
+  revalidatePath("/settings/teams");
+}
+
+export async function createMember(formData: FormData) {
+  const teamId = String(formData.get("teamId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!teamId || !name) return;
+  await addMember(teamId, name);
+  revalidatePath("/settings/teams");
+}
+
+export async function editMember(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id || !name) return;
+  await renameMember(id, name);
+  revalidatePath("/settings/teams");
+}
+
+export async function deleteMember(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  await removeMember(id);
   revalidatePath("/settings/teams");
 }

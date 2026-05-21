@@ -1,4 +1,4 @@
-import { listTeams, getTeam } from "@/lib/repositories/teamRepository";
+import { listTeams, getTeam, listTeamsWithMembers } from "@/lib/repositories/teamRepository";
 import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
 import { listBurndownForSprint } from "@/lib/repositories/burndownRepository";
 import { listCapacityForSprint } from "@/lib/repositories/capacityRepository";
@@ -19,6 +19,10 @@ export async function loadSprints(teamId: string) {
 
 export async function loadTeamWithSyncStatus(teamId: string) {
   return getTeam(teamId);
+}
+
+export async function loadTeamsWithMembers() {
+  return listTeamsWithMembers();
 }
 
 export async function loadDashboard(sprintId: string) {
