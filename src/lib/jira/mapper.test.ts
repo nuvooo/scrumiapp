@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState, countOpenBugs } from "./mapper";
+import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState, countOpenBugs, countOpenTickets } from "./mapper";
 import type { JiraIssueRaw } from "./types";
 
 const FIELD = "customfield_10016";
@@ -105,5 +105,21 @@ describe("countOpenBugs", () => {
 
   it("returns 0 for an empty list", () => {
     expect(countOpenBugs([], bugTypes)).toBe(0);
+  });
+});
+
+describe("countOpenTickets", () => {
+  it("counts all non-done issues including sub-tasks", () => {
+    const issues = [
+      mapIssue(rawIssue("A-1", 5, "done", null, "Story"), FIELD),
+      mapIssue(rawIssue("A-2", 3, "indeterminate", null, "Story"), FIELD),
+      mapIssue(rawIssue("A-3", 0, "new", null, "Sub-task"), FIELD),
+      mapIssue(rawIssue("A-4", 0, "new", null, "Bug"), FIELD),
+    ];
+    expect(countOpenTickets(issues)).toBe(3);
+  });
+
+  it("returns 0 when everything is done", () => {
+    expect(countOpenTickets([mapIssue(rawIssue("A-1", 5, "done", null), FIELD)])).toBe(0);
   });
 });

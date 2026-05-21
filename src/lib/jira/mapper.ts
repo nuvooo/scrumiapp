@@ -61,3 +61,8 @@ export function countOpenBugs(issues: DomainIssue[], bugTypes: Set<string>): num
     (i) => bugTypes.has(i.issueType.toLowerCase()) && i.statusCategory !== "DONE",
   ).length;
 }
+
+/** Anzahl offener (nicht-DONE) Vorgänge — alle Typen, inkl. Sub-Tasks. */
+export function countOpenTickets(issues: DomainIssue[]): number {
+  return issues.filter((i) => i.statusCategory !== "DONE").length;
+}
