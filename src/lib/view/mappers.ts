@@ -19,5 +19,10 @@ export function toDomainBurndownPoint(p: BurndownPoint): DomainBurndownPoint {
 }
 
 export function toDomainCapacityEntry(c: CapacityEntry): DomainCapacityEntry {
-  return { name: c.name, personDays: c.personDays };
+  return {
+    teamMemberId: c.teamMemberId,
+    name: c.name,
+    plannedPersonDays: c.plannedPersonDays,
+    actualPersonDays: c.actualPersonDays,
+  };
 }

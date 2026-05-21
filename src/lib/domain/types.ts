@@ -32,6 +32,8 @@ export interface DomainBurndownPoint {
 }
 
 export interface DomainCapacityEntry {
+  teamMemberId: string | null;
   name: string;
-  personDays: number;
+  plannedPersonDays: number;
+  actualPersonDays: number;
 }
