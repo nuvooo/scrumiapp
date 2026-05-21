@@ -58,6 +58,7 @@ describe("teamRepository", () => {
 
   it("deletes a team", async () => {
     const team = await createTeam({ name: "Doomed", jiraBoardId: "5" });
+    created.push(team.id);
     await deleteTeam(team.id);
     const fetched = await getTeam(team.id);
     expect(fetched).toBeNull();

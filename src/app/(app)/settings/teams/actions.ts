@@ -13,7 +13,7 @@ export async function addTeam(formData: FormData) {
   await createTeam({
     name,
     jiraBoardId,
-    syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) ? syncIntervalMinutes : 60,
+    syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) && syncIntervalMinutes > 0 ? syncIntervalMinutes : 60,
   });
   revalidatePath("/settings/teams");
 }
@@ -28,7 +28,7 @@ export async function editTeam(formData: FormData) {
   await updateTeam(id, {
     name,
     jiraBoardId,
-    syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) ? syncIntervalMinutes : 60,
+    syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) && syncIntervalMinutes > 0 ? syncIntervalMinutes : 60,
   });
   revalidatePath("/settings/teams");
 }
