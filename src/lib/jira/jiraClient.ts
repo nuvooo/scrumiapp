@@ -74,7 +74,7 @@ export class JiraCloudClient implements JiraClient {
     const issues: DomainIssue[] = [];
     let startAt = 0;
     for (;;) {
-      const fields = ["summary", "resolutiondate", "status", this.config.storyPointsField].join(",");
+      const fields = ["summary", "resolutiondate", "status", "issuetype", this.config.storyPointsField].join(",");
       const page = await this.getJson<JiraIssuePage>(
         `/rest/agile/1.0/sprint/${sprintId}/issue?startAt=${startAt}&maxResults=50&fields=${fields}`,
       );

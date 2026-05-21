@@ -5,6 +5,7 @@ export type TrendDirection = "UP" | "DOWN" | "FLAT";
 export interface DomainIssue {
   jiraKey: string;
   summary: string;
+  issueType: string;
   storyPoints: number;
   status: string;
   statusCategory: StatusCategory;

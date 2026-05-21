@@ -4,13 +4,20 @@ import type { JiraIssueRaw } from "./types";
 
 const FIELD = "customfield_10016";
 
-function rawIssue(key: string, points: number | null, catKey: "new" | "indeterminate" | "done", resolved: string | null): JiraIssueRaw {
+function rawIssue(
+  key: string,
+  points: number | null,
+  catKey: "new" | "indeterminate" | "done",
+  resolved: string | null,
+  issueTypeName = "Story",
+): JiraIssueRaw {
   return {
     key,
     fields: {
       summary: `Issue ${key}`,
       resolutiondate: resolved,
       status: { name: catKey, statusCategory: { key: catKey } },
+      issuetype: { name: issueTypeName },
       [FIELD]: points,
     },
   };
@@ -48,6 +55,17 @@ describe("mapIssue", () => {
     const issue = mapIssue(rawIssue("AB-2", null, "new", null), FIELD);
     expect(issue.storyPoints).toBe(0);
     expect(issue.resolvedAt).toBeNull();
+  });
+
+  it("captures the Jira issue type name", () => {
+    const issue = mapIssue(rawIssue("AB-9", 0, "new", null, "Bug"), FIELD);
+    expect(issue.issueType).toBe("Bug");
+  });
+
+  it("falls back to empty string when issue type is missing", () => {
+    const raw = rawIssue("AB-10", 0, "new", null);
+    delete (raw.fields as { issuetype?: unknown }).issuetype;
+    expect(mapIssue(raw, FIELD).issueType).toBe("");
   });
 });
 

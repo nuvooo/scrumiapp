@@ -17,6 +17,7 @@ export async function replaceIssuesForSprint(
         sprintId,
         jiraKey: i.jiraKey,
         summary: i.summary,
+        issueType: i.issueType,
         storyPoints: i.storyPoints,
         status: i.status,
         statusCategory: i.statusCategory,

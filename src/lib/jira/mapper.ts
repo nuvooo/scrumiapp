@@ -30,6 +30,7 @@ export function mapIssue(raw: JiraIssueRaw, storyPointsField: string): DomainIss
   return {
     jiraKey: raw.key,
     summary: raw.fields.summary,
+    issueType: raw.fields.issuetype?.name ?? "",
     storyPoints,
     status: raw.fields.status.name,
     statusCategory: mapStatusCategory(raw.fields.status.statusCategory.key),
