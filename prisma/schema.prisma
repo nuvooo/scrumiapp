@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SprintState {
+  ACTIVE
+  CLOSED
+  FUTURE
+}
+
+enum StatusCategory {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model Team {
+  id                  String   @id @default(cuid())
+  name                String
+  jiraBoardId         String
+  syncIntervalMinutes Int      @default(60)
+  lastSyncedAt        DateTime?
+  lastSyncError       String?
+  createdAt           DateTime @default(now())
+  sprints             Sprint[]
+  members             TeamMember[]
+}
+
+model Sprint {
+  id              String       @id @default(cuid())
+  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId          String
+  jiraSprintId    String
+  name            String
+  state           SprintState
+  startDate       DateTime?
+  endDate         DateTime?
+  completeDate    DateTime?
+  committedPoints Float        @default(0)
+  completedPoints Float        @default(0)
+  issues          Issue[]
+  burndownPoints  BurndownPoint[]
+  capacityEntries CapacityEntry[]
+
+  @@unique([teamId, jiraSprintId])
+}
+
+model Issue {
+  id                   String         @id @default(cuid())
+  sprint               Sprint         @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId             String
+  jiraKey              String
+  summary              String
+  storyPoints          Float          @default(0)
+  status               String
+  statusCategory       StatusCategory
+  resolvedAt           DateTime?
+  addedAfterSprintStart Boolean       @default(false)
+
+  @@unique([sprintId, jiraKey])
+}
+
+model BurndownPoint {
+  id              String   @id @default(cuid())
+  sprint          Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId        String
+  date            DateTime
+  remainingPoints Float
+  completedPoints Float
+
+  @@unique([sprintId, date])
+}
+
+model TeamMember {
+  id              String          @id @default(cuid())
+  team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId          String
+  name            String
+  capacityEntries CapacityEntry[]
+}
+
+model CapacityEntry {
+  id           String      @id @default(cuid())
+  sprint       Sprint      @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId     String
+  teamMember   TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: SetNull)
+  teamMemberId String?
+  name         String
+  personDays   Float
+}
