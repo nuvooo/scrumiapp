@@ -1,35 +1,43 @@
 import { prisma } from "@/lib/db";
 import type { CapacityEntry } from "@prisma/client";
 
-export interface CapacityEntryInput {
+export interface UpsertCapacityInput {
   name: string;
-  personDays: number;
-  teamMemberId?: string | null;
+  plannedPersonDays: number;
+  actualPersonDays: number;
 }
 
-// Fügt einen neuen Kapazitätseintrag hinzu (append, kein Überschreiben)
-export function addCapacityEntry(
+/** Legt einen Kapazitätseintrag pro (Sprint, Mitglied) an oder aktualisiert ihn. */
+export function upsertCapacityEntry(
   sprintId: string,
-  input: CapacityEntryInput,
+  teamMemberId: string,
+  input: UpsertCapacityInput,
 ): Promise<CapacityEntry> {
-  return prisma.capacityEntry.create({
-    data: {
+  return prisma.capacityEntry.upsert({
+    where: { sprintId_teamMemberId: { sprintId, teamMemberId } },
+    create: {
       sprintId,
+      teamMemberId,
       name: input.name,
-      personDays: input.personDays,
-      teamMemberId: input.teamMemberId ?? null,
+      plannedPersonDays: input.plannedPersonDays,
+      actualPersonDays: input.actualPersonDays,
+    },
+    update: {
+      name: input.name,
+      plannedPersonDays: input.plannedPersonDays,
+      actualPersonDays: input.actualPersonDays,
     },
   });
 }
 
 export function listCapacityForSprint(sprintId: string): Promise<CapacityEntry[]> {
-  return prisma.capacityEntry.findMany({
-    where: { sprintId },
-    orderBy: { name: "asc" },
-  });
+  return prisma.capacityEntry.findMany({ where: { sprintId }, orderBy: { name: "asc" } });
 }
 
-/** Löscht einen Kapazitätseintrag. */
+export function listCapacityForSprints(sprintIds: string[]): Promise<CapacityEntry[]> {
+  return prisma.capacityEntry.findMany({ where: { sprintId: { in: sprintIds } } });
+}
+
 export function removeCapacityEntry(id: string): Promise<CapacityEntry> {
   return prisma.capacityEntry.delete({ where: { id } });
 }
