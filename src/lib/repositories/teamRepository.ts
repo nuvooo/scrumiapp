@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Team } from "@prisma/client";
+import type { Team, TeamMember } from "@prisma/client";
 
 export interface CreateTeamInput {
   name: string;
@@ -33,4 +33,28 @@ export interface SyncStatusUpdate {
 /** Aktualisiert den Sync-Status eines Teams (nur übergebene Felder). */
 export function updateTeamSyncStatus(teamId: string, status: SyncStatusUpdate): Promise<Team> {
   return prisma.team.update({ where: { id: teamId }, data: status });
+}
+
+export interface UpdateTeamInput {
+  name: string;
+  jiraBoardId: string;
+  syncIntervalMinutes: number;
+}
+
+/** Aktualisiert die Stammdaten eines Teams. */
+export function updateTeam(id: string, input: UpdateTeamInput): Promise<Team> {
+  return prisma.team.update({ where: { id }, data: input });
+}
+
+/** Löscht ein Team samt aller abhängigen Daten (Cascade). */
+export function deleteTeam(id: string): Promise<Team> {
+  return prisma.team.delete({ where: { id } });
+}
+
+/** Teams inklusive ihrer Mitglieder, alphabetisch sortiert. */
+export function listTeamsWithMembers(): Promise<(Team & { members: TeamMember[] })[]> {
+  return prisma.team.findMany({
+    orderBy: { name: "asc" },
+    include: { members: { orderBy: { name: "asc" } } },
+  });
 }

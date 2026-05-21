@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
-import { createTeam, listTeams, getTeam, updateTeamSyncStatus } from "./teamRepository";
+import { createTeam, listTeams, getTeam, updateTeamSyncStatus, updateTeam, deleteTeam } from "./teamRepository";
 
 const created: string[] = [];
 
@@ -44,5 +44,22 @@ describe("teamRepository", () => {
     expect(failed.lastSyncError).toBe("boom");
     // lastSyncedAt unchanged because it was not provided
     expect(failed.lastSyncedAt).not.toBeNull();
+  });
+
+  it("updates name, board and interval", async () => {
+    const team = await createTeam({ name: "Old", jiraBoardId: "1" });
+    created.push(team.id);
+
+    const updated = await updateTeam(team.id, { name: "New", jiraBoardId: "99", syncIntervalMinutes: 30 });
+    expect(updated.name).toBe("New");
+    expect(updated.jiraBoardId).toBe("99");
+    expect(updated.syncIntervalMinutes).toBe(30);
+  });
+
+  it("deletes a team", async () => {
+    const team = await createTeam({ name: "Doomed", jiraBoardId: "5" });
+    await deleteTeam(team.id);
+    const fetched = await getTeam(team.id);
+    expect(fetched).toBeNull();
   });
 });
