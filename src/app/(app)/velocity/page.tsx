@@ -1,4 +1,5 @@
 import { VelocityChart } from "@/components/charts/VelocityChart";
+import { VelocityTable } from "@/components/VelocityTable";
 import { loadTeams, loadVelocity } from "@/lib/view/loaders";
 import { resolveTeamId } from "@/lib/view/selection";
 import { formatPoints, trendSymbol } from "@/lib/format";
@@ -18,8 +19,8 @@ export default async function VelocityPage({
   const trend = await loadVelocity(teamId);
 
   return (
-    <div>
-      <div className="mb-4 flex items-baseline gap-3">
+    <div className="space-y-8">
+      <div className="flex items-baseline gap-3">
         <h1 className="text-2xl font-bold">Velocity</h1>
         <span className="text-sm text-slate-400">
           {trendSymbol(trend.trend)} Ø {formatPoints(trend.average)} SP / Sprint
@@ -28,7 +29,10 @@ export default async function VelocityPage({
       {trend.points.length === 0 ? (
         <p className="text-slate-400">Noch keine abgeschlossenen Sprints.</p>
       ) : (
-        <VelocityChart data={trend.points} average={trend.average} />
+        <>
+          <VelocityChart data={trend.points} average={trend.average} />
+          <VelocityTable points={trend.points} />
+        </>
       )}
     </div>
   );
