@@ -1,4 +1,6 @@
 import { BurndownChart, type BurndownRow } from "@/components/charts/BurndownChart";
+import { BurndownTabs } from "@/components/charts/BurndownTabs";
+import type { TicketBurndownRow } from "@/components/charts/TicketBurndownChart";
 import { loadTeams, loadSprints, loadBurndown } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
 import { formatDateShort, roundTo1 } from "@/lib/format";
@@ -48,15 +50,15 @@ export default async function BurndownPage({
   }
   const bugRows = [...bugByLabel.values()];
 
-  const ticketByLabel = new Map<string, BurndownRow>();
-  for (const p of data.ticketBurndown.ideal) {
-    const label = formatDateShort(p.date);
-    ticketByLabel.set(label, { label, ideal: roundTo1(p.remainingTickets), actual: null });
-  }
+  const ticketByLabel = new Map<string, TicketBurndownRow>();
   for (const p of data.ticketBurndown.actual) {
     const label = formatDateShort(p.date);
-    const row = ticketByLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = p.remainingTickets;
+    ticketByLabel.set(label, { label, actual: p.remainingTickets, trend: null });
+  }
+  for (const p of data.ticketBurndown.trend) {
+    const label = formatDateShort(p.date);
+    const row = ticketByLabel.get(label) ?? { label, actual: null, trend: null };
+    row.trend = roundTo1(p.remainingTickets);
     ticketByLabel.set(label, row);
   }
   const ticketRows = [...ticketByLabel.values()];
@@ -65,11 +67,7 @@ export default async function BurndownPage({
     <div className="space-y-10">
       <div>
         <h1 className="mb-4 text-2xl font-bold">Burndown · {data.sprintName}</h1>
-        {rows.length === 0 ? (
-          <p className="text-slate-400">Dieser Sprint hat noch keine Burndown-Punkte.</p>
-        ) : (
-          <BurndownChart data={rows} />
-        )}
+        <BurndownTabs ticketRows={ticketRows} storyRows={rows} />
       </div>
       <div>
         <h2 className="mb-4 text-xl font-bold">Bug-Burndown · Offene Bugs</h2>
@@ -77,14 +75,6 @@ export default async function BurndownPage({
           <p className="text-slate-400">Für diesen Sprint wurden noch keine Bug-Daten erfasst.</p>
         ) : (
           <BurndownChart data={bugRows} actualName="Offene Bugs" />
-        )}
-      </div>
-      <div>
-        <h2 className="mb-4 text-xl font-bold">Ticket-Burndown · Offene Tickets</h2>
-        {ticketRows.length === 0 ? (
-          <p className="text-slate-400">Für diesen Sprint wurden noch keine Ticket-Daten erfasst.</p>
-        ) : (
-          <BurndownChart data={ticketRows} actualName="Offene Tickets" />
         )}
       </div>
     </div>
