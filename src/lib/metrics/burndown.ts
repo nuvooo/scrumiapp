@@ -83,3 +83,44 @@ export function calcBugBurndown(
 
   return { ideal, actual };
 }
+
+export interface TicketBurndownLinePoint {
+  date: Date;
+  remainingTickets: number;
+}
+
+export interface TicketBurndown {
+  ideal: TicketBurndownLinePoint[];
+  actual: TicketBurndownLinePoint[];
+}
+
+/**
+ * Ticket-Burndown: Ist-Linie aus den gespeicherten remainingTickets (nach Datum sortiert)
+ * und eine lineare Ideallinie vom Ticket-Stand des ersten Snapshots auf 0 über die
+ * Arbeitstage. Ohne Sprint-Daten oder ohne Snapshots: leere Linien.
+ */
+export function calcTicketBurndown(
+  sprint: DomainSprint,
+  points: DomainBurndownPoint[],
+): TicketBurndown {
+  if (!sprint.startDate || !sprint.endDate || points.length === 0) {
+    return { ideal: [], actual: [] };
+  }
+
+  const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const startTickets = sorted[0].remainingTickets;
+
+  const days = workingDaysBetween(sprint.startDate, sprint.endDate);
+  const steps = days.length <= 1 ? 1 : days.length - 1;
+  const ideal: TicketBurndownLinePoint[] = days.map((date, i) => ({
+    date,
+    remainingTickets: Math.max(0, days.length === 1 ? 0 : startTickets * (1 - i / steps)),
+  }));
+
+  const actual: TicketBurndownLinePoint[] = sorted.map((p) => ({
+    date: p.date,
+    remainingTickets: p.remainingTickets,
+  }));
+
+  return { ideal, actual };
+}

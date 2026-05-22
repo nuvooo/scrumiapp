@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcBurndown, calcBugBurndown } from "./burndown";
+import { calcBurndown, calcBugBurndown, calcTicketBurndown } from "./burndown";
 import type { DomainSprint, DomainBurndownPoint } from "@/lib/domain/types";
 
 function sprint(committed: number, start: string, end: string): DomainSprint {
@@ -73,5 +73,34 @@ describe("calcBugBurndown", () => {
     const s = sprint(0, "2026-05-18", "2026-05-22");
     s.startDate = null;
     expect(calcBugBurndown(s, points([["2026-05-18", 8]]))).toEqual({ ideal: [], actual: [] });
+  });
+});
+
+describe("calcTicketBurndown", () => {
+  it("builds an ideal line from the first snapshot and an actual line from remainingTickets", () => {
+    const sprint = {
+      id: "s1", name: "S1", state: "ACTIVE" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      endDate: new Date("2026-05-22T00:00:00.000Z"),
+      completeDate: null, committedPoints: 0, completedPoints: 0,
+    };
+    const points = [
+      { date: new Date("2026-05-18T00:00:00.000Z"), remainingPoints: 0, completedPoints: 0, remainingBugs: 0, remainingTickets: 10 },
+      { date: new Date("2026-05-20T00:00:00.000Z"), remainingPoints: 0, completedPoints: 0, remainingBugs: 0, remainingTickets: 6 },
+    ];
+    const result = calcTicketBurndown(sprint, points);
+    expect(result.actual.map((p) => p.remainingTickets)).toEqual([10, 6]);
+    expect(result.ideal[0].remainingTickets).toBe(10);
+    expect(result.ideal[result.ideal.length - 1].remainingTickets).toBe(0);
+  });
+
+  it("returns empty lines without snapshots", () => {
+    const sprint = {
+      id: "s1", name: "S1", state: "ACTIVE" as const,
+      startDate: new Date("2026-05-18T00:00:00.000Z"),
+      endDate: new Date("2026-05-22T00:00:00.000Z"),
+      completeDate: null, committedPoints: 0, completedPoints: 0,
+    };
+    expect(calcTicketBurndown(sprint, [])).toEqual({ ideal: [], actual: [] });
   });
 });
