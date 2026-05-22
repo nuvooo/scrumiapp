@@ -90,37 +90,54 @@ export interface TicketBurndownLinePoint {
 }
 
 export interface TicketBurndown {
-  ideal: TicketBurndownLinePoint[];
+  /** Gemessene offene Tickets pro Tag (Balken). */
   actual: TicketBurndownLinePoint[];
+  /** Lineare Regressionslinie (kleinste Quadrate) durch die Ist-Werte. */
+  trend: TicketBurndownLinePoint[];
 }
 
 /**
- * Ticket-Burndown: Ist-Linie aus den gespeicherten remainingTickets (nach Datum sortiert)
- * und eine lineare Ideallinie vom Ticket-Stand des ersten Snapshots auf 0 über die
- * Arbeitstage. Ohne Sprint-Daten oder ohne Snapshots: leere Linien.
+ * Ticket-Burndown: Balken aus den gespeicherten remainingTickets (nach Datum sortiert)
+ * und eine Trendlinie als lineare Regression durch genau diese Ist-Werte. Die x-Achse
+ * der Regression sind Tage seit dem ersten Snapshot. Ohne Snapshots: leere Listen.
  */
 export function calcTicketBurndown(
-  sprint: DomainSprint,
+  _sprint: DomainSprint,
   points: DomainBurndownPoint[],
 ): TicketBurndown {
-  if (!sprint.startDate || !sprint.endDate || points.length === 0) {
-    return { ideal: [], actual: [] };
+  if (points.length === 0) {
+    return { actual: [], trend: [] };
   }
 
   const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
-  const startTickets = sorted[0].remainingTickets;
-
-  const days = workingDaysBetween(sprint.startDate, sprint.endDate);
-  const steps = days.length <= 1 ? 1 : days.length - 1;
-  const ideal: TicketBurndownLinePoint[] = days.map((date, i) => ({
-    date,
-    remainingTickets: Math.max(0, days.length === 1 ? 0 : startTickets * (1 - i / steps)),
-  }));
-
   const actual: TicketBurndownLinePoint[] = sorted.map((p) => ({
     date: p.date,
     remainingTickets: p.remainingTickets,
   }));
 
-  return { ideal, actual };
+  // x = Tage seit dem ersten Snapshot, y = offene Tickets.
+  const dayMs = 1000 * 60 * 60 * 24;
+  const t0 = sorted[0].date.getTime();
+  const xs = sorted.map((p) => (p.date.getTime() - t0) / dayMs);
+  const ys = sorted.map((p) => p.remainingTickets);
+  const n = xs.length;
+  const meanX = xs.reduce((s, x) => s + x, 0) / n;
+  const meanY = ys.reduce((s, y) => s + y, 0) / n;
+
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - meanX) * (ys[i] - meanY);
+    sxx += (xs[i] - meanX) ** 2;
+  }
+  // Einzelner Punkt (oder alle x gleich): flache Linie auf dem Mittelwert.
+  const slope = sxx === 0 ? 0 : sxy / sxx;
+  const intercept = meanY - slope * meanX;
+
+  const trend: TicketBurndownLinePoint[] = sorted.map((p, i) => ({
+    date: p.date,
+    remainingTickets: intercept + slope * xs[i],
+  }));
+
+  return { actual, trend };
 }
