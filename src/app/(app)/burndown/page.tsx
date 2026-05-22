@@ -48,6 +48,19 @@ export default async function BurndownPage({
   }
   const bugRows = [...bugByLabel.values()];
 
+  const ticketByLabel = new Map<string, BurndownRow>();
+  for (const p of data.ticketBurndown.ideal) {
+    const label = formatDateShort(p.date);
+    ticketByLabel.set(label, { label, ideal: roundTo1(p.remainingTickets), actual: null });
+  }
+  for (const p of data.ticketBurndown.actual) {
+    const label = formatDateShort(p.date);
+    const row = ticketByLabel.get(label) ?? { label, ideal: null, actual: null };
+    row.actual = p.remainingTickets;
+    ticketByLabel.set(label, row);
+  }
+  const ticketRows = [...ticketByLabel.values()];
+
   return (
     <div className="space-y-10">
       <div>
@@ -64,6 +77,14 @@ export default async function BurndownPage({
           <p className="text-slate-400">Für diesen Sprint wurden noch keine Bug-Daten erfasst.</p>
         ) : (
           <BurndownChart data={bugRows} actualName="Offene Bugs" />
+        )}
+      </div>
+      <div>
+        <h2 className="mb-4 text-xl font-bold">Ticket-Burndown · Offene Tickets</h2>
+        {ticketRows.length === 0 ? (
+          <p className="text-slate-400">Für diesen Sprint wurden noch keine Ticket-Daten erfasst.</p>
+        ) : (
+          <BurndownChart data={ticketRows} actualName="Offene Tickets" />
         )}
       </div>
     </div>
