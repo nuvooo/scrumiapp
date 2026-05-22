@@ -1,6 +1,5 @@
 import { BurndownChart, type BurndownRow } from "@/components/charts/BurndownChart";
 import { BurndownTabs } from "@/components/charts/BurndownTabs";
-import type { TicketBurndownRow } from "@/components/charts/TicketBurndownChart";
 import { loadTeams, loadSprints, loadBurndown } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
 import { formatDateShort, roundTo1 } from "@/lib/format";
@@ -50,15 +49,15 @@ export default async function BurndownPage({
   }
   const bugRows = [...bugByLabel.values()];
 
-  const ticketByLabel = new Map<string, TicketBurndownRow>();
+  const ticketByLabel = new Map<string, BurndownRow>();
+  for (const p of data.ticketBurndown.ideal) {
+    const label = formatDateShort(p.date);
+    ticketByLabel.set(label, { label, ideal: roundTo1(p.remainingTickets), actual: null });
+  }
   for (const p of data.ticketBurndown.actual) {
     const label = formatDateShort(p.date);
-    ticketByLabel.set(label, { label, actual: p.remainingTickets, trend: null });
-  }
-  for (const p of data.ticketBurndown.trend) {
-    const label = formatDateShort(p.date);
-    const row = ticketByLabel.get(label) ?? { label, actual: null, trend: null };
-    row.trend = roundTo1(p.remainingTickets);
+    const row = ticketByLabel.get(label) ?? { label, ideal: null, actual: null };
+    row.actual = p.remainingTickets;
     ticketByLabel.set(label, row);
   }
   const ticketRows = [...ticketByLabel.values()];

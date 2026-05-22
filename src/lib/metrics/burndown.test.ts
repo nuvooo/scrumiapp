@@ -77,38 +77,30 @@ describe("calcBugBurndown", () => {
 });
 
 describe("calcTicketBurndown", () => {
-  const sprint = {
-    id: "s1", name: "S1", state: "ACTIVE" as const,
-    startDate: new Date("2026-05-18T00:00:00.000Z"),
-    endDate: new Date("2026-05-22T00:00:00.000Z"),
-    completeDate: null, committedPoints: 0, completedPoints: 0,
-  };
+  const ticketSprint = sprint(0, "2026-05-18", "2026-05-22");
   const ticketPoints = (vals: Array<[string, number]>): DomainBurndownPoint[] =>
     vals.map(([d, t]) => ({ date: new Date(d), remainingPoints: 0, completedPoints: 0, remainingBugs: 0, remainingTickets: t }));
 
+  it("builds an ideal line from the first snapshot's ticket count to zero over the working days", () => {
+    const result = calcTicketBurndown(ticketSprint, ticketPoints([["2026-05-18", 8]]));
+    expect(result.ideal.length).toBe(5);
+    expect(result.ideal[0].remainingTickets).toBe(8);
+    expect(result.ideal[4].remainingTickets).toBe(0);
+    expect(result.ideal[2].remainingTickets).toBe(4);
+  });
+
   it("passes actual ticket counts through sorted by date", () => {
-    const result = calcTicketBurndown(sprint, ticketPoints([["2026-05-20", 6], ["2026-05-18", 10]]));
+    const result = calcTicketBurndown(ticketSprint, ticketPoints([["2026-05-20", 6], ["2026-05-18", 10]]));
     expect(result.actual.map((p) => p.remainingTickets)).toEqual([10, 6]);
   });
 
-  it("fits a least-squares regression trend through the actual counts", () => {
-    // days 0,1,2 with counts 10,7,7 -> slope -1.5, intercept 9.5 -> 9.5, 8, 6.5
-    const result = calcTicketBurndown(
-      sprint,
-      ticketPoints([["2026-05-18", 10], ["2026-05-19", 7], ["2026-05-20", 7]]),
-    );
-    const trend = result.trend.map((p) => p.remainingTickets);
-    expect(trend[0]).toBeCloseTo(9.5, 5);
-    expect(trend[1]).toBeCloseTo(8, 5);
-    expect(trend[2]).toBeCloseTo(6.5, 5);
+  it("returns empty lines when there are no snapshots", () => {
+    expect(calcTicketBurndown(ticketSprint, [])).toEqual({ ideal: [], actual: [] });
   });
 
-  it("uses the single value as a flat trend when only one snapshot exists", () => {
-    const result = calcTicketBurndown(sprint, ticketPoints([["2026-05-18", 4]]));
-    expect(result.trend.map((p) => p.remainingTickets)).toEqual([4]);
-  });
-
-  it("returns empty lines without snapshots", () => {
-    expect(calcTicketBurndown(sprint, [])).toEqual({ actual: [], trend: [] });
+  it("returns empty lines when the sprint has no dates", () => {
+    const s = sprint(0, "2026-05-18", "2026-05-22");
+    s.startDate = null;
+    expect(calcTicketBurndown(s, ticketPoints([["2026-05-18", 8]]))).toEqual({ ideal: [], actual: [] });
   });
 });

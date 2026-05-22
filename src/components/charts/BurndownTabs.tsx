@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { BurndownChart, type BurndownRow } from "./BurndownChart";
-import { TicketBurndownChart, type TicketBurndownRow } from "./TicketBurndownChart";
 
 type Tab = "tickets" | "story";
 
@@ -15,7 +14,7 @@ export function BurndownTabs({
   ticketRows,
   storyRows,
 }: {
-  ticketRows: TicketBurndownRow[];
+  ticketRows: BurndownRow[];
   storyRows: BurndownRow[];
 }) {
   const [tab, setTab] = useState<Tab>("tickets");
@@ -43,7 +42,7 @@ export function BurndownTabs({
         ticketRows.length === 0 ? (
           <p className="text-slate-400">Für diesen Sprint wurden noch keine Ticket-Daten erfasst.</p>
         ) : (
-          <TicketBurndownChart data={ticketRows} />
+          <BurndownChart data={ticketRows} actualName="Offene Tickets" />
         )
       ) : storyRows.length === 0 ? (
         <p className="text-slate-400">Dieser Sprint hat noch keine Burndown-Punkte.</p>
