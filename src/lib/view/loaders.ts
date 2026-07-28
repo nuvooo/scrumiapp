@@ -129,23 +129,59 @@ export async function loadBurndown(sprintId: string) {
 }
 
 export async function loadVelocity(teamId: string) {
-  const sprints = (await listSprintsForTeam(teamId)).filter((s) => s.state !== "FUTURE");
-  const caps = await listCapacityForSprints(sprints.map((s) => s.id));
+  const all = await listSprintsForTeam(teamId);
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    include: { members: { orderBy: { name: "asc" } } },
+  });
+  const members = team?.members ?? [];
+  const caps = await listCapacityForSprints(all.map((s) => s.id));
 
   const plannedBySprint = new Map<string, number>();
   const actualBySprint = new Map<string, number>();
+  const sprintsWithEntries = new Set<string>();
   for (const c of caps) {
+    sprintsWithEntries.add(c.sprintId);
     plannedBySprint.set(c.sprintId, (plannedBySprint.get(c.sprintId) ?? 0) + c.plannedPersonDays);
     actualBySprint.set(c.sprintId, (actualBySprint.get(c.sprintId) ?? 0) + c.actualPersonDays);
   }
 
-  const inputs = sprints.map((s) => ({
+  const nonFuture = all.filter((s) => s.state !== "FUTURE");
+  const inputs = nonFuture.map((s) => ({
     sprint: toDomainSprint(s),
     plannedPersonDays: plannedBySprint.get(s.id) ?? 0,
     actualPersonDays: actualBySprint.get(s.id) ?? 0,
   }));
+  const trend = calcVelocityTrend(inputs);
 
-  return calcVelocityTrend(inputs);
+  // Prognose je Sprint: gepoolte Effizienz aller anderen abgeschlossenen Sprints ×
+  // Soll-PT des Sprints (gespeichert oder aus der Roster-Vorbelegung).
+  const closedHistory = all
+    .filter((s) => s.state === "CLOSED")
+    .map((s) => ({ id: s.id, velocity: s.completedPoints, actualPersonDays: actualBySprint.get(s.id) ?? 0 }));
+
+  const rows = all.map((s) => {
+    const workingDayCount =
+      s.startDate && s.endDate ? workingDaysBetween(s.startDate, s.endDate).length : 0;
+    const planned = sprintsWithEntries.has(s.id)
+      ? plannedBySprint.get(s.id) ?? 0
+      : effectiveCapacityRows(members, [], workingDayCount).reduce((sum, r) => sum + r.plannedPersonDays, 0);
+    const forecast = calcForecast(
+      closedHistory.filter((h) => h.id !== s.id),
+      planned,
+    );
+    return {
+      sprintId: s.id,
+      name: s.name,
+      state: s.state,
+      committed: s.committedPoints,
+      completed: s.completedPoints,
+      plannedPersonDays: planned,
+      forecast: forecast ? forecast.possiblePoints : null,
+    };
+  });
+
+  return { ...trend, rows };
 }
 
 export async function loadCapacity(sprintId: string) {

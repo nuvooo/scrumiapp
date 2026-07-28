@@ -54,19 +54,23 @@ export default async function VelocityPage({
         )}
       </div>
 
-      {trend.points.length === 0 ? (
+      {trend.points.length === 0 && trend.rows.length === 0 ? (
         <div className="card mt-6 px-10 py-[52px] text-center">
-          <div className="text-[15px] font-semibold">Noch keine abgeschlossenen Sprints.</div>
-          <div className="mt-[7px] text-[13px] text-muted">Sobald ein Sprint in Jira geschlossen wird, erscheint er hier.</div>
+          <div className="text-[15px] font-semibold">Noch keine Sprints.</div>
+          <div className="mt-[7px] text-[13px] text-muted">Sobald Sprints in Jira angelegt oder geschlossen werden, erscheinen sie hier.</div>
         </div>
       ) : (
         <>
-          <div className="card mt-6 p-[18px]">
-            <VelocityChart data={trend.points} average={trend.average} />
-          </div>
-          <div className="mt-3.5">
-            <VelocityTable points={trend.points} />
-          </div>
+          {trend.points.length > 0 && (
+            <div className="card mt-6 p-[18px]">
+              <VelocityChart data={trend.points} average={trend.average} />
+            </div>
+          )}
+          {trend.rows.length > 0 && (
+            <div className="mt-3.5">
+              <VelocityTable rows={trend.rows} teamId={teamId} />
+            </div>
+          )}
         </>
       )}
     </div>
