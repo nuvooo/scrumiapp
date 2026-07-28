@@ -16,13 +16,14 @@ describe("TeamEditor", () => {
   it("prefills the team fields and carries the hidden id", () => {
     const { container } = render(
       <TeamEditor
-        team={{ id: "t1", name: "Alpha", jiraBoardId: "42", syncIntervalMinutes: 30 }}
+        team={{ id: "t1", name: "Alpha", jiraBoardId: "42", syncIntervalMinutes: 30, metricsSince: "2026-03-01" }}
         status={{ text: "noch nicht synchronisiert", tone: "none" }}
       />,
     );
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Alpha");
     expect((screen.getByLabelText("Jira Board-ID") as HTMLInputElement).value).toBe("42");
     expect((screen.getByLabelText("Sync-Intervall (min)") as HTMLInputElement).value).toBe("30");
+    expect((screen.getByLabelText("Daten zählen ab") as HTMLInputElement).value).toBe("2026-03-01");
     const hidden = container.querySelector('input[name="id"]') as HTMLInputElement;
     expect(hidden.value).toBe("t1");
   });
@@ -30,7 +31,7 @@ describe("TeamEditor", () => {
   it("shows the sync status line", () => {
     render(
       <TeamEditor
-        team={{ id: "t1", name: "Alpha", jiraBoardId: "42", syncIntervalMinutes: 30 }}
+        team={{ id: "t1", name: "Alpha", jiraBoardId: "42", syncIntervalMinutes: 30, metricsSince: null }}
         status={{ text: "Sync-Fehler: 401", tone: "error" }}
       />,
     );

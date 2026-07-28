@@ -24,6 +24,7 @@ model Team {
   name                String
   jiraBoardId         String
   syncIntervalMinutes Int      @default(60)
+  metricsSince        DateTime?
   lastSyncedAt        DateTime?
   lastSyncError       String?
   createdAt           DateTime @default(now())

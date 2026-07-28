@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { editTeam, removeTeam } from "@/app/(app)/settings/teams/actions";
 
 interface TeamEditorProps {
-  team: { id: string; name: string; jiraBoardId: string; syncIntervalMinutes: number };
+  team: {
+    id: string;
+    name: string;
+    jiraBoardId: string;
+    syncIntervalMinutes: number;
+    /** Stichtag im Format YYYY-MM-DD oder null (alle Sprints zählen). */
+    metricsSince: string | null;
+  };
   status: { text: string; tone: "ok" | "error" | "none" };
 }
 
@@ -30,7 +37,7 @@ export function TeamEditor({ team, status }: TeamEditorProps) {
 
   return (
     <div>
-      <form id={formId} action={editTeam} className="grid grid-cols-[1.6fr,1fr,1fr] gap-3">
+      <form id={formId} action={editTeam} className="grid grid-cols-[1.6fr,1fr,1fr,1fr] gap-3">
         <input type="hidden" name="id" value={team.id} />
         <div>
           <label htmlFor={`${formId}-name`} className="mono-label mb-[7px] block">Name</label>
@@ -56,6 +63,17 @@ export function TeamEditor({ team, status }: TeamEditorProps) {
             required
             defaultValue={team.syncIntervalMinutes}
             className="input-field font-mono"
+          />
+        </div>
+        <div>
+          <label htmlFor={`${formId}-since`} className="mono-label mb-[7px] block">Daten zählen ab</label>
+          <input
+            id={`${formId}-since`}
+            name="metricsSince"
+            type="date"
+            defaultValue={team.metricsSince ?? ""}
+            title="Sprints vor diesem Datum werden in Auswertungen ignoriert. Leer lassen, um alle zu zählen."
+            className="input-field font-mono [color-scheme:dark]"
           />
         </div>
       </form>

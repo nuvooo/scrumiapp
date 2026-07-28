@@ -49,4 +49,28 @@ describe("sprintRepository", () => {
     const all = await listSprintsForTeam(team.id);
     expect(all.length).toBe(1);
   });
+
+  it("filters sprints before the team's metricsSince cutoff, keeping undated ones", async () => {
+    const team = await createTeam({ name: "Alpha", jiraBoardId: "42" });
+    teams.push(team.id);
+
+    const base = {
+      state: "CLOSED" as const,
+      endDate: null,
+      completeDate: null,
+      committedPoints: 0,
+      completedPoints: 0,
+    };
+    await upsertSprint(team.id, { ...base, jiraSprintId: "1", name: "Alt", startDate: new Date(Date.UTC(2026, 0, 5)) });
+    await upsertSprint(team.id, { ...base, jiraSprintId: "2", name: "Neu", startDate: new Date(Date.UTC(2026, 3, 1)) });
+    await upsertSprint(team.id, { ...base, jiraSprintId: "3", name: "Ohne Datum", startDate: null });
+
+    // Ohne Stichtag: alle drei
+    expect((await listSprintsForTeam(team.id)).length).toBe(3);
+
+    await prisma.team.update({ where: { id: team.id }, data: { metricsSince: new Date(Date.UTC(2026, 2, 1)) } });
+
+    const filtered = await listSprintsForTeam(team.id);
+    expect(filtered.map((s) => s.name).sort()).toEqual(["Neu", "Ohne Datum"]);
+  });
 });

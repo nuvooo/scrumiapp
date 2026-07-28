@@ -46,14 +46,29 @@ describe("teamRepository", () => {
     expect(failed.lastSyncedAt).not.toBeNull();
   });
 
-  it("updates name, board and interval", async () => {
+  it("updates name, board, interval and metricsSince", async () => {
     const team = await createTeam({ name: "Old", jiraBoardId: "1" });
     created.push(team.id);
 
-    const updated = await updateTeam(team.id, { name: "New", jiraBoardId: "99", syncIntervalMinutes: 30 });
+    const since = new Date(Date.UTC(2026, 0, 1));
+    const updated = await updateTeam(team.id, {
+      name: "New",
+      jiraBoardId: "99",
+      syncIntervalMinutes: 30,
+      metricsSince: since,
+    });
     expect(updated.name).toBe("New");
     expect(updated.jiraBoardId).toBe("99");
     expect(updated.syncIntervalMinutes).toBe(30);
+    expect(updated.metricsSince?.getTime()).toBe(since.getTime());
+
+    const cleared = await updateTeam(team.id, {
+      name: "New",
+      jiraBoardId: "99",
+      syncIntervalMinutes: 30,
+      metricsSince: null,
+    });
+    expect(cleared.metricsSince).toBeNull();
   });
 
   it("deletes a team", async () => {

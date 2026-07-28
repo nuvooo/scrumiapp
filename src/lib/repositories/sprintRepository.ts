@@ -29,9 +29,18 @@ export function upsertSprint(teamId: string, input: UpsertSprintInput): Promise<
   });
 }
 
-export function listSprintsForTeam(teamId: string): Promise<Sprint[]> {
+/**
+ * Sprints eines Teams, sortiert nach Startdatum. Ist am Team `metricsSince` gesetzt,
+ * werden nur Sprints ab diesem Stichtag geliefert (Sprints ohne Startdatum bleiben sichtbar).
+ */
+export async function listSprintsForTeam(teamId: string): Promise<Sprint[]> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { metricsSince: true } });
+  const metricsSince = team?.metricsSince ?? null;
   return prisma.sprint.findMany({
-    where: { teamId },
+    where: {
+      teamId,
+      ...(metricsSince ? { OR: [{ startDate: null }, { startDate: { gte: metricsSince } }] } : {}),
+    },
     orderBy: { startDate: { sort: "asc", nulls: "last" } },
   });
 }

@@ -39,7 +39,13 @@ export default async function TeamsPage() {
       {teams.map((t) => (
         <div key={t.id} className="card mt-3.5 max-w-[820px] p-[18px]">
           <TeamEditor
-            team={{ id: t.id, name: t.name, jiraBoardId: t.jiraBoardId, syncIntervalMinutes: t.syncIntervalMinutes }}
+            team={{
+              id: t.id,
+              name: t.name,
+              jiraBoardId: t.jiraBoardId,
+              syncIntervalMinutes: t.syncIntervalMinutes,
+              metricsSince: t.metricsSince ? t.metricsSince.toISOString().slice(0, 10) : null,
+            }}
             status={syncStatus(t)}
           />
           <TeamMembers teamId={t.id} members={t.members.map((m) => ({ id: m.id, name: m.name }))} />

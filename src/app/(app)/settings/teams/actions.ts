@@ -25,10 +25,20 @@ export async function editTeam(formData: FormData) {
   const syncIntervalMinutes = Number(formData.get("syncIntervalMinutes") ?? "60");
   if (!id || !name || !jiraBoardId) return;
 
+  // Datumsfeld liefert "YYYY-MM-DD" (UTC-Mitternacht); leer = Stichtag entfernen, alle Sprints zählen
+  const metricsSinceRaw = String(formData.get("metricsSince") ?? "").trim();
+  let metricsSince: Date | null = null;
+  if (metricsSinceRaw) {
+    const parsed = new Date(metricsSinceRaw);
+    if (Number.isNaN(parsed.getTime())) return;
+    metricsSince = parsed;
+  }
+
   await updateTeam(id, {
     name,
     jiraBoardId,
     syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) && syncIntervalMinutes > 0 ? syncIntervalMinutes : 60,
+    metricsSince,
   });
   revalidatePath("/settings/teams");
 }

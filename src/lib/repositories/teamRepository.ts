@@ -39,6 +39,8 @@ export interface UpdateTeamInput {
   name: string;
   jiraBoardId: string;
   syncIntervalMinutes: number;
+  /** Stichtag, ab dem Sprints in Auswertungen einfließen (null = alle). */
+  metricsSince: Date | null;
 }
 
 /** Aktualisiert die Stammdaten eines Teams. */
