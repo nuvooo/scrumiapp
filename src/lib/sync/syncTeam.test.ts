@@ -28,6 +28,16 @@ class FailingJira implements JiraClient {
   async fetchSprintIssues(): Promise<DomainIssue[]> { return []; }
 }
 
+class CountingJira implements JiraClient {
+  issueCalls: string[] = [];
+  constructor(private sprints: MappedSprint[]) {}
+  async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
+  async fetchSprintIssues(sprintId: string): Promise<DomainIssue[]> {
+    this.issueCalls.push(sprintId);
+    return [];
+  }
+}
+
 describe("syncTeam", () => {
   it("stores sprints, issues, computed points and a burndown point", async () => {
     const team = await createTeam({ name: "Alpha", jiraBoardId: "42" });
@@ -73,6 +83,23 @@ describe("syncTeam", () => {
 
     const refreshed = await prisma.team.findUnique({ where: { id: team.id } });
     expect(refreshed?.lastSyncError).toMatch(/401/);
+  });
+
+  it("skips sprints that are already closed locally and in Jira", async () => {
+    const team = await createTeam({ name: "Delta", jiraBoardId: "11" });
+    teams.push(team.id);
+
+    const client = new CountingJira([
+      { jiraSprintId: "300", name: "Alt", state: "CLOSED", startDate: null, endDate: null, completeDate: null },
+      { jiraSprintId: "301", name: "Neu", state: "ACTIVE", startDate: null, endDate: null, completeDate: null },
+    ]);
+
+    await syncTeam(team.id, client);
+    expect(client.issueCalls).toEqual(["300", "301"]);
+
+    // Zweiter Sync: der abgeschlossene Sprint wird nicht erneut geladen
+    await syncTeam(team.id, client);
+    expect(client.issueCalls).toEqual(["300", "301", "301"]);
   });
 
   it("does not delete manual capacity entries on sync", async () => {

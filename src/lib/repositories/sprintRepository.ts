@@ -29,6 +29,11 @@ export function upsertSprint(teamId: string, input: UpsertSprintInput): Promise<
   });
 }
 
+/** Alle Sprints eines Teams ohne metricsSince-Filter (z. B. für den Sync). */
+export function listAllSprintsForTeam(teamId: string): Promise<Sprint[]> {
+  return prisma.sprint.findMany({ where: { teamId } });
+}
+
 /**
  * Sprints eines Teams, sortiert nach Startdatum. Ist am Team `metricsSince` gesetzt,
  * werden nur Sprints ab diesem Stichtag geliefert (Sprints ohne Startdatum bleiben sichtbar).
