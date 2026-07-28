@@ -48,7 +48,10 @@ export default async function TeamsPage() {
             }}
             status={syncStatus(t)}
           />
-          <TeamMembers teamId={t.id} members={t.members.map((m) => ({ id: m.id, name: m.name }))} />
+          <TeamMembers
+            teamId={t.id}
+            members={t.members.map((m) => ({ id: m.id, name: m.name, defaultPersonDays: m.defaultPersonDays }))}
+          />
         </div>
       ))}
     </div>

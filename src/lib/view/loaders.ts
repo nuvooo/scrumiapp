@@ -116,11 +116,13 @@ export async function loadCapacity(sprintId: string) {
 
   const rows = sprint.team.members.map((m) => {
     const e = byMember.get(m.id);
+    // Vorbelegung: Standard-PT des Mitglieds, sonst Arbeitstage des Sprints
+    const fallback = m.defaultPersonDays ?? defaultSoll;
     return {
       teamMemberId: m.id,
       name: m.name,
-      plannedPersonDays: e ? e.plannedPersonDays : defaultSoll,
-      actualPersonDays: e ? e.actualPersonDays : defaultSoll,
+      plannedPersonDays: e ? e.plannedPersonDays : fallback,
+      actualPersonDays: e ? e.actualPersonDays : fallback,
     };
   });
 

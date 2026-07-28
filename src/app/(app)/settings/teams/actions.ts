@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createTeam, updateTeam, deleteTeam } from "@/lib/repositories/teamRepository";
-import { addMember, renameMember, removeMember } from "@/lib/repositories/teamMemberRepository";
+import { addMember, renameMember, removeMember, setMemberDefaultDays } from "@/lib/repositories/teamMemberRepository";
 
 export async function addTeam(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -50,12 +50,33 @@ export async function removeTeam(formData: FormData) {
   revalidatePath("/settings/teams");
 }
 
+/** "8" / "8,5" -> Zahl, leer -> null; ungültig/negativ -> undefined (Abbruch). */
+function parseOptionalDays(raw: string): number | null | undefined {
+  if (!raw) return null;
+  const n = Number.parseFloat(raw.replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
 export async function createMember(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
   if (!teamId || !name) return;
-  await addMember(teamId, name);
+  const defaultPersonDays = parseOptionalDays(String(formData.get("defaultPersonDays") ?? "").trim());
+  if (defaultPersonDays === undefined) return;
+  await addMember(teamId, name, defaultPersonDays);
   revalidatePath("/settings/teams");
+  revalidatePath("/capacity");
+}
+
+export async function editMemberDays(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const defaultPersonDays = parseOptionalDays(String(formData.get("defaultPersonDays") ?? "").trim());
+  if (defaultPersonDays === undefined) return;
+  await setMemberDefaultDays(id, defaultPersonDays);
+  revalidatePath("/settings/teams");
+  revalidatePath("/capacity");
 }
 
 export async function editMember(formData: FormData) {

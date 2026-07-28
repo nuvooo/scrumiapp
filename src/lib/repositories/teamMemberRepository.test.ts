@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { createTeam } from "./teamRepository";
-import { listMembersForTeam, addMember, renameMember, removeMember } from "./teamMemberRepository";
+import { listMembersForTeam, addMember, renameMember, removeMember, setMemberDefaultDays } from "./teamMemberRepository";
 
 const teams: string[] = [];
 
@@ -30,6 +30,20 @@ describe("teamMemberRepository", () => {
 
     const renamed = await renameMember(m.id, "Charlotte");
     expect(renamed.name).toBe("Charlotte");
+  });
+
+  it("stores and clears default person days", async () => {
+    const team = await createTeam({ name: "Delta", jiraBoardId: "4" });
+    teams.push(team.id);
+
+    const withDays = await addMember(team.id, "Erin", 8.5);
+    expect(withDays.defaultPersonDays).toBe(8.5);
+
+    const updated = await setMemberDefaultDays(withDays.id, 6);
+    expect(updated.defaultPersonDays).toBe(6);
+
+    const cleared = await setMemberDefaultDays(withDays.id, null);
+    expect(cleared.defaultPersonDays).toBeNull();
   });
 
   it("removes a member", async () => {

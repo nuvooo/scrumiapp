@@ -81,11 +81,13 @@ model BurndownPoint {
 }
 
 model TeamMember {
-  id              String          @id @default(cuid())
-  team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  teamId          String
-  name            String
-  capacityEntries CapacityEntry[]
+  id                String          @id @default(cuid())
+  team              Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId            String
+  name              String
+  /// Standard-Personentage als Vorbelegung für neue Sprints (null = Sprint-Arbeitstage)
+  defaultPersonDays Float?
+  capacityEntries   CapacityEntry[]
 }
 
 model CapacityEntry {
