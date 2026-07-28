@@ -71,6 +71,16 @@ export default async function DashboardPage({
           monoHint
         />
         <KpiCard label="Effizienz" value={formatPoints(data.efficiency)} unit="SP/PT" hint="Story Points pro Personentag" />
+        <KpiCard
+          label="Prognose"
+          value={data.forecast ? formatPoints(data.forecast.possiblePoints) : "–"}
+          unit={data.forecast ? "SP" : undefined}
+          hint={
+            data.forecast
+              ? `möglich bei ${formatPoints(data.totalPlanned)} PT Soll · Ø ${formatPoints(data.forecast.efficiency)} SP/PT`
+              : "noch keine abgeschlossenen Sprints als Basis"
+          }
+        />
       </div>
 
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3.5">

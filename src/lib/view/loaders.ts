@@ -3,10 +3,11 @@ import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
 import { listBurndownForSprint } from "@/lib/repositories/burndownRepository";
 import { listCapacityForSprint, listCapacityForSprints } from "@/lib/repositories/capacityRepository";
 import { prisma } from "@/lib/db";
-import { toDomainSprint, toDomainBurndownPoint, toDomainCapacityEntry } from "./mappers";
+import { toDomainSprint, toDomainBurndownPoint } from "./mappers";
 import { calcBurndown, calcBugBurndown, calcTicketBurndown } from "@/lib/metrics/burndown";
 import { calcVelocityTrend } from "@/lib/metrics/velocity";
-import { calcCapacityEfficiency } from "@/lib/metrics/capacity";
+import { calcCapacityEfficiency, scaleToSprintLength } from "@/lib/metrics/capacity";
+import { calcForecast } from "@/lib/metrics/forecast";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 
@@ -26,18 +27,62 @@ export async function loadTeamsWithMembers() {
   return listTeamsWithMembers();
 }
 
+/**
+ * Prognose für einen Sprint: gepoolte Effizienz der abgeschlossenen Sprints des Teams
+ * (ohne den betrachteten Sprint) × geplante Personentage. Respektiert metricsSince.
+ */
+async function loadForecast(teamId: string, excludeSprintId: string, plannedPersonDays: number) {
+  const closed = (await listSprintsForTeam(teamId)).filter(
+    (s) => s.state === "CLOSED" && s.id !== excludeSprintId,
+  );
+  const caps = await listCapacityForSprints(closed.map((s) => s.id));
+  const actualBySprint = new Map<string, number>();
+  for (const c of caps) {
+    actualBySprint.set(c.sprintId, (actualBySprint.get(c.sprintId) ?? 0) + c.actualPersonDays);
+  }
+  return calcForecast(
+    closed.map((s) => ({ velocity: s.completedPoints, actualPersonDays: actualBySprint.get(s.id) ?? 0 })),
+    plannedPersonDays,
+  );
+}
+
+/**
+ * Effektive Kapazitätszeilen eines Sprints: gespeicherte Roster-Einträge, sonst
+ * Vorbelegung aus Standard-PT (auf Sprintlänge skaliert) bzw. Sprint-Arbeitstagen.
+ */
+function effectiveCapacityRows(
+  members: { id: string; name: string; defaultPersonDays: number | null }[],
+  entries: { teamMemberId: string | null; plannedPersonDays: number; actualPersonDays: number }[],
+  workingDayCount: number,
+) {
+  const byMember = new Map(entries.filter((e) => e.teamMemberId).map((e) => [e.teamMemberId as string, e]));
+  return members.map((m) => {
+    const e = byMember.get(m.id);
+    const fallback =
+      m.defaultPersonDays !== null ? scaleToSprintLength(m.defaultPersonDays, workingDayCount) : workingDayCount;
+    return {
+      teamMemberId: m.id,
+      name: m.name,
+      plannedPersonDays: e ? e.plannedPersonDays : fallback,
+      actualPersonDays: e ? e.actualPersonDays : fallback,
+    };
+  });
+}
+
 export async function loadDashboard(sprintId: string) {
   const sprint = await prisma.sprint.findUnique({
     where: { id: sprintId },
-    include: { team: true, issues: true },
+    include: { team: { include: { members: { orderBy: { name: "asc" } } } }, issues: true },
   });
   if (!sprint) return null;
   const domain = toDomainSprint(sprint);
-  const caps = (await listCapacityForSprint(sprintId)).map(toDomainCapacityEntry);
-  const capacity = calcCapacityEfficiency(domain, caps);
 
   const days =
     sprint.startDate && sprint.endDate ? workingDaysBetween(sprint.startDate, sprint.endDate) : [];
+  const entries = await listCapacityForSprint(sprintId);
+  const capacityRows = effectiveCapacityRows(sprint.team.members, entries, days.length);
+  const capacity = calcCapacityEfficiency(domain, capacityRows);
+  const forecast = await loadForecast(sprint.teamId, sprintId, capacity.totalPlanned);
   const today = Date.now();
   const dayIndex = days.filter((d) => d.getTime() <= today).length;
 
@@ -59,6 +104,7 @@ export async function loadDashboard(sprintId: string) {
     totalPlanned: capacity.totalPlanned,
     totalActual: capacity.totalActual,
     efficiency: capacity.efficiency,
+    forecast,
     tickets: {
       total: issues.length,
       done: issues.length - openIssues.length,
@@ -110,29 +156,12 @@ export async function loadCapacity(sprintId: string) {
   if (!sprint) return null;
 
   const entries = await listCapacityForSprint(sprintId);
-  const byMember = new Map(entries.filter((e) => e.teamMemberId).map((e) => [e.teamMemberId as string, e]));
-  const defaultSoll =
+  const workingDayCount =
     sprint.startDate && sprint.endDate ? workingDaysBetween(sprint.startDate, sprint.endDate).length : 0;
 
-  const rows = sprint.team.members.map((m) => {
-    const e = byMember.get(m.id);
-    // Vorbelegung: Standard-PT des Mitglieds, sonst Arbeitstage des Sprints
-    const fallback = m.defaultPersonDays ?? defaultSoll;
-    return {
-      teamMemberId: m.id,
-      name: m.name,
-      plannedPersonDays: e ? e.plannedPersonDays : fallback,
-      actualPersonDays: e ? e.actualPersonDays : fallback,
-    };
-  });
+  const rows = effectiveCapacityRows(sprint.team.members, entries, workingDayCount);
+  const result = calcCapacityEfficiency(toDomainSprint(sprint), rows);
+  const forecast = await loadForecast(sprint.teamId, sprintId, result.totalPlanned);
 
-  const domainEntries = rows.map((r) => ({
-    teamMemberId: r.teamMemberId,
-    name: r.name,
-    plannedPersonDays: r.plannedPersonDays,
-    actualPersonDays: r.actualPersonDays,
-  }));
-  const result = calcCapacityEfficiency(toDomainSprint(sprint), domainEntries);
-
-  return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, ...result };
+  return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, forecast, ...result };
 }

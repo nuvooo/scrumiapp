@@ -35,6 +35,17 @@ export default async function CapacityPage({
         <KpiCard size="md" label="PT Ist" value={formatPoints(data.totalActual)} hint={`${formatDelta(delta)} PT gegenüber Plan`} />
         <KpiCard size="md" label="Geliefert" value={formatPoints(data.completedPoints)} unit="SP" hint="abgeschlossene Story Points" />
         <KpiCard size="md" label="Effizienz" value={formatPoints(data.efficiency)} unit="SP/PT" hint="Story Points pro Personentag" />
+        <KpiCard
+          size="md"
+          label="Prognose"
+          value={data.forecast ? formatPoints(data.forecast.possiblePoints) : "–"}
+          unit={data.forecast ? "SP" : undefined}
+          hint={
+            data.forecast
+              ? `bei ${formatPoints(data.totalPlanned)} PT Soll · Ø aus ${data.forecast.basedOnSprints} Sprints`
+              : "noch keine abgeschlossenen Sprints als Basis"
+          }
+        />
       </div>
 
       <CapacityRoster sprintId={sprintId} rows={data.rows} />

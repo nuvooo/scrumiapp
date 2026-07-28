@@ -20,7 +20,7 @@ export function TeamMembers({ teamId, members }: TeamMembersProps) {
         <div className="font-mono text-[11px] text-faint">
           {members.length} {members.length === 1 ? "Person" : "Personen"}
         </div>
-        <div className="ml-auto text-[11px] text-faint">Std.-PT = Vorbelegung der Kapazität je Sprint</div>
+        <div className="ml-auto text-[11px] text-faint">Std.-PT je 2-Wochen-Sprint · wird auf die Sprintlänge skaliert</div>
       </div>
 
       {members.length > 0 && (
@@ -38,7 +38,7 @@ export function TeamMembers({ teamId, members }: TeamMembersProps) {
                   aria-label={`Standard-Personentage von ${m.name}`}
                   defaultValue={formatDays(m.defaultPersonDays)}
                   placeholder="PT"
-                  title="Standard-Personentage; leer = Arbeitstage des Sprints"
+                  title="Standard-PT bezogen auf einen 2-Wochen-Sprint (10 Arbeitstage); wird auf die Sprintlänge skaliert. Leer = Arbeitstage des Sprints."
                   onBlur={(e) => {
                     if (e.currentTarget.value !== formatDays(m.defaultPersonDays)) e.currentTarget.form?.requestSubmit();
                   }}
@@ -68,7 +68,7 @@ export function TeamMembers({ teamId, members }: TeamMembersProps) {
           name="defaultPersonDays"
           placeholder="Std.-PT"
           aria-label="Standard-Personentage"
-          title="Standard-Personentage; leer = Arbeitstage des Sprints"
+          title="Standard-PT bezogen auf einen 2-Wochen-Sprint (10 Arbeitstage); wird auf die Sprintlänge skaliert. Leer = Arbeitstage des Sprints."
           className="input-field w-[76px] px-[11px] py-2 text-right font-mono"
         />
         <button type="submit" className="btn-secondary px-[13px] py-2">
