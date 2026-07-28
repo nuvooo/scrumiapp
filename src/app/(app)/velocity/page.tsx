@@ -1,6 +1,6 @@
 import { VelocityChart } from "@/components/charts/VelocityChart";
 import { VelocityTable } from "@/components/VelocityTable";
-import { loadTeams, loadVelocity } from "@/lib/view/loaders";
+import { loadTeams, loadVelocity, loadVelocityForecast } from "@/lib/view/loaders";
 import { resolveTeamId } from "@/lib/view/selection";
 import { formatPoints } from "@/lib/format";
 
@@ -24,6 +24,7 @@ export default async function VelocityPage({
 
   const teamName = teams.find((t) => t.id === teamId)?.name ?? "";
   const trend = await loadVelocity(teamId);
+  const forecast = await loadVelocityForecast(teamId);
   const t = TREND[trend.trend];
 
   return (
@@ -33,9 +34,24 @@ export default async function VelocityPage({
         <div className={`flex items-center gap-[7px] rounded-full border border-edge bg-field px-2.5 py-1 font-mono text-[12.5px] ${t.className}`}>
           <span className="text-sm">{t.arrow}</span>Ø {formatPoints(trend.average)} SP / Sprint
         </div>
+        {forecast && (
+          <div
+            className="flex items-center gap-[7px] rounded-full border border-edge bg-field px-2.5 py-1 font-mono text-[12.5px] text-accent"
+            title={`Basis: Ø ${formatPoints(forecast.efficiency)} SP/PT aus ${forecast.basedOnSprints} abgeschlossenen Sprints × ${formatPoints(forecast.plannedPersonDays)} geplante PT`}
+          >
+            Prognose {formatPoints(forecast.possiblePoints)} SP
+          </div>
+        )}
       </div>
       <div className="mt-[7px] text-[13px] text-muted">
         Abgeschlossene Story Points der letzten {trend.points.length} Sprints · {teamName}
+        {forecast && (
+          <>
+            {" "}
+            · Prognose für {forecast.sprintName}: {formatPoints(forecast.possiblePoints)} SP bei{" "}
+            {formatPoints(forecast.plannedPersonDays)} PT
+          </>
+        )}
       </div>
 
       {trend.points.length === 0 ? (

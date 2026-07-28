@@ -161,7 +161,32 @@ export async function loadCapacity(sprintId: string) {
 
   const rows = effectiveCapacityRows(sprint.team.members, entries, workingDayCount);
   const result = calcCapacityEfficiency(toDomainSprint(sprint), rows);
-  const forecast = await loadForecast(sprint.teamId, sprintId, result.totalPlanned);
 
-  return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, forecast, ...result };
+  return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, ...result };
+}
+
+/**
+ * Prognose für die Velocity-Seite: Ziel ist der aktive, sonst der nächste geplante
+ * Sprint. Geplante PT kommen aus dem (ggf. vorbelegten) Kapazitäts-Roster.
+ */
+export async function loadVelocityForecast(teamId: string) {
+  const sprints = await listSprintsForTeam(teamId);
+  const target = sprints.find((s) => s.state === "ACTIVE") ?? sprints.find((s) => s.state === "FUTURE");
+  if (!target) return null;
+
+  const sprint = await prisma.sprint.findUnique({
+    where: { id: target.id },
+    include: { team: { include: { members: { orderBy: { name: "asc" } } } } },
+  });
+  if (!sprint) return null;
+
+  const workingDayCount =
+    sprint.startDate && sprint.endDate ? workingDaysBetween(sprint.startDate, sprint.endDate).length : 0;
+  const entries = await listCapacityForSprint(sprint.id);
+  const rows = effectiveCapacityRows(sprint.team.members, entries, workingDayCount);
+  const plannedPersonDays = rows.reduce((sum, r) => sum + r.plannedPersonDays, 0);
+
+  const forecast = await loadForecast(teamId, sprint.id, plannedPersonDays);
+  if (!forecast) return null;
+  return { sprintName: sprint.name, plannedPersonDays, ...forecast };
 }
