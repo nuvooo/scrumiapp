@@ -1,7 +1,8 @@
 import { CapacityRoster } from "@/components/CapacityRoster";
+import { KpiCard } from "@/components/KpiCard";
 import { loadTeams, loadSprints, loadCapacity } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
-import { formatPoints } from "@/lib/format";
+import { formatPoints, formatDelta } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -13,36 +14,30 @@ export default async function CapacityPage({
   const { team, sprint } = await searchParams;
   const teams = await loadTeams();
   const teamId = resolveTeamId(teams, team);
-  if (!teamId) return <p className="text-slate-400">Kein Team vorhanden.</p>;
+  if (!teamId) return <p className="text-muted">Kein Team vorhanden.</p>;
 
   const sprints = await loadSprints(teamId);
   const sprintId = resolveSprintId(sprints, sprint);
-  if (!sprintId) return <p className="text-slate-400">Kein Sprint vorhanden.</p>;
+  if (!sprintId) return <p className="text-muted">Kein Sprint vorhanden.</p>;
 
   const data = await loadCapacity(sprintId);
-  if (!data) return <p className="text-slate-400">Kein Sprint gefunden.</p>;
+  if (!data) return <p className="text-muted">Kein Sprint gefunden.</p>;
+
+  const delta = data.totalActual - data.totalPlanned;
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-4 text-2xl font-bold">Kapazität · {data.sprintName}</h1>
+    <div>
+      <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Kapazität</h1>
+      <div className="mt-[7px] text-[13px] text-muted">Personentage je Teammitglied für {data.sprintName}</div>
 
-      <div className="mb-6 grid grid-cols-4 gap-4">
-        <Stat label="PT Soll" value={`${formatPoints(data.totalPlanned)} PT`} />
-        <Stat label="PT Ist" value={`${formatPoints(data.totalActual)} PT`} />
-        <Stat label="Geliefert" value={`${formatPoints(data.completedPoints)} SP`} />
-        <Stat label="Effizienz" value={`${formatPoints(data.efficiency)} SP/PT`} />
+      <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
+        <KpiCard size="md" label="PT Soll" value={formatPoints(data.totalPlanned)} hint="geplante Personentage" />
+        <KpiCard size="md" label="PT Ist" value={formatPoints(data.totalActual)} hint={`${formatDelta(delta)} PT gegenüber Plan`} />
+        <KpiCard size="md" label="Geliefert" value={formatPoints(data.completedPoints)} unit="SP" hint="abgeschlossene Story Points" />
+        <KpiCard size="md" label="Effizienz" value={formatPoints(data.efficiency)} unit="SP/PT" hint="Story Points pro Personentag" />
       </div>
 
       <CapacityRoster sprintId={sprintId} rows={data.rows} />
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
     </div>
   );
 }

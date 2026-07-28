@@ -27,19 +27,47 @@ export async function loadTeamsWithMembers() {
 }
 
 export async function loadDashboard(sprintId: string) {
-  const sprint = await prisma.sprint.findUnique({ where: { id: sprintId } });
+  const sprint = await prisma.sprint.findUnique({
+    where: { id: sprintId },
+    include: { team: true, issues: true },
+  });
   if (!sprint) return null;
   const domain = toDomainSprint(sprint);
   const caps = (await listCapacityForSprint(sprintId)).map(toDomainCapacityEntry);
   const capacity = calcCapacityEfficiency(domain, caps);
+
+  const days =
+    sprint.startDate && sprint.endDate ? workingDaysBetween(sprint.startDate, sprint.endDate) : [];
+  const today = Date.now();
+  const dayIndex = days.filter((d) => d.getTime() <= today).length;
+
+  const issues = sprint.issues;
+  const openIssues = issues.filter((i) => i.statusCategory !== "DONE");
+  const bugs = issues.filter((i) => /bug/i.test(i.issueType));
+
   return {
     sprintName: sprint.name,
+    sprintState: sprint.state,
+    teamName: sprint.team.name,
+    startDate: sprint.startDate,
+    endDate: sprint.endDate,
+    workingDayCount: days.length,
+    dayIndex: Math.min(Math.max(dayIndex, 0), days.length),
     velocity: sprint.completedPoints,
     committed: sprint.committedPoints,
     carriedOver: calcCarryOver(domain),
     totalPlanned: capacity.totalPlanned,
     totalActual: capacity.totalActual,
     efficiency: capacity.efficiency,
+    tickets: {
+      total: issues.length,
+      done: issues.length - openIssues.length,
+      openPoints: openIssues.reduce((sum, i) => sum + i.storyPoints, 0),
+    },
+    bugs: {
+      total: bugs.length,
+      closed: bugs.filter((i) => i.statusCategory === "DONE").length,
+    },
   };
 }
 

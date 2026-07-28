@@ -1,9 +1,30 @@
-export function KpiCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+export function KpiCard({
+  label,
+  value,
+  unit,
+  hint,
+  monoHint = false,
+  size = "lg",
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  hint?: string;
+  monoHint?: boolean;
+  size?: "lg" | "md";
+}) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1 text-3xl font-bold">{value}</div>
-      {hint && <div className="mt-1 text-xs text-slate-400">{hint}</div>}
+    <div className={`card ${size === "lg" ? "px-[18px] pb-4 pt-[18px]" : "p-[18px]"}`}>
+      <div className="mono-label">{label}</div>
+      <div
+        className={`font-semibold leading-none ${
+          size === "lg" ? "mt-3 text-[41px] tracking-[-0.038em]" : "mt-2.5 text-[34px] tracking-[-0.035em]"
+        }`}
+      >
+        {value}
+        {unit && <span className={`ml-[5px] font-medium text-dim ${size === "lg" ? "text-base" : "text-[15px]"}`}>{unit}</span>}
+      </div>
+      {hint && <div className={`mt-2 text-xs text-dim ${monoHint ? "font-mono" : ""}`}>{hint}</div>}
     </div>
   );
 }

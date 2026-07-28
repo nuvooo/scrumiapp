@@ -1,6 +1,6 @@
 "use client";
 
-import { createMember, editMember, deleteMember } from "@/app/(app)/settings/teams/actions";
+import { createMember, deleteMember } from "@/app/(app)/settings/teams/actions";
 
 interface TeamMembersProps {
   teamId: string;
@@ -9,28 +9,42 @@ interface TeamMembersProps {
 
 export function TeamMembers({ teamId, members }: TeamMembersProps) {
   return (
-    <div className="mt-3">
-      <div className="mb-2 text-xs uppercase tracking-wide text-slate-400">Mitglieder</div>
-      {members.length === 0 && <p className="mb-2 text-sm text-slate-400">Noch keine Mitglieder.</p>}
-      <ul className="mb-3 space-y-2">
-        {members.map((m) => (
-          <li key={m.id} className="flex items-center gap-2">
-            <form action={editMember} className="flex items-center gap-2">
-              <input type="hidden" name="id" value={m.id} />
-              <input name="name" defaultValue={m.name} aria-label={`Name von ${m.name}`} className="rounded bg-slate-800 px-2 py-1 text-sm text-slate-100" />
-              <button type="submit" className="text-xs text-slate-400 hover:text-emerald-400">Umbenennen</button>
-            </form>
-            <form action={deleteMember}>
-              <input type="hidden" name="id" value={m.id} />
-              <button type="submit" className="text-slate-500 hover:text-red-400" aria-label="Mitglied entfernen">✕</button>
-            </form>
-          </li>
-        ))}
-      </ul>
-      <form action={createMember} className="flex items-end gap-2">
+    <div className="mt-4 border-t border-line pt-4">
+      <div className="flex items-center gap-2.5">
+        <div className="mono-label">Mitglieder</div>
+        <div className="font-mono text-[11px] text-faint">
+          {members.length} {members.length === 1 ? "Person" : "Personen"}
+        </div>
+      </div>
+
+      {members.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {members.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center gap-2 rounded-full border border-edge bg-chip py-[5px] pl-[11px] pr-1.5 text-[12.5px] text-soft"
+            >
+              {m.name}
+              <form action={deleteMember} className="flex">
+                <input type="hidden" name="id" value={m.id} />
+                <button
+                  type="submit"
+                  aria-label={`${m.name} entfernen`}
+                  className="flex h-[18px] w-[18px] items-center justify-center rounded-full text-[13px] text-faint hover:bg-[#1F1216] hover:text-danger"
+                >
+                  ×
+                </button>
+              </form>
+            </div>
+          ))}
+        </div>
+      )}
+      {members.length === 0 && <p className="mt-3 text-[12.5px] text-muted">Noch keine Mitglieder.</p>}
+
+      <form action={createMember} className="mt-3 flex gap-2">
         <input type="hidden" name="teamId" value={teamId} />
-        <input name="name" required placeholder="Neues Mitglied" className="rounded bg-slate-800 px-3 py-1.5 text-sm text-slate-100" />
-        <button type="submit" className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-500">
+        <input name="name" required placeholder="Name hinzufügen" className="input-field w-[220px] px-[11px] py-2" />
+        <button type="submit" className="btn-secondary px-[13px] py-2">
           Hinzufügen
         </button>
       </form>

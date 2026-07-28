@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+
+afterEach(cleanup);
 import { VelocityTable } from "./VelocityTable";
 import type { VelocityPoint } from "@/lib/metrics/velocity";
 
@@ -9,11 +11,22 @@ const points: VelocityPoint[] = [
 ];
 
 describe("VelocityTable", () => {
-  it("renders a row per sprint with the signed delta and trend marker", () => {
+  it("renders a row per sprint with signed difference and completion quote", () => {
     render(<VelocityTable points={points} />);
     expect(screen.getByText("S1")).toBeInTheDocument();
     expect(screen.getByText("S2")).toBeInTheDocument();
-    expect(screen.getByText("+10")).toBeInTheDocument();
-    expect(screen.getByText("±0")).toBeInTheDocument();
+    // S1: 20 abgeschlossen von 25 committed -> −5 SP, 80 %
+    expect(screen.getByText("−5 SP")).toBeInTheDocument();
+    expect(screen.getByText("80 %")).toBeInTheDocument();
+    // S2: punktgenau -> ±0 SP, 100 %
+    expect(screen.getByText("±0 SP")).toBeInTheDocument();
+    expect(screen.getByText("100 %")).toBeInTheDocument();
+  });
+
+  it("lists the newest sprint first", () => {
+    render(<VelocityTable points={points} />);
+    const s1 = screen.getByText("S1");
+    const s2 = screen.getByText("S2");
+    expect(s2.compareDocumentPosition(s1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

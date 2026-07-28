@@ -3,5 +3,61 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-950 text-slate-100;
+  @apply bg-ink font-sans text-fg antialiased;
+  background-image: radial-gradient(1000px 520px at 10% -12%, rgba(124, 156, 255, 0.11), transparent 68%);
+  background-repeat: no-repeat;
+}
+
+input::placeholder {
+  color: #56607a;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #4a5bc4;
+}
+
+select option {
+  background: #12161f;
+  color: #e7ebf3;
+}
+
+@layer components {
+  /* Karten-Grundfläche aus dem Design: Verlauf + Innenkante + weicher Schatten */
+  .card {
+    @apply rounded-card border border-line shadow-card;
+    background: linear-gradient(180deg, #111621 0%, #0d111a 100%);
+  }
+
+  .btn-primary {
+    @apply cursor-pointer rounded-[9px] text-[13px] font-semibold text-ink shadow-btn;
+    background: linear-gradient(180deg, #93aeff, #6e8ff6);
+  }
+  .btn-primary:hover {
+    background: #93aeff;
+  }
+
+  .btn-secondary {
+    @apply cursor-pointer rounded-lg border border-tipline text-[12.5px] font-medium text-fg;
+    background: linear-gradient(180deg, #1a2029, #13181f);
+  }
+  .btn-secondary:hover {
+    background: #1d2430;
+  }
+
+  .btn-danger {
+    @apply cursor-pointer rounded-lg border border-[#3A1E24] bg-[#170F12] text-[12.5px] font-medium text-danger;
+  }
+  .btn-danger:hover {
+    background: #1f1216;
+  }
+
+  .mono-label {
+    @apply font-mono text-[10.5px] uppercase tracking-[0.11em] text-dim;
+  }
+
+  .input-field {
+    @apply w-full rounded-[9px] border border-edge bg-field px-[11px] py-[9px] text-[13px] text-fg;
+  }
 }

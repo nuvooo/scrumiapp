@@ -7,6 +7,40 @@ interface Option {
   name: string;
 }
 
+function LabeledSelect({
+  label,
+  value,
+  options,
+  emptyLabel,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Option[];
+  emptyLabel: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-faint">{label}</span>
+      <div className="relative">
+        <select
+          aria-label={label}
+          className="cursor-pointer appearance-none rounded-[9px] border border-edge bg-field py-[7px] pl-[11px] pr-[30px] text-[13px] text-fg"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {options.length === 0 && <option value="">{emptyLabel}</option>}
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-faint">▾</span>
+      </div>
+    </div>
+  );
+}
+
 export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprints: Option[] }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -19,32 +53,22 @@ export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprint
     router.push(`${pathname}?${next.toString()}`);
   }
 
-  const selectClass = "rounded bg-slate-800 px-3 py-1.5 text-sm";
-
   return (
     <div className="flex items-center gap-3">
-      <select
-        aria-label="Team"
-        className={selectClass}
+      <LabeledSelect
+        label="Team"
         value={params.get("team") ?? ""}
-        onChange={(e) => update("team", e.target.value)}
-      >
-        {teams.length === 0 && <option value="">Kein Team</option>}
-        {teams.map((t) => (
-          <option key={t.id} value={t.id}>{t.name}</option>
-        ))}
-      </select>
-      <select
-        aria-label="Sprint"
-        className={selectClass}
+        options={teams}
+        emptyLabel="Kein Team"
+        onChange={(v) => update("team", v)}
+      />
+      <LabeledSelect
+        label="Sprint"
         value={params.get("sprint") ?? ""}
-        onChange={(e) => update("sprint", e.target.value)}
-      >
-        {sprints.length === 0 && <option value="">Kein Sprint</option>}
-        {sprints.map((s) => (
-          <option key={s.id} value={s.id}>{s.name}</option>
-        ))}
-      </select>
+        options={sprints}
+        emptyLabel="Kein Sprint"
+        onChange={(v) => update("sprint", v)}
+      />
     </div>
   );
 }

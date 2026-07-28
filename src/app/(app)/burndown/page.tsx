@@ -1,4 +1,4 @@
-import { BurndownChart, type BurndownRow } from "@/components/charts/BurndownChart";
+import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/charts/BurndownChart";
 import { BurndownTabs } from "@/components/charts/BurndownTabs";
 import { loadTeams, loadSprints, loadBurndown } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
@@ -14,14 +14,14 @@ export default async function BurndownPage({
   const { team, sprint } = await searchParams;
   const teams = await loadTeams();
   const teamId = resolveTeamId(teams, team);
-  if (!teamId) return <p className="text-slate-400">Kein Team vorhanden.</p>;
+  if (!teamId) return <p className="text-muted">Kein Team vorhanden.</p>;
 
   const sprints = await loadSprints(teamId);
   const sprintId = resolveSprintId(sprints, sprint);
-  if (!sprintId) return <p className="text-slate-400">Kein Sprint vorhanden.</p>;
+  if (!sprintId) return <p className="text-muted">Kein Sprint vorhanden.</p>;
 
   const data = await loadBurndown(sprintId);
-  if (!data) return <p className="text-slate-400">Keine Burndown-Daten.</p>;
+  if (!data) return <p className="text-muted">Keine Burndown-Daten.</p>;
 
   const byLabel = new Map<string, BurndownRow>();
   for (const p of data.ideal) {
@@ -63,17 +63,30 @@ export default async function BurndownPage({
   const ticketRows = [...ticketByLabel.values()];
 
   return (
-    <div className="space-y-10">
-      <div>
-        <h1 className="mb-4 text-2xl font-bold">Burndown · {data.sprintName}</h1>
+    <div>
+      <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Burndown</h1>
+      <div className="mt-[7px] text-[13px] text-muted">
+        {data.sprintName} · Restaufwand über die Arbeitstage des Sprints
+      </div>
+
+      <div className="card mt-6 p-[18px]">
         <BurndownTabs ticketRows={ticketRows} storyRows={rows} />
       </div>
-      <div>
-        <h2 className="mb-4 text-xl font-bold">Bug-Burndown · Offene Bugs</h2>
+
+      <div className="card mt-3.5 p-[18px]">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="text-sm font-semibold">Bug-Burndown · Offene Bugs</div>
+          <ChartLegend
+            items={[
+              { type: "dash", color: "#6B7590", label: "Ideallinie" },
+              { type: "line", color: "#F2A65A", label: "Offene Bugs" },
+            ]}
+          />
+        </div>
         {bugRows.length === 0 ? (
-          <p className="text-slate-400">Für diesen Sprint wurden noch keine Bug-Daten erfasst.</p>
+          <p className="mt-4 text-muted">Für diesen Sprint wurden noch keine Bug-Daten erfasst.</p>
         ) : (
-          <BurndownChart data={bugRows} actualName="Offene Bugs" />
+          <BurndownChart data={bugRows} unit="Bugs" color="warn" height={240} />
         )}
       </div>
     </div>

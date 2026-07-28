@@ -1,37 +1,34 @@
-import { formatPoints, formatDelta, trendSymbol } from "@/lib/format";
+import { formatPoints, formatDelta } from "@/lib/format";
 import type { VelocityPoint } from "@/lib/metrics/velocity";
 
-function trendClass(trend: VelocityPoint["velocityTrend"]): string {
-  return trend === "UP" ? "text-emerald-400" : trend === "DOWN" ? "text-red-400" : "text-slate-400";
-}
+const GRID = "grid grid-cols-[1.6fr,1fr,1fr,1fr,1fr] gap-3";
 
 export function VelocityTable({ points }: { points: VelocityPoint[] }) {
+  const rows = [...points].reverse();
+
   return (
-    <table className="w-full border-collapse text-sm">
-      <thead>
-        <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
-          <th scope="col" className="py-2 pr-4">Sprint</th>
-          <th scope="col" className="py-2 pr-4 text-right">Commitment (SP)</th>
-          <th scope="col" className="py-2 pr-4 text-right">PT Soll</th>
-          <th scope="col" className="py-2 pr-4 text-right">PT Ist</th>
-          <th scope="col" className="py-2 pr-4 text-right">Velocity (SP)</th>
-          <th scope="col" className="py-2 pr-4 text-right">Δ Vorsprint</th>
-        </tr>
-      </thead>
-      <tbody>
-        {points.map((p) => (
-          <tr key={p.sprintName} className="border-b border-slate-800/60">
-            <td className="py-2 pr-4">{p.sprintName}</td>
-            <td className="py-2 pr-4 text-right">{formatPoints(p.committed)}</td>
-            <td className="py-2 pr-4 text-right">{formatPoints(p.plannedPersonDays)}</td>
-            <td className="py-2 pr-4 text-right">{formatPoints(p.actualPersonDays)}</td>
-            <td className="py-2 pr-4 text-right font-medium">{formatPoints(p.velocity)}</td>
-            <td className={`py-2 pr-4 text-right ${trendClass(p.velocityTrend)}`}>
-              {trendSymbol(p.velocityTrend)} <span>{formatDelta(p.velocityDelta)}</span>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="card overflow-hidden">
+      <div className={`${GRID} border-b border-line px-[18px] py-3 font-mono text-[10.5px] uppercase tracking-[0.1em] text-dim`}>
+        <div>Sprint</div>
+        <div className="text-right">Commitment</div>
+        <div className="text-right">Abgeschlossen</div>
+        <div className="text-right">Differenz</div>
+        <div className="text-right">Quote</div>
+      </div>
+      {rows.map((p) => {
+        const diff = p.velocity - p.committed;
+        return (
+          <div key={p.sprintName} className={`${GRID} border-b border-row px-[18px] py-[13px] text-[13px] hover:bg-raise`}>
+            <div className="text-fg">{p.sprintName}</div>
+            <div className="text-right font-mono text-mid">{formatPoints(p.committed)} SP</div>
+            <div className="text-right font-mono text-fg">{formatPoints(p.velocity)} SP</div>
+            <div className={`text-right font-mono ${diff >= 0 ? "text-ok" : "text-warn"}`}>{formatDelta(diff)} SP</div>
+            <div className="text-right font-mono text-mid">
+              {p.committed > 0 ? `${Math.round((p.velocity / p.committed) * 100)} %` : "–"}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
