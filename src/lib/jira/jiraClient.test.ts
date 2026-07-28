@@ -17,7 +17,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe("JiraCloudClient.fetchBoardSprints", () => {
-  it("requests active+closed sprints with basic auth and returns mapped sprints", async () => {
+  it("requests active+closed+future sprints with basic auth and returns mapped sprints", async () => {
     const sprints: JiraSprintRaw[] = [
       { id: 100, name: "Sprint 1", state: "closed", startDate: "2026-05-01T00:00:00.000Z", endDate: "2026-05-14T00:00:00.000Z", completeDate: "2026-05-14T10:00:00.000Z" },
     ];
@@ -31,7 +31,7 @@ describe("JiraCloudClient.fetchBoardSprints", () => {
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toContain("/rest/agile/1.0/board/42/sprint");
-    expect(url).toContain("state=active%2Cclosed");
+    expect(url).toContain("state=active%2Cclosed%2Cfuture");
     const auth = (init.headers as Record<string, string>)["Authorization"];
     expect(auth).toBe("Basic " + Buffer.from("me@example.com:token123").toString("base64"));
   });

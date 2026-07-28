@@ -32,6 +32,17 @@ describe("resolveSprintId", () => {
     const noActive = [{ id: "s1", state: "CLOSED" as const }, { id: "s2", state: "CLOSED" as const }];
     expect(resolveSprintId(noActive, undefined)).toBe("s2");
   });
+  it("prefers the last CLOSED sprint over FUTURE sprints when none is ACTIVE", () => {
+    const noActive = [
+      { id: "s1", state: "CLOSED" as const },
+      { id: "s2", state: "CLOSED" as const },
+      { id: "s3", state: "FUTURE" as const },
+    ];
+    expect(resolveSprintId(noActive, undefined)).toBe("s2");
+  });
+  it("falls back to a FUTURE sprint when nothing else exists", () => {
+    expect(resolveSprintId([{ id: "s1", state: "FUTURE" as const }], undefined)).toBe("s1");
+  });
   it("returns undefined when there are no sprints", () => {
     expect(resolveSprintId([], undefined)).toBeUndefined();
   });

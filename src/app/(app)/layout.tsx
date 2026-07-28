@@ -43,7 +43,10 @@ export default async function AppLayout({
         <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-[rgba(8,11,17,0.66)] px-[34px] py-3.5 backdrop-blur-xl">
           <TeamSprintSelector
             teams={teams.map((t) => ({ id: t.id, name: t.name }))}
-            sprints={sprints.map((s) => ({ id: s.id, name: s.name }))}
+            sprints={sprints.map((s) => ({
+              id: s.id,
+              name: s.state === "ACTIVE" ? `${s.name} (aktiv)` : s.state === "FUTURE" ? `${s.name} (geplant)` : s.name,
+            }))}
           />
           <div className="ml-auto">
             <SyncButton lastSyncedLabel={lastSyncedLabel} />
