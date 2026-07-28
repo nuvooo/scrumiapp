@@ -10,9 +10,9 @@ import { VelocityTable, type VelocitySprintRow } from "./VelocityTable";
 afterEach(cleanup);
 
 const rows: VelocitySprintRow[] = [
-  { sprintId: "s1", name: "S1", state: "CLOSED", committed: 25, completed: 20, plannedPersonDays: 20, forecast: 22 },
-  { sprintId: "s2", name: "S2", state: "CLOSED", committed: 30, completed: 30, plannedPersonDays: 20, forecast: 28 },
-  { sprintId: "s3", name: "S3", state: "FUTURE", committed: 10, completed: 0, plannedPersonDays: 15, forecast: 18 },
+  { sprintId: "s1", name: "S1", state: "CLOSED", period: "01.06.26 – 12.06.26", committed: 25, completed: 20, plannedPersonDays: 20, forecast: 22 },
+  { sprintId: "s2", name: "S2", state: "CLOSED", period: "15.06.26 – 26.06.26", committed: 30, completed: 30, plannedPersonDays: 20, forecast: 28 },
+  { sprintId: "s3", name: "S3", state: "FUTURE", period: "29.06.26 – 10.07.26", committed: 10, completed: 0, plannedPersonDays: 15, forecast: 18 },
 ];
 
 describe("VelocityTable", () => {
@@ -25,6 +25,12 @@ describe("VelocityTable", () => {
     // S2: punktgenau -> ±0 SP, 100 %
     expect(screen.getByText("±0 SP")).toBeInTheDocument();
     expect(screen.getByText("100 %")).toBeInTheDocument();
+  });
+
+  it("shows the sprint period", () => {
+    render(<VelocityTable rows={rows} teamId="t1" />);
+    expect(screen.getByText("01.06.26 – 12.06.26")).toBeInTheDocument();
+    expect(screen.getByText("29.06.26 – 10.07.26")).toBeInTheDocument();
   });
 
   it("shows planned sprints with tag and placeholder values", () => {

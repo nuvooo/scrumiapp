@@ -9,13 +9,15 @@ export interface VelocitySprintRow {
   sprintId: string;
   name: string;
   state: "ACTIVE" | "CLOSED" | "FUTURE";
+  /** Vorformatierter Sprint-Zeitraum, z. B. "13.07.26 – 24.07.26". */
+  period: string;
   committed: number;
   completed: number;
   plannedPersonDays: number;
   forecast: number | null;
 }
 
-const GRID = "grid grid-cols-[1.6fr,1fr,1fr,1fr,1fr,1fr,68px] gap-3";
+const GRID = "grid grid-cols-[1.5fr,1.1fr,0.9fr,1fr,0.9fr,0.9fr,0.8fr,68px] gap-3";
 
 const STATE_TAG = {
   ACTIVE: { label: "aktiv", className: "border-[#1F3D2B] bg-[#0F1A14] text-ok" },
@@ -38,6 +40,7 @@ export function VelocityTable({ rows, teamId }: { rows: VelocitySprintRow[]; tea
     <div className="card overflow-hidden">
       <div className={`${GRID} border-b border-line px-[18px] py-3 font-mono text-[10.5px] uppercase tracking-[0.1em] text-dim`}>
         <div>Sprint</div>
+        <div>Zeitraum</div>
         <div className="text-right">Commitment</div>
         <div className="text-right">Abgeschlossen</div>
         <div className="text-right">Prognose</div>
@@ -59,6 +62,7 @@ export function VelocityTable({ rows, teamId }: { rows: VelocitySprintRow[]; tea
                 </span>
               )}
             </div>
+            <div className="whitespace-nowrap font-mono text-[12px] text-muted">{r.period}</div>
             <div className="text-right font-mono text-mid">{formatPoints(r.committed)} SP</div>
             <div className="text-right font-mono text-fg">{done ? `${formatPoints(r.completed)} SP` : "–"}</div>
             <div

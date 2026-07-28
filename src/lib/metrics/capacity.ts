@@ -6,17 +6,29 @@ export interface CapacityResult {
   efficiency: number; // Story Points pro Ist-Personentag
 }
 
-/** Arbeitstage eines Referenz-Sprints (2 Wochen), auf den sich Standard-PT beziehen. */
-export const REFERENCE_SPRINT_DAYS = 10;
+/**
+ * Median der Arbeitstage vergangener Sprints — die "typische" Sprintlänge eines
+ * Teams. 0, wenn keine verwertbaren Längen vorliegen.
+ */
+export function typicalSprintLength(workingDayCounts: number[]): number {
+  const usable = workingDayCounts.filter((n) => n > 0).sort((a, b) => a - b);
+  if (usable.length === 0) return 0;
+  const mid = Math.floor(usable.length / 2);
+  return usable.length % 2 === 1 ? usable[mid] : (usable[mid - 1] + usable[mid]) / 2;
+}
 
 /**
- * Skaliert Standard-Personentage (bezogen auf einen 10-Arbeitstage-Sprint) auf die
- * tatsächliche Sprintlänge, kaufmännisch auf halbe Tage gerundet. Ohne bekannte
- * Sprintlänge (0 Arbeitstage) wird der Standardwert unverändert übernommen.
+ * Skaliert Standard-Personentage (bezogen auf die typische Sprintlänge des Teams)
+ * anteilig auf die tatsächliche Sprintlänge, kaufmännisch auf halbe Tage gerundet.
+ * Ist eine der Längen unbekannt (0), wird der Standardwert unverändert übernommen.
  */
-export function scaleToSprintLength(defaultPersonDays: number, workingDayCount: number): number {
-  if (workingDayCount <= 0) return defaultPersonDays;
-  return Math.round(((defaultPersonDays * workingDayCount) / REFERENCE_SPRINT_DAYS) * 2) / 2;
+export function scaleToSprintLength(
+  defaultPersonDays: number,
+  workingDayCount: number,
+  referenceDayCount: number,
+): number {
+  if (workingDayCount <= 0 || referenceDayCount <= 0) return defaultPersonDays;
+  return Math.round(((defaultPersonDays * workingDayCount) / referenceDayCount) * 2) / 2;
 }
 
 /** Soll-/Ist-Summen und Effizienz (completedPoints / Ist-Personentage). */

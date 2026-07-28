@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcCapacityEfficiency, scaleToSprintLength } from "./capacity";
+import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from "./capacity";
 import type { DomainSprint, DomainCapacityEntry } from "@/lib/domain/types";
 
 function sprint(completed: number): DomainSprint {
@@ -36,17 +36,30 @@ describe("calcCapacityEfficiency", () => {
 });
 
 describe("scaleToSprintLength", () => {
-  it("keeps the value for a 10-working-day reference sprint", () => {
-    expect(scaleToSprintLength(8, 10)).toBe(8);
+  it("keeps the value when the sprint matches the team's typical length", () => {
+    expect(scaleToSprintLength(12, 15, 15)).toBe(12);
   });
 
   it("scales proportionally to the sprint length, rounded to half days", () => {
-    expect(scaleToSprintLength(8, 15)).toBe(12); // 3-Wochen-Sprint
-    expect(scaleToSprintLength(8, 5)).toBe(4); // 1-Wochen-Sprint
-    expect(scaleToSprintLength(9, 14)).toBe(12.5); // 12,6 -> 12,5
+    expect(scaleToSprintLength(12, 5, 15)).toBe(4); // 1 Woche statt üblicher 3
+    expect(scaleToSprintLength(8, 15, 10)).toBe(12); // 3 Wochen statt üblicher 2
+    expect(scaleToSprintLength(9, 14, 10)).toBe(12.5); // 12,6 -> 12,5
   });
 
-  it("returns the raw default when the sprint length is unknown", () => {
-    expect(scaleToSprintLength(8, 0)).toBe(8);
+  it("returns the raw default when either length is unknown", () => {
+    expect(scaleToSprintLength(8, 0, 10)).toBe(8);
+    expect(scaleToSprintLength(8, 10, 0)).toBe(8);
+  });
+});
+
+describe("typicalSprintLength", () => {
+  it("returns the median of positive working-day counts", () => {
+    expect(typicalSprintLength([10, 15, 15])).toBe(15);
+    expect(typicalSprintLength([10, 14, 15, 16])).toBe(14.5);
+  });
+
+  it("ignores unknown lengths and handles empty input", () => {
+    expect(typicalSprintLength([0, 15, 0])).toBe(15);
+    expect(typicalSprintLength([])).toBe(0);
   });
 });
