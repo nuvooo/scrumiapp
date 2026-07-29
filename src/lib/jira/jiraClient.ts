@@ -90,7 +90,7 @@ export class JiraCloudClient implements JiraClient {
   // Ticket-/Bug-Zähler). Sub-Tasks stehen selbst nie auf dem Board; sie gelten
   // als sichtbar, wenn ihr Hauptticket auf dem Board steht.
   async fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]> {
-    const fields = ["summary", "resolutiondate", "status", "issuetype", "parent", this.config.storyPointsField].join(",");
+    const fields = ["summary", "resolutiondate", "status", "issuetype", "parent", "assignee", this.config.storyPointsField].join(",");
     const all = await this.paginateIssues(`/rest/agile/1.0/sprint/${sprintId}/issue`, fields);
     const onBoard = await this.paginateIssues(
       `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue`,

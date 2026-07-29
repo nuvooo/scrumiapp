@@ -65,6 +65,8 @@ model Issue {
   addedAfterSprintStart Boolean       @default(false)
   /// Sichtbar auf dem Jira-Board (Board-Filter + Spalten-Mapping)
   onBoard              Boolean        @default(true)
+  /// Anzeigename des Bearbeiters aus Jira (null = nicht zugewiesen)
+  assignee             String?
 
   @@unique([sprintId, jiraKey])
 }

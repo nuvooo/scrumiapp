@@ -37,6 +37,7 @@ export function mapIssue(raw: JiraIssueRaw, storyPointsField: string, onBoard = 
     resolvedAt: raw.fields.resolutiondate ? new Date(raw.fields.resolutiondate) : null,
     addedAfterSprintStart: false,
     onBoard,
+    assignee: raw.fields.assignee?.displayName ?? null,
   };
 }
 

@@ -24,6 +24,7 @@ export interface JiraIssueRaw {
     status: { name: string; statusCategory: JiraStatusCategory };
     issuetype?: { name: string; subtask?: boolean };
     parent?: { key: string };
+    assignee?: { displayName?: string } | null;
     [storyPointsField: string]: unknown;
   };
 }

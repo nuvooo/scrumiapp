@@ -9,6 +9,7 @@ const NAV_GROUPS = [
     title: "Analyse",
     items: [
       { href: "/dashboard", label: "Dashboard" },
+      { href: "/standup", label: "Standup" },
       { href: "/burndown", label: "Burndown" },
       { href: "/velocity", label: "Velocity" },
       { href: "/capacity", label: "Kapazität" },

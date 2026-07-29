@@ -10,6 +10,7 @@ import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from
 import { calcForecast } from "@/lib/metrics/forecast";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
 import { calcCelebration, type CelebrationEffect } from "@/lib/metrics/celebration";
+import { buildStandupGroups, previousWorkingDay } from "@/lib/metrics/standup";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 
@@ -227,6 +228,34 @@ export async function loadCelebration(sprintId: string): Promise<CelebrationEffe
     totalTickets: openTickets + doneTickets,
     today: new Date(),
   });
+}
+
+/**
+ * Standup-Daten für den aktiven Sprint eines Teams: Gruppen je Bearbeiter mit
+ * offenen Board-Tickets und seit dem letzten Arbeitstag erledigten Tickets.
+ */
+export async function loadStandup(teamId: string) {
+  const sprint = await prisma.sprint.findFirst({
+    where: { teamId, state: "ACTIVE" },
+    include: { issues: true },
+  });
+  if (!sprint) return null;
+
+  const toView = (i: { jiraKey: string; summary: string; issueType: string; status: string }) => ({
+    jiraKey: i.jiraKey,
+    summary: i.summary,
+    issueType: i.issueType,
+    status: i.status,
+  });
+  const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()));
+  return {
+    sprintName: sprint.name,
+    groups: groups.map((g) => ({
+      name: g.name,
+      openIssues: g.openIssues.map(toView),
+      doneIssues: g.doneIssues.map(toView),
+    })),
+  };
 }
 
 export async function loadBurndown(sprintId: string) {

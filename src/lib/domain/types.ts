@@ -13,6 +13,8 @@ export interface DomainIssue {
   addedAfterSprintStart: boolean;
   /** Sichtbar auf dem Jira-Board (Board-Filter + Spalten-Mapping). */
   onBoard: boolean;
+  /** Anzeigename des Bearbeiters aus Jira (null = nicht zugewiesen). */
+  assignee: string | null;
 }
 
 export interface DomainSprint {
