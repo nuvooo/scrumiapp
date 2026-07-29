@@ -1,5 +1,4 @@
 import type { DomainSprint, TrendDirection } from "@/lib/domain/types";
-import { calcCarryOver } from "./carryOver";
 
 export interface VelocityPoint {
   sprintName: string;
@@ -14,6 +13,8 @@ export interface VelocityPoint {
 
 export interface VelocityInput {
   sprint: DomainSprint;
+  /** Vom Aufrufer berechnet: SP der Commitment-Issues, die schon im Vorsprint waren. */
+  carriedOver: number;
   plannedPersonDays: number;
   actualPersonDays: number;
 }
@@ -36,7 +37,7 @@ export function calcVelocityTrend(inputs: VelocityInput[]): VelocityTrend {
       sprintName: inp.sprint.name,
       velocity,
       committed: inp.sprint.committedPoints,
-      carriedOver: calcCarryOver(inp.sprint),
+      carriedOver: inp.carriedOver,
       plannedPersonDays: inp.plannedPersonDays,
       actualPersonDays: inp.actualPersonDays,
       velocityDelta,

@@ -1,25 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { calcCarryOver } from "./carryOver";
-import type { DomainSprint } from "@/lib/domain/types";
 
-function sprint(committed: number, completed: number): DomainSprint {
-  return {
-    id: "s1", name: "Sprint 1", state: "CLOSED",
-    startDate: null, endDate: null, completeDate: null,
-    committedPoints: committed, completedPoints: completed,
-  };
-}
+const issue = (jiraKey: string, storyPoints: number) => ({ jiraKey, storyPoints });
 
 describe("calcCarryOver", () => {
-  it("returns committed minus completed", () => {
-    expect(calcCarryOver(sprint(40, 34))).toBe(6);
+  it("sums the points of issues that were already in the previous sprint", () => {
+    const committedIssues = [issue("AB-1", 5), issue("AB-2", 3), issue("AB-3", 8)];
+    const previousKeys = new Set(["AB-1", "AB-3"]);
+    expect(calcCarryOver(committedIssues, previousKeys)).toBe(13);
   });
 
-  it("returns 0 when everything was completed", () => {
-    expect(calcCarryOver(sprint(30, 30))).toBe(0);
+  it("returns 0 when no issue was in the previous sprint", () => {
+    expect(calcCarryOver([issue("AB-1", 5)], new Set(["ZZ-9"]))).toBe(0);
   });
 
-  it("never returns negative (more completed than committed)", () => {
-    expect(calcCarryOver(sprint(20, 25))).toBe(0);
+  it("returns 0 without a previous sprint", () => {
+    expect(calcCarryOver([issue("AB-1", 5)], new Set())).toBe(0);
   });
 });

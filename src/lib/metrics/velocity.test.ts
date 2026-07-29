@@ -11,7 +11,7 @@ function sprint(name: string, committed: number, completed: number): DomainSprin
 }
 
 function input(name: string, committed: number, completed: number, planned: number, actual: number): VelocityInput {
-  return { sprint: sprint(name, committed, completed), plannedPersonDays: planned, actualPersonDays: actual };
+  return { sprint: sprint(name, committed, completed), carriedOver: committed - completed, plannedPersonDays: planned, actualPersonDays: actual };
 }
 
 describe("calcVelocityTrend", () => {

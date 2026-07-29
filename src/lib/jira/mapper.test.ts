@@ -70,17 +70,44 @@ describe("mapIssue", () => {
 });
 
 describe("computeSprintPoints", () => {
-  it("sums committed (all) and completed (DONE only) story points", () => {
+  const window = { start: new Date("2026-05-18"), end: new Date("2026-05-29") };
+
+  it("counts completed only for issues resolved within the sprint window", () => {
     const issues = [
-      mapIssue(rawIssue("AB-1", 5, "done", "2026-05-20T10:00:00.000Z"), FIELD),
-      mapIssue(rawIssue("AB-2", 8, "indeterminate", null), FIELD),
-      mapIssue(rawIssue("AB-3", 3, "new", null), FIELD),
+      mapIssue(rawIssue("AB-1", 5, "done", "2026-05-20T10:00:00.000Z"), FIELD), // im Zeitraum
+      mapIssue(rawIssue("AB-2", 13, "done", "2026-01-01T10:00:00.000Z"), FIELD), // Altlast -> zählt nicht
+      mapIssue(rawIssue("AB-3", 8, "indeterminate", null), FIELD), // offen auf Board
+      mapIssue(rawIssue("AB-4", 3, "new", null), FIELD),           // offen auf Board
     ];
-    expect(computeSprintPoints(issues)).toEqual({ committedPoints: 16, completedPoints: 5 });
+    expect(computeSprintPoints(issues, window)).toEqual({ committedPoints: 16, completedPoints: 5 });
+  });
+
+  it("ignores open issues that are not visible on the board", () => {
+    const issues = [
+      mapIssue(rawIssue("AB-1", 8, "new", null), FIELD, false), // z. B. Abnahme STAGE
+      mapIssue(rawIssue("AB-2", 3, "new", null), FIELD),
+    ];
+    expect(computeSprintPoints(issues, window)).toEqual({ committedPoints: 3, completedPoints: 0 });
+  });
+
+  it("counts nothing as completed when the sprint has no start date", () => {
+    const issues = [mapIssue(rawIssue("AB-1", 5, "done", "2026-05-20T10:00:00.000Z"), FIELD)];
+    expect(computeSprintPoints(issues, { start: null, end: null })).toEqual({
+      committedPoints: 0,
+      completedPoints: 0,
+    });
+  });
+
+  it("has no upper bound when the sprint has no end date yet", () => {
+    const issues = [mapIssue(rawIssue("AB-1", 5, "done", "2026-06-10T10:00:00.000Z"), FIELD)];
+    expect(computeSprintPoints(issues, { start: new Date("2026-05-18"), end: null })).toEqual({
+      committedPoints: 5,
+      completedPoints: 5,
+    });
   });
 
   it("returns zeros for an empty sprint", () => {
-    expect(computeSprintPoints([])).toEqual({ committedPoints: 0, completedPoints: 0 });
+    expect(computeSprintPoints([], window)).toEqual({ committedPoints: 0, completedPoints: 0 });
   });
 });
 
@@ -99,6 +126,11 @@ describe("countOpenBugs", () => {
     expect(countOpenBugs(issues, bugTypes)).toBe(2);
   });
 
+  it("ignores bugs that are not visible on the board", () => {
+    const offBoard = mapIssue(rawIssue("X-off", 0, "new", null, "Bug"), FIELD, false);
+    expect(countOpenBugs([offBoard], bugTypes)).toBe(0);
+  });
+
   it("matches bug types case-insensitively", () => {
     expect(countOpenBugs([issue("BUG", "new")], bugTypes)).toBe(1);
   });
@@ -109,17 +141,20 @@ describe("countOpenBugs", () => {
 });
 
 describe("countOpenTickets", () => {
-  it("counts all non-done issues including sub-tasks", () => {
+  const bugTypes = new Set(["bug", "fehler"]);
+
+  it("counts non-done, non-bug issues that are visible on the board", () => {
     const issues = [
       mapIssue(rawIssue("A-1", 5, "done", null, "Story"), FIELD),
       mapIssue(rawIssue("A-2", 3, "indeterminate", null, "Story"), FIELD),
-      mapIssue(rawIssue("A-3", 0, "new", null, "Sub-task"), FIELD),
-      mapIssue(rawIssue("A-4", 0, "new", null, "Bug"), FIELD),
+      mapIssue(rawIssue("A-3", 0, "new", null, "Task"), FIELD),
+      mapIssue(rawIssue("A-4", 0, "new", null, "Bug"), FIELD), // Bug -> zählt nicht als Ticket
+      mapIssue(rawIssue("A-5", 0, "new", null, "Story"), FIELD, false), // nicht auf dem Board
     ];
-    expect(countOpenTickets(issues)).toBe(3);
+    expect(countOpenTickets(issues, bugTypes)).toBe(2);
   });
 
   it("returns 0 when everything is done", () => {
-    expect(countOpenTickets([mapIssue(rawIssue("A-1", 5, "done", null), FIELD)])).toBe(0);
+    expect(countOpenTickets([mapIssue(rawIssue("A-1", 5, "done", null), FIELD)], bugTypes)).toBe(0);
   });
 });

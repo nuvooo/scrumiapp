@@ -11,6 +11,8 @@ export interface DomainIssue {
   statusCategory: StatusCategory;
   resolvedAt: Date | null;
   addedAfterSprintStart: boolean;
+  /** Sichtbar auf dem Jira-Board (Board-Filter + Spalten-Mapping). */
+  onBoard: boolean;
 }
 
 export interface DomainSprint {

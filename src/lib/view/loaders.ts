@@ -10,6 +10,7 @@ import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from
 import { calcForecast } from "@/lib/metrics/forecast";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
+import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 
 export async function loadTeams() {
   return listTeams();
@@ -73,6 +74,47 @@ function effectiveCapacityRows(
   });
 }
 
+interface SprintWindowSource {
+  startDate: Date | null;
+  endDate: Date | null;
+  completeDate: Date | null;
+}
+
+interface ScopedIssue {
+  jiraKey: string;
+  storyPoints: number;
+  statusCategory: string;
+  onBoard: boolean;
+  resolvedAt: Date | null;
+}
+
+/** Im Sprint-Zeitraum erledigt (resolvedAt zwischen Start und completeDate/endDate). */
+function isDoneInSprint(i: ScopedIssue, s: SprintWindowSource): boolean {
+  const end = s.completeDate ?? s.endDate;
+  return (
+    i.statusCategory === "DONE" &&
+    i.resolvedAt !== null &&
+    s.startDate !== null &&
+    i.resolvedAt >= s.startDate &&
+    (end === null || i.resolvedAt <= end)
+  );
+}
+
+/** Issues, die zum Commitment zählen: offen auf dem Board oder im Zeitraum erledigt. */
+function committedIssuesOf<T extends ScopedIssue>(issues: T[], s: SprintWindowSource): T[] {
+  return issues.filter((i) => (i.statusCategory !== "DONE" && i.onBoard) || isDoneInSprint(i, s));
+}
+
+/** Der zeitlich vorangegangene abgeschlossene Sprint (für Carry-Over). */
+function previousClosedSprint<T extends SprintWindowSource & { state: string }>(
+  sprints: T[],
+  current: SprintWindowSource,
+): T | undefined {
+  return sprints
+    .filter((s) => s.state === "CLOSED" && s.startDate && current.startDate && s.startDate < current.startDate)
+    .sort((a, b) => (b.startDate as Date).getTime() - (a.startDate as Date).getTime())[0];
+}
+
 /** Typische Sprintlänge (Median der Arbeitstage) der abgeschlossenen Sprints. */
 function referenceDaysFromSprints(
   sprints: { state: string; startDate: Date | null; endDate: Date | null }[],
@@ -107,9 +149,27 @@ export async function loadDashboard(sprintId: string) {
   const today = Date.now();
   const dayIndex = days.filter((d) => d.getTime() <= today).length;
 
+  // Offene Arbeit zählt nur, was die Jira-Board-Ansicht zeigt (onBoard);
+  // Erledigtes nur, was im Sprint-Zeitraum erledigt wurde — dem Sprint zugeordnete
+  // Altlasten zählen nirgends. Bugs laufen getrennt von den Ticket-Zahlen.
+  const bugTypes = getBugIssueTypes();
+  const isBug = (i: { issueType: string }) => bugTypes.has(i.issueType.toLowerCase());
   const issues = sprint.issues;
-  const openIssues = issues.filter((i) => i.statusCategory !== "DONE");
-  const bugs = issues.filter((i) => /bug/i.test(i.issueType));
+  const doneIssues = issues.filter((i) => isDoneInSprint(i, sprint) && !isBug(i));
+  const openOnBoard = issues.filter((i) => i.statusCategory !== "DONE" && i.onBoard && !isBug(i));
+  const doneBugs = issues.filter((i) => isDoneInSprint(i, sprint) && isBug(i));
+  const openBugsOnBoard = issues.filter((i) => i.statusCategory !== "DONE" && i.onBoard && isBug(i));
+
+  // Carry-Over: Punkte der Commitment-Issues, die schon im Vorsprint waren.
+  const committedIssues = committedIssuesOf(issues, sprint);
+  const previous = previousClosedSprint(teamSprints, sprint);
+  const previousKeys = previous
+    ? new Set(
+        (
+          await prisma.issue.findMany({ where: { sprintId: previous.id }, select: { jiraKey: true } })
+        ).map((i) => i.jiraKey),
+      )
+    : new Set<string>();
 
   return {
     sprintName: sprint.name,
@@ -121,19 +181,19 @@ export async function loadDashboard(sprintId: string) {
     dayIndex: Math.min(Math.max(dayIndex, 0), days.length),
     velocity: sprint.completedPoints,
     committed: sprint.committedPoints,
-    carriedOver: calcCarryOver(domain),
+    carriedOver: calcCarryOver(committedIssues, previousKeys),
     totalPlanned: capacity.totalPlanned,
     totalActual: capacity.totalActual,
     efficiency: capacity.efficiency,
     forecast,
     tickets: {
-      total: issues.length,
-      done: issues.length - openIssues.length,
-      openPoints: openIssues.reduce((sum, i) => sum + i.storyPoints, 0),
+      total: doneIssues.length + openOnBoard.length,
+      done: doneIssues.length,
+      openPoints: openOnBoard.reduce((sum, i) => sum + i.storyPoints, 0),
     },
     bugs: {
-      total: bugs.length,
-      closed: bugs.filter((i) => i.statusCategory === "DONE").length,
+      total: doneBugs.length + openBugsOnBoard.length,
+      closed: doneBugs.length,
     },
   };
 }
@@ -167,9 +227,28 @@ export async function loadVelocity(teamId: string) {
     actualBySprint.set(c.sprintId, (actualBySprint.get(c.sprintId) ?? 0) + c.actualPersonDays);
   }
 
+  // Carry-Over je Sprint: Commitment-Issues, die schon im Vorsprint enthalten waren.
+  const issueRows = await prisma.issue.findMany({
+    where: { sprintId: { in: all.map((s) => s.id) } },
+    select: { sprintId: true, jiraKey: true, storyPoints: true, statusCategory: true, onBoard: true, resolvedAt: true },
+  });
+  const issuesBySprint = new Map<string, typeof issueRows>();
+  for (const row of issueRows) {
+    const list = issuesBySprint.get(row.sprintId) ?? [];
+    list.push(row);
+    issuesBySprint.set(row.sprintId, list);
+  }
+  const carryOverOf = (s: (typeof all)[number]) => {
+    const previous = previousClosedSprint(all, s);
+    if (!previous) return 0;
+    const previousKeys = new Set((issuesBySprint.get(previous.id) ?? []).map((i) => i.jiraKey));
+    return calcCarryOver(committedIssuesOf(issuesBySprint.get(s.id) ?? [], s), previousKeys);
+  };
+
   const nonFuture = all.filter((s) => s.state !== "FUTURE");
   const inputs = nonFuture.map((s) => ({
     sprint: toDomainSprint(s),
+    carriedOver: carryOverOf(s),
     plannedPersonDays: plannedBySprint.get(s.id) ?? 0,
     actualPersonDays: actualBySprint.get(s.id) ?? 0,
   }));

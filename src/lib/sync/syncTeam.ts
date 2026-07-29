@@ -14,12 +14,14 @@ import { syncStarted, syncAdvanced, syncFinished } from "./progress";
  *
  * Inkrementell: Sprints, die lokal und in Jira bereits CLOSED sind, werden
  * übersprungen — ihre Issues ändern sich nicht mehr. Dadurch lädt ein Folge-Sync
- * nur aktive, geplante und neu abgeschlossene Sprints.
+ * nur aktive, geplante und neu abgeschlossene Sprints. Mit { full: true } werden
+ * auch abgeschlossene Sprints neu geladen (z. B. nach Filter-/Feldänderungen).
  */
 export async function syncTeam(
   teamId: string,
   client: JiraClient,
   bugTypes: Set<string> = getBugIssueTypes(),
+  opts: { full?: boolean } = {},
 ): Promise<void> {
   const team = await getTeam(teamId);
   if (!team) return;
@@ -29,14 +31,18 @@ export async function syncTeam(
     const known = new Map((await listAllSprintsForTeam(teamId)).map((s) => [s.jiraSprintId, s]));
 
     const toProcess = sprints.filter((s) => {
+      if (opts.full) return true;
       const local = known.get(s.jiraSprintId);
       return !(local && local.state === "CLOSED" && s.state === "CLOSED");
     });
     syncStarted(team.name, toProcess.length, sprints.length - toProcess.length);
 
     for (const s of toProcess) {
-      const issues = await client.fetchSprintIssues(s.jiraSprintId);
-      const { committedPoints, completedPoints } = computeSprintPoints(issues);
+      const issues = await client.fetchSprintIssues(team.jiraBoardId, s.jiraSprintId);
+      const { committedPoints, completedPoints } = computeSprintPoints(issues, {
+        start: s.startDate,
+        end: s.completeDate ?? s.endDate,
+      });
 
       const sprint = await upsertSprint(teamId, {
         jiraSprintId: s.jiraSprintId,
@@ -58,7 +64,7 @@ export async function syncTeam(
           Math.max(0, committedPoints - completedPoints),
           completedPoints,
           countOpenBugs(issues, bugTypes),
-          countOpenTickets(issues),
+          countOpenTickets(issues, bugTypes),
         );
       }
       syncAdvanced();

@@ -27,7 +27,7 @@ async function makeSprint() {
 
 const issue = (key: string, points: number): DomainIssue => ({
   jiraKey: key, summary: key, issueType: "Story", storyPoints: points, status: "Done", statusCategory: "DONE",
-  resolvedAt: null, addedAfterSprintStart: false,
+  resolvedAt: null, addedAfterSprintStart: false, onBoard: true,
 });
 
 describe("issueRepository", () => {

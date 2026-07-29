@@ -68,25 +68,73 @@ describe("JiraCloudClient.fetchBoardSprints", () => {
 });
 
 describe("JiraCloudClient.fetchSprintIssues", () => {
+  const issue = (key: string, extra: Record<string, unknown> = {}) => ({
+    key,
+    fields: {
+      summary: key,
+      resolutiondate: null,
+      status: { name: "To Do", statusCategory: { key: "new" } },
+      customfield_10016: 3,
+      ...extra,
+    },
+  });
+
   it("returns mapped domain issues across pages", async () => {
-    const issue = (key: string) => ({
-      key,
-      fields: {
-        summary: key,
-        resolutiondate: null,
-        status: { name: "To Do", statusCategory: { key: "new" } },
-        customfield_10016: 3,
-      },
-    });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-1")], startAt: 0, maxResults: 1, total: 2 }))
-      .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-2")], startAt: 1, maxResults: 1, total: 2 }));
+      .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-2")], startAt: 1, maxResults: 1, total: 2 }))
+      .mockResolvedValueOnce(jsonResponse({ issues: [], startAt: 0, maxResults: 50, total: 0 }));
     const client = new JiraCloudClient(config, fetchMock);
 
-    const result = await client.fetchSprintIssues("100");
+    const result = await client.fetchSprintIssues("42", "100");
 
     expect(result.map((i) => i.jiraKey)).toEqual(["AB-1", "AB-2"]);
     expect(result[0].storyPoints).toBe(3);
+  });
+
+  it("loads all sprint issues and flags board visibility via the board endpoint", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-1"), issue("AB-2")], startAt: 0, maxResults: 50, total: 2 }))
+      .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-2")], startAt: 0, maxResults: 50, total: 1 }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.fetchSprintIssues("42", "100");
+
+    const urls = fetchMock.mock.calls.map(([u]) => u as string);
+    expect(urls[0]).toContain("/rest/agile/1.0/sprint/100/issue");
+    expect(urls[1]).toContain("/rest/agile/1.0/board/42/sprint/100/issue");
+    expect(result.map((i) => [i.jiraKey, i.onBoard])).toEqual([
+      ["AB-1", false],
+      ["AB-2", true],
+    ]);
+  });
+
+  it("includes sub-tasks and derives their board visibility from the parent", async () => {
+    const subtask = (key: string, parentKey: string) =>
+      issue(key, { issuetype: { name: "Sub-task", subtask: true }, parent: { key: parentKey } });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          issues: [
+            issue("AB-2"),
+            subtask("SUB-1", "AB-2"), // Parent auf dem Board -> sichtbar
+            subtask("SUB-2", "AB-9"), // Parent nicht auf dem Board -> unsichtbar
+          ],
+          startAt: 0, maxResults: 50, total: 3,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ issues: [issue("AB-2")], startAt: 0, maxResults: 50, total: 1 }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.fetchSprintIssues("42", "100");
+
+    expect(result.map((i) => [i.jiraKey, i.onBoard])).toEqual([
+      ["AB-2", true],
+      ["SUB-1", true],
+      ["SUB-2", false],
+    ]);
   });
 });

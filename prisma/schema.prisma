@@ -63,6 +63,8 @@ model Issue {
   statusCategory       StatusCategory
   resolvedAt           DateTime?
   addedAfterSprintStart Boolean       @default(false)
+  /// Sichtbar auf dem Jira-Board (Board-Filter + Spalten-Mapping)
+  onBoard              Boolean        @default(true)
 
   @@unique([sprintId, jiraKey])
 }

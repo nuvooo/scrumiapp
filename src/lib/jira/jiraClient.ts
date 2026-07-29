@@ -1,5 +1,5 @@
 import type { DomainIssue } from "@/lib/domain/types";
-import type { JiraSprintPage, JiraIssuePage } from "./types";
+import type { JiraSprintPage, JiraIssuePage, JiraIssueRaw } from "./types";
 import { mapIssue, mapSprintState } from "./mapper";
 
 export interface JiraConfig {
@@ -20,7 +20,7 @@ export interface MappedSprint {
 
 export interface JiraClient {
   fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
-  fetchSprintIssues(sprintId: string): Promise<DomainIssue[]>;
+  fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -69,22 +69,38 @@ export class JiraCloudClient implements JiraClient {
     return sprints;
   }
 
-  async fetchSprintIssues(sprintId: string): Promise<DomainIssue[]> {
-    const issues: DomainIssue[] = [];
+  private async paginateIssues(path: string, fields: string): Promise<JiraIssueRaw[]> {
+    const issues: JiraIssueRaw[] = [];
     let startAt = 0;
-    const fields = ["summary", "resolutiondate", "status", "issuetype", this.config.storyPointsField].join(",");
     for (;;) {
       const page = await this.getJson<JiraIssuePage>(
-        `/rest/agile/1.0/sprint/${sprintId}/issue?startAt=${startAt}&maxResults=50&fields=${fields}`,
+        `${path}?startAt=${startAt}&maxResults=50&fields=${fields}`,
       );
-      for (const raw of page.issues) {
-        issues.push(mapIssue(raw, this.config.storyPointsField));
-      }
+      issues.push(...page.issues);
       if (page.issues.length === 0) break;
       startAt += page.issues.length;
       if (startAt >= page.total) break;
     }
     return issues;
+  }
+
+  // Zwei Sichten pro Sprint: der globale /sprint/{id}/issue-Endpoint liefert alle
+  // Vorgänge (nötig für Velocity — Erledigtes verschwindet oft vom Board), der
+  // Board-Endpoint bestimmt, was die Board-Ansicht zeigt (onBoard-Flag für
+  // Ticket-/Bug-Zähler). Sub-Tasks stehen selbst nie auf dem Board; sie gelten
+  // als sichtbar, wenn ihr Hauptticket auf dem Board steht.
+  async fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]> {
+    const fields = ["summary", "resolutiondate", "status", "issuetype", "parent", this.config.storyPointsField].join(",");
+    const all = await this.paginateIssues(`/rest/agile/1.0/sprint/${sprintId}/issue`, fields);
+    const onBoard = await this.paginateIssues(
+      `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue`,
+      "issuetype",
+    );
+    const boardKeys = new Set(onBoard.map((raw) => raw.key));
+    return all.map((raw) => {
+      const visibleKey = raw.fields.issuetype?.subtask ? raw.fields.parent?.key : raw.key;
+      return mapIssue(raw, this.config.storyPointsField, visibleKey ? boardKeys.has(visibleKey) : false);
+    });
   }
 }
 

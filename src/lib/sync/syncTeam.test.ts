@@ -20,7 +20,7 @@ afterEach(async () => {
 class FakeJira implements JiraClient {
   constructor(private sprints: MappedSprint[], private issues: Record<string, DomainIssue[]>) {}
   async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
-  async fetchSprintIssues(sprintId: string): Promise<DomainIssue[]> { return this.issues[sprintId] ?? []; }
+  async fetchSprintIssues(_boardId: string, sprintId: string): Promise<DomainIssue[]> { return this.issues[sprintId] ?? []; }
 }
 
 class FailingJira implements JiraClient {
@@ -32,8 +32,8 @@ class CountingJira implements JiraClient {
   issueCalls: string[] = [];
   constructor(private sprints: MappedSprint[]) {}
   async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
-  async fetchSprintIssues(sprintId: string): Promise<DomainIssue[]> {
-    this.issueCalls.push(sprintId);
+  async fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]> {
+    this.issueCalls.push(`${boardId}:${sprintId}`);
     return [];
   }
 }
@@ -47,10 +47,10 @@ describe("syncTeam", () => {
       [{ jiraSprintId: "100", name: "Sprint 1", state: "ACTIVE",
          startDate: new Date("2026-05-18"), endDate: new Date("2026-05-22"), completeDate: null }],
       { "100": [
-        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
-        { jiraKey: "AB-2", summary: "AB-2", issueType: "Story", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
-        { jiraKey: "AB-3", summary: "AB-3", issueType: "Bug", storyPoints: 0, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false },
-        { jiraKey: "AB-4", summary: "AB-4", issueType: "Bug", storyPoints: 0, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false },
+        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: new Date("2026-05-19"), addedAfterSprintStart: false, onBoard: false },
+        { jiraKey: "AB-2", summary: "AB-2", issueType: "Story", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true },
+        { jiraKey: "AB-3", summary: "AB-3", issueType: "Bug", storyPoints: 0, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true },
+        { jiraKey: "AB-4", summary: "AB-4", issueType: "Bug", storyPoints: 0, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false, onBoard: false },
       ] },
     );
 
@@ -68,7 +68,8 @@ describe("syncTeam", () => {
     expect(burndown.length).toBe(1);
     expect(burndown[0].remainingPoints).toBe(3);
     expect(burndown[0].remainingBugs).toBe(1);
-    expect(burndown[0].remainingTickets).toBe(2);
+    // AB-3 (Bug) zählt nicht als Ticket — Bugs werden separat gezählt
+    expect(burndown[0].remainingTickets).toBe(1);
 
     const refreshed = await prisma.team.findUnique({ where: { id: team.id } });
     expect(refreshed?.lastSyncedAt).not.toBeNull();
@@ -95,11 +96,24 @@ describe("syncTeam", () => {
     ]);
 
     await syncTeam(team.id, client);
-    expect(client.issueCalls).toEqual(["300", "301"]);
+    expect(client.issueCalls).toEqual(["11:300", "11:301"]);
 
     // Zweiter Sync: der abgeschlossene Sprint wird nicht erneut geladen
     await syncTeam(team.id, client);
-    expect(client.issueCalls).toEqual(["300", "301", "301"]);
+    expect(client.issueCalls).toEqual(["11:300", "11:301", "11:301"]);
+  });
+
+  it("reloads closed sprints when full is set", async () => {
+    const team = await createTeam({ name: "Epsilon", jiraBoardId: "11" });
+    teams.push(team.id);
+
+    const client = new CountingJira([
+      { jiraSprintId: "300", name: "Alt", state: "CLOSED", startDate: null, endDate: null, completeDate: null },
+    ]);
+
+    await syncTeam(team.id, client);
+    await syncTeam(team.id, client, undefined, { full: true });
+    expect(client.issueCalls).toEqual(["11:300", "11:300"]);
   });
 
   it("does not delete manual capacity entries on sync", async () => {

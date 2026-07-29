@@ -23,6 +23,7 @@ export async function replaceIssuesForSprint(
         statusCategory: i.statusCategory,
         resolvedAt: i.resolvedAt,
         addedAfterSprintStart: i.addedAfterSprintStart,
+        onBoard: i.onBoard,
       })),
     }),
   ]);

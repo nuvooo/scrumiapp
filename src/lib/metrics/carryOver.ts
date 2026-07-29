@@ -1,6 +1,12 @@
-import type { DomainSprint } from "@/lib/domain/types";
-
-/** Nicht abgeschlossene ("mitgenommene") Story Points eines Sprints. Nie negativ. */
-export function calcCarryOver(sprint: DomainSprint): number {
-  return Math.max(0, sprint.committedPoints - sprint.completedPoints);
+/**
+ * Übernommene ("carry-over") Story Points: Punkte der zum Commitment zählenden
+ * Issues, die bereits im vorherigen Sprint enthalten waren.
+ */
+export function calcCarryOver(
+  committedIssues: { jiraKey: string; storyPoints: number }[],
+  previousSprintKeys: Set<string>,
+): number {
+  return committedIssues
+    .filter((i) => previousSprintKeys.has(i.jiraKey))
+    .reduce((sum, i) => sum + i.storyPoints, 0);
 }
