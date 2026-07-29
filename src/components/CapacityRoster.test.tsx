@@ -26,4 +26,26 @@ describe("CapacityRoster", () => {
     render(<CapacityRoster sprintId="s1" rows={[]} />);
     expect(screen.getByText(/keine Mitglieder/i)).toBeInTheDocument();
   });
+
+  it("resets the editable values when the sprint changes", () => {
+    const { container, rerender } = render(
+      <CapacityRoster
+        sprintId="s1"
+        rows={[{ teamMemberId: "m1", name: "Alice", plannedPersonDays: 8, actualPersonDays: 6 }]}
+      />,
+    );
+
+    // Sprint-Wechsel über den Dropdown: gleiche Komponente, neue Props
+    rerender(
+      <CapacityRoster
+        sprintId="s2"
+        rows={[{ teamMemberId: "m1", name: "Alice", plannedPersonDays: 3, actualPersonDays: 2 }]}
+      />,
+    );
+
+    const planned = container.querySelector('input[name="plannedPersonDays"]') as HTMLInputElement;
+    const actual = container.querySelector('input[name="actualPersonDays"]') as HTMLInputElement;
+    expect(planned.value).toBe("3");
+    expect(actual.value).toBe("2");
+  });
 });

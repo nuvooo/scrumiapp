@@ -32,12 +32,23 @@ function deltaClass(delta: number): string {
   return delta < 0 ? "text-warn" : delta > 0 ? "text-ok" : "text-dim";
 }
 
-export function CapacityRoster({ sprintId, rows }: { sprintId: string; rows: CapacityRosterRow[] }) {
-  const [values, setValues] = useState(() =>
-    Object.fromEntries(
-      rows.map((r) => [r.teamMemberId, { soll: String(r.plannedPersonDays), ist: String(r.actualPersonDays) }]),
-    ),
+function initialValues(rows: CapacityRosterRow[]) {
+  return Object.fromEntries(
+    rows.map((r) => [r.teamMemberId, { soll: String(r.plannedPersonDays), ist: String(r.actualPersonDays) }]),
   );
+}
+
+export function CapacityRoster({ sprintId, rows }: { sprintId: string; rows: CapacityRosterRow[] }) {
+  const [values, setValues] = useState(() => initialValues(rows));
+
+  // Beim Sprint-Wechsel bleibt die Komponente gemountet — den editierbaren
+  // State auf die frisch geladenen Zeilen zurücksetzen (React-Muster
+  // "adjusting state during render").
+  const [syncedSprintId, setSyncedSprintId] = useState(sprintId);
+  if (syncedSprintId !== sprintId) {
+    setSyncedSprintId(sprintId);
+    setValues(initialValues(rows));
+  }
 
   const patch = (id: string, field: "soll" | "ist", v: string) =>
     setValues((prev) => ({ ...prev, [id]: { ...prev[id], [field]: v } }));
