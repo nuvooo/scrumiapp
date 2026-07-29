@@ -15,10 +15,6 @@ const groups: StandupGroupView[] = [
   },
 ];
 
-const columns = [
-  { name: "Offen", statuses: ["Open"] },
-  { name: "In Arbeit", statuses: ["In Arbeit"] },
-];
 
 describe("StandupBoard", () => {
   beforeEach(() => {
@@ -35,27 +31,30 @@ describe("StandupBoard", () => {
   });
 
   function start() {
-    render(<StandupBoard groups={groups} columns={columns} />);
+    render(<StandupBoard groups={groups} />);
     fireEvent.click(screen.getByRole("button", { name: "Standup starten" }));
   }
 
   it("shows a setup screen with participants and speaking time", () => {
-    render(<StandupBoard groups={groups} columns={columns} />);
+    render(<StandupBoard groups={groups} />);
     expect(screen.getByText(/2 Teilnehmer/)).toBeInTheDocument();
     expect(screen.getByLabelText("Redezeit pro Person")).toHaveValue("2:00");
   });
 
-  it("renders the board columns like Jira and sorts tickets into them", () => {
+  it("renders open tickets as row cards with their status", () => {
     start();
     fireEvent.click(screen.getByRole("button", { name: "Weiter" })); // zu Ben
-    const inArbeit = screen.getByTestId("standup-col-In Arbeit");
-    expect(inArbeit).toHaveTextContent("Login bauen");
-    expect(screen.getByTestId("standup-col-Offen")).not.toHaveTextContent("Login bauen");
+    const card = screen.getByTestId("standup-card-A-1");
+    expect(card).toHaveTextContent("Login bauen");
+    expect(card).toHaveTextContent("In Arbeit");
+    expect(card).toHaveTextContent("Story");
   });
 
-  it("shows done tickets in a trailing Erledigt column", () => {
+  it("marks tickets done since yesterday as erledigt", () => {
     start(); // Zoe zuerst
-    expect(screen.getByTestId("standup-col-Erledigt")).toHaveTextContent("Bug fixen");
+    const card = screen.getByTestId("standup-card-A-2");
+    expect(card).toHaveTextContent("Bug fixen");
+    expect(card).toHaveTextContent("erledigt");
   });
 
   it("counts down for the active person", () => {

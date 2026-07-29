@@ -33,7 +33,7 @@ export default async function StandupPage({
       <div className="mt-[7px] text-[13px] text-muted">
         {data.sprintName} · {people} {people === 1 ? "Person" : "Personen"} mit Tickets
       </div>
-      <StandupBoard groups={data.groups} columns={data.columns} />
+      <StandupBoard groups={data.groups} />
     </div>
   );
 }
