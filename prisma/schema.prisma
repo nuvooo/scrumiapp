@@ -25,6 +25,8 @@ model Team {
   jiraBoardId         String
   syncIntervalMinutes Int      @default(60)
   metricsSince        DateTime?
+  /// Jira-Board-Spalten als JSON: [{ name, statuses: string[] }] (Status-Namen)
+  boardColumns        String?
   lastSyncedAt        DateTime?
   lastSyncError       String?
   createdAt           DateTime @default(now())

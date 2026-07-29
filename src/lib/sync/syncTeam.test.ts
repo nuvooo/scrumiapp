@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { createTeam } from "@/lib/repositories/teamRepository";
 import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
@@ -18,17 +18,20 @@ afterEach(async () => {
 });
 
 class FakeJira implements JiraClient {
+  async fetchBoardColumns() { return []; }
   constructor(private sprints: MappedSprint[], private issues: Record<string, DomainIssue[]>) {}
   async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
   async fetchSprintIssues(_boardId: string, sprintId: string): Promise<DomainIssue[]> { return this.issues[sprintId] ?? []; }
 }
 
 class FailingJira implements JiraClient {
+  async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("401 Unauthorized"); }
   async fetchSprintIssues(): Promise<DomainIssue[]> { return []; }
 }
 
 class CountingJira implements JiraClient {
+  async fetchBoardColumns() { return []; }
   issueCalls: string[] = [];
   constructor(private sprints: MappedSprint[]) {}
   async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }

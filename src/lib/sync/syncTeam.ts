@@ -1,7 +1,7 @@
 import type { JiraClient } from "@/lib/jira/jiraClient";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 import { computeSprintPoints, countOpenBugs, countOpenTickets } from "@/lib/jira/mapper";
-import { getTeam, updateTeamSyncStatus } from "@/lib/repositories/teamRepository";
+import { getTeam, updateTeamSyncStatus, saveTeamBoardColumns } from "@/lib/repositories/teamRepository";
 import { upsertSprint, listAllSprintsForTeam } from "@/lib/repositories/sprintRepository";
 import { replaceIssuesForSprint } from "@/lib/repositories/issueRepository";
 import { recordBurndownPoint } from "@/lib/repositories/burndownRepository";
@@ -27,6 +27,7 @@ export async function syncTeam(
   if (!team) return;
 
   try {
+    await saveTeamBoardColumns(teamId, await client.fetchBoardColumns(team.jiraBoardId));
     const sprints = await client.fetchBoardSprints(team.jiraBoardId);
     const known = new Map((await listAllSprintsForTeam(teamId)).map((s) => [s.jiraSprintId, s]));
 

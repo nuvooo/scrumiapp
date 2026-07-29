@@ -18,9 +18,16 @@ export interface MappedSprint {
   completeDate: Date | null;
 }
 
+export interface BoardColumn {
+  name: string;
+  /** Status-Namen, die dieser Spalte zugeordnet sind. */
+  statuses: string[];
+}
+
 export interface JiraClient {
   fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
   fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
+  fetchBoardColumns(boardId: string): Promise<BoardColumn[]>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -67,6 +74,22 @@ export class JiraCloudClient implements JiraClient {
       startAt += page.values.length;
     }
     return sprints;
+  }
+
+  // Spalten der Board-Ansicht: die Konfiguration liefert Status-IDs, die über
+  // die globale Status-Liste in Namen aufgelöst werden (Issues tragen nur Namen).
+  async fetchBoardColumns(boardId: string): Promise<BoardColumn[]> {
+    const config = await this.getJson<{
+      columnConfig?: { columns?: { name: string; statuses?: { id: string }[] }[] };
+    }>(`/rest/agile/1.0/board/${boardId}/configuration`);
+    const statuses = await this.getJson<{ id: string; name: string }[]>(`/rest/api/3/status`);
+    const nameById = new Map(statuses.map((s) => [s.id, s.name]));
+    return (config.columnConfig?.columns ?? []).map((c) => ({
+      name: c.name,
+      statuses: (c.statuses ?? [])
+        .map((s) => nameById.get(s.id))
+        .filter((n): n is string => n !== undefined),
+    }));
   }
 
   private async paginateIssues(path: string, fields: string): Promise<JiraIssueRaw[]> {

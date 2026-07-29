@@ -237,9 +237,16 @@ export async function loadCelebration(sprintId: string): Promise<CelebrationEffe
 export async function loadStandup(teamId: string) {
   const sprint = await prisma.sprint.findFirst({
     where: { teamId, state: "ACTIVE" },
-    include: { issues: true },
+    include: { issues: true, team: true },
   });
   if (!sprint) return null;
+
+  let columns: { name: string; statuses: string[] }[] = [];
+  try {
+    columns = sprint.team.boardColumns ? JSON.parse(sprint.team.boardColumns) : [];
+  } catch {
+    columns = [];
+  }
 
   const toView = (i: { jiraKey: string; summary: string; issueType: string; status: string }) => ({
     jiraKey: i.jiraKey,
@@ -250,6 +257,7 @@ export async function loadStandup(teamId: string) {
   const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()));
   return {
     sprintName: sprint.name,
+    columns,
     groups: groups.map((g) => ({
       name: g.name,
       openIssues: g.openIssues.map(toView),

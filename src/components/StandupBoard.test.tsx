@@ -15,6 +15,11 @@ const groups: StandupGroupView[] = [
   },
 ];
 
+const columns = [
+  { name: "Offen", statuses: ["Open"] },
+  { name: "In Arbeit", statuses: ["In Arbeit"] },
+];
+
 describe("StandupBoard", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -30,14 +35,27 @@ describe("StandupBoard", () => {
   });
 
   function start() {
-    render(<StandupBoard groups={groups} />);
+    render(<StandupBoard groups={groups} columns={columns} />);
     fireEvent.click(screen.getByRole("button", { name: "Standup starten" }));
   }
 
   it("shows a setup screen with participants and speaking time", () => {
-    render(<StandupBoard groups={groups} />);
+    render(<StandupBoard groups={groups} columns={columns} />);
     expect(screen.getByText(/2 Teilnehmer/)).toBeInTheDocument();
     expect(screen.getByLabelText("Redezeit pro Person")).toHaveValue("2:00");
+  });
+
+  it("renders the board columns like Jira and sorts tickets into them", () => {
+    start();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" })); // zu Ben
+    const inArbeit = screen.getByTestId("standup-col-In Arbeit");
+    expect(inArbeit).toHaveTextContent("Login bauen");
+    expect(screen.getByTestId("standup-col-Offen")).not.toHaveTextContent("Login bauen");
+  });
+
+  it("shows done tickets in a trailing Erledigt column", () => {
+    start(); // Zoe zuerst
+    expect(screen.getByTestId("standup-col-Erledigt")).toHaveTextContent("Bug fixen");
   });
 
   it("counts down for the active person", () => {

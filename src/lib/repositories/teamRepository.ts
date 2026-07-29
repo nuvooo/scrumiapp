@@ -35,6 +35,17 @@ export function updateTeamSyncStatus(teamId: string, status: SyncStatusUpdate): 
   return prisma.team.update({ where: { id: teamId }, data: status });
 }
 
+/** Speichert die Jira-Board-Spalten eines Teams als JSON. */
+export function saveTeamBoardColumns(
+  teamId: string,
+  columns: { name: string; statuses: string[] }[],
+): Promise<Team> {
+  return prisma.team.update({
+    where: { id: teamId },
+    data: { boardColumns: JSON.stringify(columns) },
+  });
+}
+
 export interface UpdateTeamInput {
   name: string;
   jiraBoardId: string;

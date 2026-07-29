@@ -14,11 +14,13 @@ afterEach(async () => {
 });
 
 class NoopJira implements JiraClient {
+  async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { return []; }
   async fetchSprintIssues() { return []; }
 }
 
 class FailingJira implements JiraClient {
+  async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("boom"); }
   async fetchSprintIssues(): Promise<[]> { return []; }
 }

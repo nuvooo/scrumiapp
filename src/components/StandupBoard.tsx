@@ -16,6 +16,12 @@ export interface StandupGroupView {
   doneIssues: StandupIssue[];
 }
 
+export interface StandupColumn {
+  name: string;
+  /** Status-Namen, die dieser Spalte zugeordnet sind. */
+  statuses: string[];
+}
+
 const STORAGE_KEY = "scrumi.standup.seconds";
 const DEFAULT_SECONDS = 120;
 
@@ -50,22 +56,56 @@ function initials(name: string | null): string {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function IssueRow({ issue, done }: { issue: StandupIssue; done: boolean }) {
+function IssueCard({ issue, done }: { issue: StandupIssue; done: boolean }) {
   return (
-    <div className="flex items-baseline gap-2.5 border-b border-row py-[7px] text-[13px] last:border-b-0">
-      <span className="font-mono text-[11.5px] text-link">{issue.jiraKey}</span>
-      <span className={done ? "text-dim line-through" : "text-fg"}>{issue.summary}</span>
-      <span className="ml-auto flex flex-none items-baseline gap-2">
-        <span className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-faint">{issue.issueType}</span>
-        <span className={`rounded-full border px-2 py-[2px] font-mono text-[10.5px] ${done ? "border-[#1F3D2B] text-ok" : "border-edge text-mid"}`}>
-          {done ? "erledigt" : issue.status}
-        </span>
-      </span>
+    <div className={`rounded-[9px] border p-2.5 ${done ? "border-[#1F3D2B] bg-[#0F1A14]" : "border-edge bg-field"}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-mono text-[11px] text-link">{issue.jiraKey}</span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">{issue.issueType}</span>
+      </div>
+      <div className={`mt-1.5 text-[12.5px] leading-snug ${done ? "text-dim line-through" : "text-fg"}`}>
+        {issue.summary}
+      </div>
     </div>
   );
 }
 
-export function StandupBoard({ groups }: { groups: StandupGroupView[] }) {
+interface FilledColumn {
+  name: string;
+  issues: StandupIssue[];
+  done: boolean;
+}
+
+/**
+ * Verteilt die Tickets einer Person auf die Jira-Board-Spalten; nicht
+ * zuordenbare offene Tickets landen in "Sonstige", Erledigtes in einer
+ * eigenen Spalte am Ende. Ohne Spalten-Konfiguration: eine Spalte "Offen".
+ */
+function fillColumns(group: StandupGroupView, columns: StandupColumn[]): FilledColumn[] {
+  const base: FilledColumn[] =
+    columns.length > 0
+      ? columns.map((c) => ({
+          name: c.name,
+          issues: group.openIssues.filter((i) => c.statuses.includes(i.status)),
+          done: false,
+        }))
+      : [{ name: "Offen", issues: [...group.openIssues], done: false }];
+
+  const assigned = new Set(base.flatMap((c) => c.issues.map((i) => i.jiraKey)));
+  const rest = group.openIssues.filter((i) => !assigned.has(i.jiraKey));
+  if (rest.length > 0) base.push({ name: "Sonstige", issues: rest, done: false });
+
+  base.push({ name: "Erledigt", issues: group.doneIssues, done: true });
+  return base;
+}
+
+export function StandupBoard({
+  groups,
+  columns,
+}: {
+  groups: StandupGroupView[];
+  columns: StandupColumn[];
+}) {
   const [phase, setPhase] = useState<"setup" | "running" | "done">("setup");
   const [durationText, setDurationText] = useState("2:00");
   const [order, setOrder] = useState(groups);
@@ -216,16 +256,33 @@ export function StandupBoard({ groups }: { groups: StandupGroupView[] }) {
         </div>
         {overrun && <div className="mt-2 text-right text-[12px] text-warn">Redezeit überzogen</div>}
 
-        <div className="mt-5">
-          {active.openIssues.map((i) => (
-            <IssueRow key={i.jiraKey} issue={i} done={false} />
-          ))}
-          {active.doneIssues.map((i) => (
-            <IssueRow key={i.jiraKey} issue={i} done />
-          ))}
-          {active.openIssues.length + active.doneIssues.length === 0 && (
-            <div className="py-6 text-center text-[13px] text-muted">Keine Tickets.</div>
-          )}
+        <div className="mt-5 overflow-x-auto pb-1">
+          <div className="flex items-start gap-3">
+            {fillColumns(active, columns).map((col) => (
+              <div
+                key={col.name}
+                data-testid={`standup-col-${col.name}`}
+                className="w-[210px] flex-none rounded-[10px] border border-line bg-raise p-2.5"
+              >
+                <div className="flex items-baseline justify-between px-0.5 pb-2">
+                  <span className={`font-mono text-[10.5px] uppercase tracking-[0.1em] ${col.done ? "text-ok" : "text-dim"}`}>
+                    {col.name}
+                  </span>
+                  <span className="font-mono text-[10.5px] text-faint">{col.issues.length}</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {col.issues.map((i) => (
+                    <IssueCard key={i.jiraKey} issue={i} done={col.done} />
+                  ))}
+                  {col.issues.length === 0 && (
+                    <div className="rounded-[9px] border border-dashed border-edge py-3 text-center font-mono text-[10.5px] text-faint">
+                      leer
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -67,6 +67,43 @@ describe("JiraCloudClient.fetchBoardSprints", () => {
   });
 });
 
+describe("JiraCloudClient.fetchBoardColumns", () => {
+  it("maps column status ids to status names", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          columnConfig: {
+            columns: [
+              { name: "Offen", statuses: [{ id: "1" }, { id: "4" }] },
+              { name: "In Arbeit", statuses: [{ id: "7" }] },
+              { name: "Leer", statuses: [] },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { id: "1", name: "Open" },
+          { id: "4", name: "Reopened" },
+          { id: "7", name: "In Progress" },
+        ]),
+      );
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const columns = await client.fetchBoardColumns("42");
+
+    const urls = fetchMock.mock.calls.map(([u]) => u as string);
+    expect(urls[0]).toContain("/rest/agile/1.0/board/42/configuration");
+    expect(urls[1]).toContain("/rest/api/3/status");
+    expect(columns).toEqual([
+      { name: "Offen", statuses: ["Open", "Reopened"] },
+      { name: "In Arbeit", statuses: ["In Progress"] },
+      { name: "Leer", statuses: [] },
+    ]);
+  });
+});
+
 describe("JiraCloudClient.fetchSprintIssues", () => {
   const issue = (key: string, extra: Record<string, unknown> = {}) => ({
     key,
