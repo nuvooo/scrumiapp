@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { KpiCard } from "@/components/KpiCard";
-import { loadTeams, loadSprints, loadDashboard } from "@/lib/view/loaders";
+import { Celebration } from "@/components/Celebration";
+import { loadTeams, loadSprints, loadDashboard, loadCelebration } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
 import { formatPoints, formatDateShort } from "@/lib/format";
 
@@ -29,6 +30,7 @@ export default async function DashboardPage({
   const data = await loadDashboard(sprintId);
   if (!data) return <Empty />;
 
+  const celebration = await loadCelebration(sprintId);
   const badge = STATE_BADGE[data.sprintState];
   const subtitle = [
     data.startDate && data.endDate
@@ -47,6 +49,7 @@ export default async function DashboardPage({
 
   return (
     <div>
+      <Celebration effect={celebration} />
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-[29px] font-semibold tracking-[-0.028em]">{data.sprintName}</h1>
         <span className={`rounded-full border px-2 py-[3px] font-mono text-[11.5px] ${badge.className}`}>

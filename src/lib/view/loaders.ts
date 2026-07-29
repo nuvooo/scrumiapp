@@ -9,6 +9,7 @@ import { calcVelocityTrend } from "@/lib/metrics/velocity";
 import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from "@/lib/metrics/capacity";
 import { calcForecast } from "@/lib/metrics/forecast";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
+import { calcCelebration, type CelebrationEffect } from "@/lib/metrics/celebration";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 
@@ -196,6 +197,36 @@ export async function loadDashboard(sprintId: string) {
       closed: doneBugs.length,
     },
   };
+}
+
+/**
+ * Feier-Effekt für Dashboard und Burndown: Feuerwerk bei 0 offenen Tickets,
+ * Feenstaub, wenn der Vortag auf/unter der Ideallinie des Ticket-Burndowns lag.
+ */
+export async function loadCelebration(sprintId: string): Promise<CelebrationEffect | null> {
+  const sprint = await prisma.sprint.findUnique({
+    where: { id: sprintId },
+    include: { issues: true },
+  });
+  if (!sprint) return null;
+
+  const points = (await listBurndownForSprint(sprintId)).map(toDomainBurndownPoint);
+  const ticketBurndown = calcTicketBurndown(toDomainSprint(sprint), points);
+
+  const bugTypes = getBugIssueTypes();
+  const isBug = (i: { issueType: string }) => bugTypes.has(i.issueType.toLowerCase());
+  const openTickets = sprint.issues.filter(
+    (i) => i.statusCategory !== "DONE" && i.onBoard && !isBug(i),
+  ).length;
+  const doneTickets = sprint.issues.filter((i) => isDoneInSprint(i, sprint) && !isBug(i)).length;
+
+  return calcCelebration({
+    sprintState: sprint.state,
+    ticketBurndown,
+    openTickets,
+    totalTickets: openTickets + doneTickets,
+    today: new Date(),
+  });
 }
 
 export async function loadBurndown(sprintId: string) {

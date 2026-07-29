@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 
 const NAV_GROUPS = [
@@ -26,7 +27,13 @@ export function Sidebar({ jiraHost }: { jiraHost: string | null }) {
   return (
     <aside className="sticky top-0 flex h-screen w-[236px] flex-none flex-col gap-[26px] border-r border-line bg-[rgba(11,14,20,0.55)] px-3.5 py-[22px]">
       <div className="flex items-center gap-2.5 px-2">
-        <div className="h-[22px] w-[22px] rounded-[7px] bg-gradient-to-br from-[#A5BAFF] to-[#5E80EE] shadow-[0_3px_12px_rgba(124,156,255,0.4)]" />
+        <Image
+          src="/scrumi-logo.png"
+          alt="Scrumi-Logo"
+          width={26}
+          height={26}
+          className="drop-shadow-[0_3px_12px_rgba(124,156,255,0.4)]"
+        />
         <div className="text-base font-semibold tracking-[-0.01em]">Scrumi</div>
         <div className="ml-auto font-mono text-[10px] text-faint">v1.0</div>
       </div>

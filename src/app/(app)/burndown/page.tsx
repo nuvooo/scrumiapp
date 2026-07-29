@@ -1,6 +1,7 @@
 import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/charts/BurndownChart";
 import { BurndownTabs } from "@/components/charts/BurndownTabs";
-import { loadTeams, loadSprints, loadBurndown } from "@/lib/view/loaders";
+import { Celebration } from "@/components/Celebration";
+import { loadTeams, loadSprints, loadBurndown, loadCelebration } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
 import { formatDateShort, roundTo1 } from "@/lib/format";
 
@@ -22,6 +23,8 @@ export default async function BurndownPage({
 
   const data = await loadBurndown(sprintId);
   if (!data) return <p className="text-muted">Keine Burndown-Daten.</p>;
+
+  const celebration = await loadCelebration(sprintId);
 
   const byLabel = new Map<string, BurndownRow>();
   for (const p of data.ideal) {
@@ -64,6 +67,7 @@ export default async function BurndownPage({
 
   return (
     <div>
+      <Celebration effect={celebration} />
       <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Burndown</h1>
       <div className="mt-[7px] text-[13px] text-muted">
         {data.sprintName} · Restaufwand über die Arbeitstage des Sprints
