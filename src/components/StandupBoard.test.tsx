@@ -5,13 +5,17 @@ import { StandupBoard, type StandupGroupView } from "./StandupBoard";
 const groups: StandupGroupView[] = [
   {
     name: "Ben",
-    openIssues: [{ jiraKey: "A-1", summary: "Login bauen", issueType: "Story", status: "In Arbeit" }],
+    openIssues: [
+      { jiraKey: "A-1", summary: "Login bauen", issueType: "Story", status: "In Arbeit", url: "https://x.atlassian.net/browse/A-1" },
+    ],
     doneIssues: [],
   },
   {
     name: "Zoe",
     openIssues: [],
-    doneIssues: [{ jiraKey: "A-2", summary: "Bug fixen", issueType: "Bug", status: "Geschlossen" }],
+    doneIssues: [
+      { jiraKey: "A-2", summary: "Bug fixen", issueType: "Bug", status: "Geschlossen", url: "https://x.atlassian.net/browse/A-2" },
+    ],
   },
 ];
 
@@ -48,6 +52,13 @@ describe("StandupBoard", () => {
     expect(card).toHaveTextContent("Login bauen");
     expect(card).toHaveTextContent("In Arbeit");
     expect(card).toHaveTextContent("Story");
+  });
+
+  it("links each card to the Jira ticket in a new tab", () => {
+    start();
+    const link = screen.getByRole("link", { name: "A-2 in Jira öffnen" });
+    expect(link).toHaveAttribute("href", "https://x.atlassian.net/browse/A-2");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("marks tickets done since yesterday as erledigt", () => {

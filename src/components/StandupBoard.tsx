@@ -7,6 +7,8 @@ export interface StandupIssue {
   summary: string;
   issueType: string;
   status: string;
+  /** Link zum Ticket in Jira (null, wenn keine Basis-URL konfiguriert ist). */
+  url: string | null;
 }
 
 export interface StandupGroupView {
@@ -72,6 +74,22 @@ function IssueCard({ issue, done }: { issue: StandupIssue; done: boolean }) {
       >
         {done ? "erledigt" : issue.status}
       </span>
+      {issue.url && (
+        <a
+          href={issue.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${issue.jiraKey} in Jira öffnen`}
+          title="In Jira öffnen"
+          className="flex-none rounded-md p-1 text-faint hover:bg-chip hover:text-link"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" y1="14" x2="21" y2="3" />
+          </svg>
+        </a>
+      )}
     </div>
   );
 }

@@ -241,11 +241,13 @@ export async function loadStandup(teamId: string) {
   });
   if (!sprint) return null;
 
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
   const toView = (i: { jiraKey: string; summary: string; issueType: string; status: string }) => ({
     jiraKey: i.jiraKey,
     summary: i.summary,
     issueType: i.issueType,
     status: i.status,
+    url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
   });
   const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()));
   return {
