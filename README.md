@@ -1,4 +1,4 @@
-![Scrumi-Logo](docs/assets/scrumi-logo-readme.png)
+![Scrumi-Logo](public/scrumi-logo.png)
 
 # Scrumi
 
