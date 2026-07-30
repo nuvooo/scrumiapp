@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Billboard, RoundedBox, Text } from "@react-three/drei";
+import { Billboard, RoundedBox, Text, useCursor } from "@react-three/drei";
 import type { Group } from "three";
 
 export interface SceneParticipant {
@@ -11,6 +11,15 @@ export interface SceneParticipant {
   voted: boolean;
   /** Offener Wert nach dem Aufdecken (null = „?", undefined = noch verdeckt). */
   revealedPoints?: number | null;
+}
+
+export interface SceneHand {
+  /** Kartenwerte der eigenen Hand (null = „?"). */
+  cards: (number | null)[];
+  /** Eigene Wahl (undefined = noch keine, null = „?"). */
+  selected?: number | null;
+  hasSelection: boolean;
+  onPick: (points: number | null) => void;
 }
 
 /** Pastellige Clay-Farben wie im Referenzbild. */
@@ -71,6 +80,7 @@ function Figure({
   voted,
   revealed,
   points,
+  cardsInHand = true,
 }: {
   color: string;
   angle: number;
@@ -79,6 +89,8 @@ function Figure({
   voted: boolean;
   revealed: boolean;
   points: number | null | undefined;
+  /** false (Draufsicht): Karte liegt auf dem Tisch statt in den Händen. */
+  cardsInHand?: boolean;
 }) {
   const r = TABLE_RADIUS + 0.62;
   const x = Math.sin(angle) * r;
@@ -118,7 +130,7 @@ function Figure({
         </mesh>
       ))}
       {/* Kartenfächer zwischen den Händen, bis eine Karte gespielt ist */}
-      {!voted && (
+      {cardsInHand && !voted && (
         <group position={[0, 1.22, 0.3]} rotation={[-0.35, 0, 0]}>
           {[-1, 0, 1].map((i) => (
             <RoundedBox key={i} args={[0.16, 0.24, 0.012]} radius={0.01} position={[i * 0.07, 0.02, i * 0.006]} rotation={[0, 0, -i * 0.25]}>
@@ -128,7 +140,7 @@ function Figure({
         </group>
       )}
       {/* Die gespielte Karte in den Händen */}
-      <HeldCard voted={voted} revealed={revealed} points={points} />
+      {cardsInHand && <HeldCard voted={voted} revealed={revealed} points={points} />}
       {/* Kopf */}
       <mesh position={[0, 1.46, -0.1]}>
         <sphereGeometry args={[0.23, 24, 24]} />
@@ -159,11 +171,10 @@ function Figure({
  * Gespielte Karte in der Tischmitte: fliegt beim Abstimmen ein und dreht sich
  * beim Aufdecken vom Rücken auf die Wertseite.
  */
-function PlayedCard({ angle, voted, revealed, points }: { angle: number; voted: boolean; revealed: boolean; points: number | null | undefined }) {
+function PlayedCard({ angle, voted, revealed, points, radius = 0.85 }: { angle: number; voted: boolean; revealed: boolean; points: number | null | undefined; radius?: number }) {
   const group = useRef<Group>(null);
-  const r = 0.85;
-  const x = Math.sin(angle) * r;
-  const z = -Math.cos(angle) * r;
+  const x = Math.sin(angle) * radius;
+  const z = -Math.cos(angle) * radius;
 
   useFrame((_, delta) => {
     if (!group.current) return;
@@ -191,6 +202,79 @@ function PlayedCard({ angle, voted, revealed, points }: { angle: number; voted: 
           </Text>
         </group>
       </group>
+    </group>
+  );
+}
+
+/** Eine klickbare Karte der eigenen Hand. */
+function HandCard({
+  value,
+  index,
+  mid,
+  selected,
+  onPick,
+}: {
+  value: number | null;
+  index: number;
+  mid: number;
+  selected: boolean;
+  onPick: (points: number | null) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  useCursor(hovered);
+  const off = index - mid;
+  return (
+    <group
+      position={[off * 0.21, -Math.abs(off) * 0.035 + (selected ? 0.11 : hovered ? 0.05 : 0), index * 0.006]}
+      rotation={[0, 0, -off * 0.1]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onPick(value);
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+    >
+      <RoundedBox args={[0.27, 0.4, 0.02]} radius={0.012}>
+        <meshStandardMaterial color={selected ? "#6e8ff6" : hovered ? "#ffffff" : "#f4f6fa"} roughness={0.85} />
+      </RoundedBox>
+      <Text position={[0, 0, 0.015]} fontSize={0.13} color={selected ? "#10131b" : "#31415f"} fontWeight={700}>
+        {value === null ? "?" : Number.isInteger(value) ? String(value) : String(value).replace(".", ",")}
+      </Text>
+    </group>
+  );
+}
+
+/** Die eigene Hand in Ego-Perspektive: zwei Clay-Hände halten den Kartenfächer. */
+function FirstPersonHand({ hand }: { hand: SceneHand }) {
+  const mid = (hand.cards.length - 1) / 2;
+  return (
+    <group position={[0, 1.28, 3.15]} rotation={[-0.72, 0, 0]}>
+      {hand.cards.map((value, i) => (
+        <HandCard
+          key={value === null ? "?" : value}
+          value={value}
+          index={i}
+          mid={mid}
+          selected={hand.hasSelection && hand.selected === value}
+          onPick={hand.onPick}
+        />
+      ))}
+      {/* Die haltenden Hände samt Unterarmen */}
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * 0.5, -0.32, 0.12]}>
+          <mesh>
+            <sphereGeometry args={[0.11, 20, 20]} />
+            <meshStandardMaterial color="#e8b08c" roughness={1} />
+          </mesh>
+          <mesh position={[side * 0.16, -0.3, 0.1]} rotation={[0.5, 0, side * -0.5]}>
+            <capsuleGeometry args={[0.09, 0.42, 8, 16]} />
+            <meshStandardMaterial color="#e6e2dc" roughness={1} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -236,14 +320,32 @@ export function PokerTableScene({
   participants,
   revealed,
   youName,
+  hand,
+  viewpoint = "first-person",
 }: {
   participants: SceneParticipant[];
   revealed: boolean;
-  /** Eigener Name — die eigene Figur wird nicht gerendert (Ego-Perspektive). */
+  /** Eigener Name — in der Ego-Perspektive wird die eigene Figur nicht gerendert. */
   youName: string | null;
+  /** Eigene Kartenhand (null = gerade nicht wählbar, z. B. nach dem Aufdecken). */
+  hand: SceneHand | null;
+  /** Teilnehmer sitzen am Tisch (first-person), der Moderator schaut von oben (top). */
+  viewpoint?: "first-person" | "top";
 }) {
-  // Stabile Sitzordnung: alle außer dir im Bogen auf der gegenüberliegenden Seite.
+  const top = viewpoint === "top";
+
+  // Sitzordnung: Ego-Perspektive = alle anderen im Bogen gegenüber;
+  // Draufsicht = alle (auch du) gleichmäßig rund um den Tisch, du unten.
   const seats = useMemo(() => {
+    if (top) {
+      return {
+        others: participants.map((p, i) => ({
+          participant: p,
+          angle: Math.PI + (2 * Math.PI * i) / participants.length,
+        })),
+        you: null,
+      };
+    }
     const others = participants.filter((p) => p.name !== youName);
     const you = participants.find((p) => p.name === youName) ?? null;
     const spread = Math.min(Math.PI * 1.25, others.length * 0.55);
@@ -254,12 +356,12 @@ export function PokerTableScene({
       })),
       you,
     };
-  }, [participants, youName]);
+  }, [participants, youName, top]);
 
   return (
     <Canvas
-      camera={{ position: [0, 2.15, 4.35], fov: 44 }}
-      onCreated={({ camera }) => camera.lookAt(0, 0.95, 0)}
+      camera={{ position: top ? [0, 8.6, 1.4] : [0, 2.15, 4.35], fov: top ? 38 : 44 }}
+      onCreated={({ camera }) => camera.lookAt(0, top ? 1 : 0.95, 0)}
       style={{ touchAction: "pan-y" }}
     >
       <ambientLight intensity={1.1} />
@@ -267,21 +369,35 @@ export function PokerTableScene({
       <directionalLight position={[-5, 6, -3]} intensity={0.5} />
       <TableAndRoom />
       {seats.others.map(({ participant, angle }, i) => (
-        <Figure
-          key={participant.name}
-          color={CLAY_COLORS[i % CLAY_COLORS.length]}
-          angle={angle}
-          isAdmin={participant.isAdmin}
-          name={participant.name}
-          voted={participant.voted}
-          revealed={revealed}
-          points={participant.revealedPoints}
-        />
+        <group key={participant.name}>
+          <Figure
+            color={CLAY_COLORS[i % CLAY_COLORS.length]}
+            angle={angle}
+            isAdmin={participant.isAdmin}
+            name={participant.name}
+            voted={participant.voted}
+            revealed={revealed}
+            points={participant.revealedPoints}
+            cardsInHand={!top}
+          />
+          {/* Draufsicht: die verdeckt gelegte Karte liegt vor jedem Platz auf dem Tisch */}
+          {top && (
+            <PlayedCard
+              angle={angle}
+              voted={participant.voted}
+              revealed={revealed}
+              points={participant.revealedPoints}
+              radius={1.55}
+            />
+          )}
+        </group>
       ))}
-      {/* Die eigene gespielte Karte liegt vor dir am nahen Tischrand. */}
+      {/* Ego-Perspektive: die eigene gespielte Karte liegt vor dir am Tischrand … */}
       {seats.you && (
-        <PlayedCard angle={Math.PI} voted={seats.you.voted} revealed={revealed} points={seats.you.revealedPoints} />
+        <PlayedCard angle={Math.PI} voted={seats.you.voted} revealed={revealed} points={seats.you.revealedPoints} radius={1.45} />
       )}
+      {/* … und die eigene Hand hältst du vor dir. */}
+      {!top && hand && <FirstPersonHand hand={hand} />}
     </Canvas>
   );
 }

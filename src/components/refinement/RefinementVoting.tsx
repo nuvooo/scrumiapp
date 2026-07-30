@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { formatPoints } from "@/lib/format";
 import type { RefinementStateView } from "@/lib/view/refinementState";
-import { PokerTableScene, type SceneParticipant } from "./PokerTableScene";
+import { PokerTableScene, type SceneParticipant, type SceneHand } from "./PokerTableScene";
 
-const POKER_CARDS = [1, 2, 3, 5, 8, 13, 20];
-/** Fächer-Layout der Hand: Neigung pro Karte relativ zur Mitte. */
-const FAN_DEG = 5;
+const POKER_CARDS: (number | null)[] = [1, 2, 3, 5, 8, 13, 20, null];
 
 export function RefinementVoting({
   state,
@@ -52,29 +50,18 @@ export function RefinementVoting({
   }));
   const votedCount = state.participants.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
-  const handMid = (POKER_CARDS.length + 1 - 1) / 2;
 
-  const handCard = (points: number | null, index: number) => {
-    const selected = active?.myVoteGiven && active.myVote === points;
-    const tilt = (index - handMid) * FAN_DEG;
-    const lift = Math.abs(index - handMid) * 5;
-    return (
-      <button
-        key={points === null ? "?" : points}
-        type="button"
-        aria-label={points === null ? "Unklar" : `${points} Punkte`}
-        onClick={() => onVote(points)}
-        style={{ transform: `rotate(${tilt}deg) translateY(${selected ? lift - 14 : lift}px)` }}
-        className={`-ml-2 flex h-[72px] w-[50px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold shadow-card transition-transform first:ml-0 ${
-          selected
-            ? "z-10 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink"
-            : "border-edge bg-field text-mid hover:z-10 hover:border-tipline"
-        }`}
-      >
-        {points === null ? "?" : points}
-      </button>
-    );
-  };
+  // Teilnehmer halten die Hand in der Szene; der Moderator schaut von oben
+  // und stimmt über die kompakte Kartenleiste ab.
+  const hand: SceneHand | null =
+    !revealed && !isAdmin && state.you
+      ? {
+          cards: POKER_CARDS,
+          selected: active?.myVote,
+          hasSelection: active?.myVoteGiven ?? false,
+          onPick: onVote,
+        }
+      : null;
 
   return (
     <div className="mt-6 flex flex-col gap-3.5">
@@ -91,11 +78,13 @@ export function RefinementVoting({
           </div>
 
           {/* Der 3D-Pokertisch */}
-          <div className="h-[340px] w-full md:h-[400px]">
+          <div className="h-[380px] w-full md:h-[460px]">
             <PokerTableScene
               participants={sceneParticipants}
               revealed={revealed}
               youName={state.you?.name ?? null}
+              hand={hand}
+              viewpoint={isAdmin ? "top" : "first-person"}
             />
           </div>
 
@@ -104,7 +93,36 @@ export function RefinementVoting({
             {!revealed && (
               <>
                 <span className="text-[13px] text-mid">
-                  Warten auf Stimmen… <span className="font-mono">{votedCount} / {state.participants.length}</span>
+                  {active.myVoteGiven
+                    ? "Deine Karte liegt verdeckt auf dem Tisch — du kannst noch wechseln."
+                    : isAdmin
+                      ? "Wähle deine Karte:"
+                      : "Wähle deine Karte in der Hand 👆"}
+                </span>
+                {isAdmin && (
+                  <span className="flex flex-wrap gap-1.5">
+                    {POKER_CARDS.map((points) => {
+                      const selected = active.myVoteGiven && active.myVote === points;
+                      return (
+                        <button
+                          key={points === null ? "?" : points}
+                          type="button"
+                          aria-label={points === null ? "Unklar" : `${points} Punkte`}
+                          onClick={() => onVote(points)}
+                          className={`flex h-[42px] w-[32px] items-center justify-center rounded-[7px] border font-mono text-[13px] font-semibold ${
+                            selected
+                              ? "border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink"
+                              : "border-edge bg-field text-mid hover:border-tipline"
+                          }`}
+                        >
+                          {points === null ? "?" : points}
+                        </button>
+                      );
+                    })}
+                  </span>
+                )}
+                <span className="text-[13px] text-mid">
+                  Stimmen: <span className="font-mono">{votedCount} / {state.participants.length}</span>
                 </span>
                 {isAdmin && (
                   <button type="button" onClick={onReveal} className="btn-primary px-5 py-[9px]">
@@ -140,18 +158,6 @@ export function RefinementVoting({
             )}
           </div>
 
-          {/* Die eigene Hand als Kartenfächer */}
-          {!revealed && (
-            <div className="flex flex-col items-center gap-3 px-[22px] pb-6 pt-1">
-              <div className="text-[13px] text-muted">
-                {active.myVoteGiven ? "Deine Karte liegt auf dem Tisch — du kannst noch wechseln." : "Wähle deine Karte 👇"}
-              </div>
-              <div className="flex items-end justify-center pt-3">
-                {POKER_CARDS.map((points, i) => handCard(points, i))}
-                {handCard(null, POKER_CARDS.length)}
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         <div className="card px-[22px] py-8 text-center text-[13px] text-muted">
