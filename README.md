@@ -1,7 +1,39 @@
-# ⚡ Scrumi
+<p align="center">
+  <img src="public/scrumi-logo.png" alt="Scrumi-Logo" width="140" />
+</p>
 
-Self-hosted, quelloffenes Werkzeug zur Visualisierung des Scrum-Prozesses:
-Burndown, Velocity-Trend und Kapazität/Effizienz — mit Jira-Cloud-Sync.
+<h1 align="center">Scrumi</h1>
+
+<p align="center">
+  Self-hosted, quelloffenes Werkzeug zur Visualisierung des Scrum-Prozesses —
+  mit automatischem Jira-Cloud-Sync.
+</p>
+
+---
+
+Scrumi holt sich Sprints und Tickets direkt vom Jira-Board und macht daraus
+die Ansichten, die im Sprint-Alltag wirklich gebraucht werden — ohne
+Jira-Plugins, ohne Cloud-Abo, auf eigener Infrastruktur.
+
+## Features
+
+- **Dashboard** — der aktuelle Sprint auf einen Blick: Commitment, erledigte
+  Punkte, offene Tickets und Bugs.
+- **Burndown** — Punkte-Burndown des Sprints plus separates Ticket- und
+  Bug-Burndown; wird bei jedem Sync fortgeschrieben. Läuft der Sprint gut,
+  gibt es Feenstaub und Feuerwerk. 🎆
+- **Velocity** — Velocity-Trend über die abgeschlossenen Sprints inklusive
+  Carry-Over-Quote (was wurde committet, aber nicht fertig?).
+- **Kapazität & Forecast** — geplante vs. tatsächliche Personentage je
+  Mitglied, Team-Effizienz und daraus abgeleitete Prognose fürs nächste
+  Sprint-Commitment.
+- **Standup** — Standup-Modus für den laufenden Sprint: pro Person die
+  offenen Board-Tickets und das seit dem letzten Arbeitstag Erledigte,
+  zufällige Reihenfolge, Redezeit-Countdown mit Überzieh-Statistik. Jede
+  Card zeigt, wie lange das Ticket schon im aktuellen Status hängt — ab
+  mehr als 5 Arbeitstagen mit roter Warnung.
+- **Jira-Sync** — automatisch im Intervall oder per Klick; Board-Spalten,
+  Bearbeiter und Status-Historie kommen direkt aus der Jira-Cloud-API.
 
 ## Schnellstart (Self-Hosting)
 
@@ -30,6 +62,13 @@ kann jederzeit über **🔄 Jetzt synchronisieren** ausgelöst werden.
   (z. B. hinter einem Reverse-Proxy).
 - Story-Points-Feld konfigurierbar über `JIRA_STORY_POINTS_FIELD`
   (Standard `customfield_10016`).
+- Damit im Standup jede Person ihren Redeslot bekommt, müssen die
+  Teammitglieder unter **Teams / Jira** gepflegt sein und den
+  Jira-Anzeigenamen entsprechen.
+
+## Tech-Stack
+
+Next.js 15 (App Router) · React 19 · Prisma + PostgreSQL · Vitest
 
 ## Entwicklung
 - `npm run dev` — Dev-Server
