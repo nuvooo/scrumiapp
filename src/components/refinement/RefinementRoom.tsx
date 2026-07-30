@@ -193,6 +193,25 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       </div>
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}
 
+      {/* Wer ist da? Grün = anwesend (Heartbeat), grau = gerade nicht im Raum. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {state.participants.map((p) => (
+          <span
+            key={p.name}
+            className={`flex items-center gap-1.5 rounded-full border border-edge bg-field px-2.5 py-1 text-[12.5px] ${
+              p.online ? "text-mid" : "text-faint opacity-60"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${p.online ? "bg-ok" : "bg-faint"}`} />
+            {p.name}
+            {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
+          </span>
+        ))}
+        {state.participants.length === 0 && (
+          <span className="text-[12.5px] text-muted">Noch niemand beigetreten.</span>
+        )}
+      </div>
+
       {state.state === "DRAFT" && (
         <RefinementDraft
           tickets={state.tickets}
