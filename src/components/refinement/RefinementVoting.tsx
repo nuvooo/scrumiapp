@@ -99,8 +99,23 @@ export function RefinementVoting({
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
   const { top, bottom, left, right } = seats(estimators);
 
+  const ticketRow = (t: RefinementStateView["tickets"][number]) => (
+    <>
+      <span className="w-[76px] flex-none font-mono text-[11.5px] text-link">{t.jiraKey}</span>
+      <span className="min-w-0 flex-1 truncate">{t.summary}</span>
+      <span className={`flex-none font-mono text-[11px] ${t.state === "ESTIMATED" ? "text-ok" : "text-dim"}`}>
+        {t.state === "ESTIMATED" && t.finalPoints !== null
+          ? `${formatPoints(t.finalPoints)} SP ✓`
+          : t.previousPoints !== null
+            ? `${formatPoints(t.previousPoints)} SP`
+            : "ohne Schätzung"}
+      </span>
+    </>
+  );
+
   return (
-    <div className="mt-6 flex flex-col gap-3.5">
+    <div className="mt-6 flex flex-col gap-3.5 xl:flex-row xl:items-start">
+      <div className="flex min-w-0 flex-1 flex-col gap-3.5">
       {active ? (
         <div className="card p-[22px]">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -228,20 +243,19 @@ export function RefinementVoting({
         </div>
       ) : (
         <div className="card px-[22px] py-8 text-center text-[13px] text-muted">
-          {isAdmin ? "Wähle unten das nächste Ticket." : "Der Moderator wählt das nächste Ticket…"}
+          {isAdmin ? "Wähle rechts das nächste Ticket." : "Der Moderator wählt das nächste Ticket…"}
         </div>
       )}
+      </div>
 
-      {isAdmin && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-line px-[18px] py-3">
-            <div className="text-sm font-semibold">Tickets</div>
-            <span className="font-mono text-[11px] text-faint">{estimated} von {state.tickets.length} geschätzt</span>
-            <button type="button" onClick={onFinish} className="btn-secondary ml-auto px-3.5 py-[7px]">
-              Refinement abschließen
-            </button>
-          </div>
-          {state.tickets.map((t) => (
+      {/* Ticketliste als Seitenleiste rechts — der Moderator wählt hier das Voting-Ticket */}
+      <div className="card overflow-hidden xl:w-[340px] xl:flex-none">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-[18px] py-3">
+          <div className="text-sm font-semibold">Tickets</div>
+          <span className="font-mono text-[11px] text-faint">{estimated} von {state.tickets.length} geschätzt</span>
+        </div>
+        {state.tickets.map((t) =>
+          isAdmin ? (
             <button
               key={t.id}
               type="button"
@@ -251,24 +265,27 @@ export function RefinementVoting({
                 t.id === active?.id ? "bg-chip" : ""
               }`}
             >
-              <span className="w-[76px] flex-none font-mono text-[11.5px] text-link">{t.jiraKey}</span>
-              <span className="min-w-0 flex-1 truncate">{t.summary}</span>
-              <span className={`flex-none font-mono text-[11px] ${t.state === "ESTIMATED" ? "text-ok" : "text-dim"}`}>
-                {t.state === "ESTIMATED" && t.finalPoints !== null
-                  ? `${formatPoints(t.finalPoints)} SP ✓`
-                  : t.previousPoints !== null
-                    ? `${formatPoints(t.previousPoints)} SP`
-                    : "ohne Schätzung"}
-              </span>
+              {ticketRow(t)}
             </button>
-          ))}
-        </div>
-      )}
-      {!isAdmin && (
-        <div className="text-center font-mono text-[11px] text-faint">
-          {estimated} von {state.tickets.length} Tickets geschätzt
-        </div>
-      )}
+          ) : (
+            <div
+              key={t.id}
+              className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-row px-[18px] py-2.5 text-[13px] last:border-b-0 ${
+                t.id === active?.id ? "bg-chip" : ""
+              }`}
+            >
+              {ticketRow(t)}
+            </div>
+          ),
+        )}
+        {isAdmin && (
+          <div className="px-[18px] py-3">
+            <button type="button" onClick={onFinish} className="btn-secondary w-full px-3.5 py-[7px]">
+              Refinement abschließen
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

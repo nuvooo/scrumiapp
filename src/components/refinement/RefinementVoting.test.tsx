@@ -51,7 +51,8 @@ const handlers = { onVote: noop, onSelect: noop, onReveal: noop, onAccept: noop,
 describe("RefinementVoting", () => {
   it("zeigt den Tisch: abgestimmt = Kartenrücken, Moderator ohne Sitzplatz", () => {
     render(<RefinementVoting state={baseState()} {...handlers} />);
-    expect(screen.getByText("AB-1")).toBeInTheDocument();
+    // Ticket erscheint am Tisch UND in der Seitenliste (auch für Teilnehmer sichtbar)
+    expect(screen.getAllByText("AB-1").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByTestId("participant-Anna")).not.toBeInTheDocument(); // Moderator sitzt nicht am Tisch
     expect(screen.getByTestId("participant-Zoe")).toHaveAttribute("data-voted", "true");
     expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-voted", "false");
