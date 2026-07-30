@@ -69,6 +69,8 @@ model Issue {
   onBoard              Boolean        @default(true)
   /// Anzeigename des Bearbeiters aus Jira (null = nicht zugewiesen)
   assignee             String?
+  /// Zeitpunkt des letzten Status-Wechsels in Jira (null = noch nie gesynct)
+  statusSince          DateTime?
 
   @@unique([sprintId, jiraKey])
 }
