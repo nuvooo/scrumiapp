@@ -152,6 +152,43 @@ export async function moveTicket(
   return { ok: true };
 }
 
+export async function renameRefinement(
+  refinementId: string,
+  token: string,
+  name: string,
+): Promise<ActionResult> {
+  if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Moderator darf das.");
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Der Name darf nicht leer sein.");
+  await prisma.refinement.update({ where: { id: refinementId }, data: { name: trimmed } });
+  revalidatePath("/refinement");
+  return { ok: true };
+}
+
+export async function deleteRefinement(refinementId: string, token: string): Promise<ActionResult> {
+  if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.refinement.delete({ where: { id: refinementId } });
+  revalidatePath("/refinement");
+  return { ok: true };
+}
+
+/** Zurück in die Vorbereitung: Tickets lassen sich wieder bearbeiten. */
+export async function backToDraft(refinementId: string, token: string): Promise<ActionResult> {
+  if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.$transaction([
+    prisma.refinementTicket.updateMany({
+      where: { refinementId, state: { in: ["VOTING", "REVEALED"] } },
+      data: { state: "PENDING" },
+    }),
+    prisma.refinement.update({
+      where: { id: refinementId },
+      data: { state: "DRAFT", activeTicketId: null },
+    }),
+  ]);
+  revalidatePath("/refinement");
+  return { ok: true };
+}
+
 export async function startRefinement(refinementId: string, token: string): Promise<ActionResult> {
   if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
   const count = await prisma.refinementTicket.count({ where: { refinementId } });

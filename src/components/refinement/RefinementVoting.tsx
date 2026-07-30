@@ -159,6 +159,14 @@ export function RefinementVoting({
                         <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
                           Übernehmen
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => onSelect(active.id)}
+                          title="Alle Stimmen verwerfen und noch einmal abstimmen"
+                          className="btn-secondary px-3.5 py-[9px]"
+                        >
+                          Neu abstimmen
+                        </button>
                       </div>
                     )}
                   </>

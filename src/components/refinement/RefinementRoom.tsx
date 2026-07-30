@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
 import type { RefinementStateView } from "@/lib/view/refinementState";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
@@ -17,6 +18,9 @@ import {
   revealVotes,
   acceptEstimate,
   finishRefinement,
+  renameRefinement,
+  deleteRefinement,
+  backToDraft,
 } from "@/app/(app)/refinement/actions";
 import { RefinementDraft } from "./RefinementDraft";
 import { RefinementVoting } from "./RefinementVoting";
@@ -25,11 +29,14 @@ const POLL_MS = 2000;
 const tokenKey = (id: string) => `scrumi.refinement.${id}.token`;
 
 export function RefinementRoom({ refinementId }: { refinementId: string }) {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoaded, setTokenLoaded] = useState(false);
   const [state, setState] = useState<RefinementStateView | null>(null);
   const [joinName, setJoinName] = useState("");
   const [joinAsAdmin, setJoinAsAdmin] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameText, setNameText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,18 +117,78 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const isAdmin = state.you?.isAdmin ?? false;
   const t = token ?? "";
 
+  const saveName = async () => {
+    await run(() => renameRefinement(refinementId, t, nameText));
+    setRenaming(false);
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Refinement „${state.name}" wirklich löschen?`)) return;
+    const result = await deleteRefinement(refinementId, t);
+    if (!result.ok) {
+      setError(result.error ?? "Löschen fehlgeschlagen.");
+      return;
+    }
+    router.push("/refinement");
+  };
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-[29px] font-semibold tracking-[-0.028em]">{state.name}</h1>
+        <div className="min-w-0">
+          {renaming ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label="Name des Refinements"
+                value={nameText}
+                onChange={(e) => setNameText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveName()}
+                className="input-field w-[280px] text-[17px] font-semibold"
+              />
+              <button type="button" onClick={saveName} className="btn-primary px-3.5 py-2">
+                Speichern
+              </button>
+              <button type="button" onClick={() => setRenaming(false)} className="btn-secondary px-3.5 py-2">
+                Abbrechen
+              </button>
+            </div>
+          ) : (
+            <h1 className="text-[29px] font-semibold tracking-[-0.028em]">{state.name}</h1>
+          )}
           <div className="mt-[7px] text-[13px] text-muted">
             {state.state === "DRAFT" && "Vorbereitung — Tickets zusammenstellen"}
             {state.state === "RUNNING" && "Refinement läuft"}
             {state.state === "DONE" && "Abgeschlossen"}
-            {state.you && <> · du bist {state.you.name}{isAdmin ? " (Admin)" : ""}</>}
+            {state.you && <> · du bist {state.you.name}{isAdmin ? " (Moderator)" : ""}</>}
           </div>
         </div>
+        {isAdmin && !renaming && (
+          <div className="ml-auto flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setNameText(state.name);
+                setRenaming(true);
+              }}
+              className="btn-secondary px-3.5 py-[7px]"
+            >
+              Umbenennen
+            </button>
+            {state.state === "RUNNING" && (
+              <button
+                type="button"
+                title="Zurück in die Vorbereitung, um Tickets zu bearbeiten"
+                onClick={() => run(() => backToDraft(refinementId, t))}
+                className="btn-secondary px-3.5 py-[7px]"
+              >
+                Tickets bearbeiten
+              </button>
+            )}
+            <button type="button" onClick={remove} className="btn-danger px-3.5 py-[7px]">
+              Löschen
+            </button>
+          </div>
+        )}
       </div>
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}
 

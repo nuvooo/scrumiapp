@@ -92,6 +92,13 @@ describe("RefinementVoting", () => {
     expect(screen.getByText(/Ø 8/)).toBeInTheDocument();
   });
 
+  it("der Moderator kann das Voting neu starten", () => {
+    const onSelect = vi.fn();
+    render(<RefinementVoting state={revealedState()} {...handlers} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Neu abstimmen" }));
+    expect(onSelect).toHaveBeenCalledWith("t1");
+  });
+
   it("Admin übernimmt mit Median vorbelegt oder passt an", () => {
     const onAccept = vi.fn();
     render(<RefinementVoting state={revealedState()} {...handlers} onAccept={onAccept} />);
