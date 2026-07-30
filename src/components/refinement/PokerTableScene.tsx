@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Billboard, RoundedBox, Text, useCursor } from "@react-three/drei";
+import { Billboard, Hud, PerspectiveCamera, RoundedBox, Text, useCursor } from "@react-three/drei";
 import type { Group } from "three";
 
 export interface SceneParticipant {
@@ -206,7 +206,7 @@ function PlayedCard({ angle, voted, revealed, points, radius = 0.85 }: { angle: 
   );
 }
 
-/** Eine klickbare Karte der eigenen Hand. */
+/** Eine klickbare Karte der eigenen Hand (HUD-Raum, immer im Vordergrund). */
 function HandCard({
   value,
   index,
@@ -225,8 +225,8 @@ function HandCard({
   const off = index - mid;
   return (
     <group
-      position={[off * 0.21, -Math.abs(off) * 0.035 + (selected ? 0.11 : hovered ? 0.05 : 0), index * 0.006]}
-      rotation={[0, 0, -off * 0.1]}
+      position={[off * 0.36, -Math.abs(off) * 0.055 + (selected ? 0.2 : hovered ? 0.09 : 0), index * 0.012]}
+      rotation={[0, 0, -off * 0.09]}
       onClick={(e) => {
         e.stopPropagation();
         onPick(value);
@@ -237,45 +237,61 @@ function HandCard({
       }}
       onPointerOut={() => setHovered(false)}
     >
-      <RoundedBox args={[0.27, 0.4, 0.02]} radius={0.012}>
+      <RoundedBox args={[0.44, 0.62, 0.025]} radius={0.02}>
         <meshStandardMaterial color={selected ? "#6e8ff6" : hovered ? "#ffffff" : "#f4f6fa"} roughness={0.85} />
       </RoundedBox>
-      <Text position={[0, 0, 0.015]} fontSize={0.13} color={selected ? "#10131b" : "#31415f"} fontWeight={700}>
+      <Text position={[0, 0, 0.02]} fontSize={0.21} color={selected ? "#10131b" : "#31415f"} fontWeight={700}>
         {value === null ? "?" : Number.isInteger(value) ? String(value) : String(value).replace(".", ",")}
       </Text>
     </group>
   );
 }
 
-/** Die eigene Hand in Ego-Perspektive: zwei Clay-Hände halten den Kartenfächer. */
+/**
+ * Die eigene Hand als HUD-Overlay in Ego-Perspektive: eigene Kamera und
+ * Beleuchtung, dadurch immer vollständig lesbar über der Tisch-Szene.
+ * Zwei Clay-Hände mit Unterarmen halten den Kartenfächer.
+ */
 function FirstPersonHand({ hand }: { hand: SceneHand }) {
   const mid = (hand.cards.length - 1) / 2;
   return (
-    <group position={[0, 1.28, 3.15]} rotation={[-0.72, 0, 0]}>
-      {hand.cards.map((value, i) => (
-        <HandCard
-          key={value === null ? "?" : value}
-          value={value}
-          index={i}
-          mid={mid}
-          selected={hand.hasSelection && hand.selected === value}
-          onPick={hand.onPick}
-        />
-      ))}
-      {/* Die haltenden Hände samt Unterarmen */}
-      {[-1, 1].map((side) => (
-        <group key={side} position={[side * 0.5, -0.32, 0.12]}>
-          <mesh>
-            <sphereGeometry args={[0.11, 20, 20]} />
+    <Hud renderPriority={1}>
+      <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={40} />
+      <ambientLight intensity={1.2} />
+      <directionalLight position={[2, 4, 5]} intensity={0.9} />
+      <group position={[0, -1.42, 0]} rotation={[0.15, 0, 0]}>
+        {hand.cards.map((value, i) => (
+          <HandCard
+            key={value === null ? "?" : value}
+            value={value}
+            index={i}
+            mid={mid}
+            selected={hand.hasSelection && hand.selected === value}
+            onPick={hand.onPick}
+          />
+        ))}
+        {/* Daumen auf den Karten … */}
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * 0.62, -0.34, 0.14]} rotation={[0, 0, side * -0.5]}>
+            <capsuleGeometry args={[0.09, 0.16, 8, 16]} />
             <meshStandardMaterial color="#e8b08c" roughness={1} />
           </mesh>
-          <mesh position={[side * 0.16, -0.3, 0.1]} rotation={[0.5, 0, side * -0.5]}>
-            <capsuleGeometry args={[0.09, 0.42, 8, 16]} />
-            <meshStandardMaterial color="#e6e2dc" roughness={1} />
-          </mesh>
-        </group>
-      ))}
-    </group>
+        ))}
+        {/* … Handballen und Unterarme (laufen unten aus dem Bild) */}
+        {[-1, 1].map((side) => (
+          <group key={side} position={[side * 0.72, -0.52, 0.1]}>
+            <mesh>
+              <sphereGeometry args={[0.17, 20, 20]} />
+              <meshStandardMaterial color="#e8b08c" roughness={1} />
+            </mesh>
+            <mesh position={[side * 0.3, -0.5, 0]} rotation={[0, 0, side * -0.45]}>
+              <capsuleGeometry args={[0.15, 0.6, 8, 16]} />
+              <meshStandardMaterial color="#e6e2dc" roughness={1} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    </Hud>
   );
 }
 
@@ -360,8 +376,9 @@ export function PokerTableScene({
 
   return (
     <Canvas
-      camera={{ position: top ? [0, 8.6, 1.4] : [0, 2.15, 4.35], fov: top ? 38 : 44 }}
-      onCreated={({ camera }) => camera.lookAt(0, top ? 1 : 0.95, 0)}
+      // Draufsicht bewusst schräg (~65°), damit die Szene räumlich bleibt.
+      camera={{ position: top ? [0, 7.1, 3.1] : [0, 2.15, 4.35], fov: top ? 40 : 44 }}
+      onCreated={({ camera }) => camera.lookAt(0, top ? 0.9 : 0.95, 0)}
       style={{ touchAction: "pan-y" }}
     >
       <ambientLight intensity={1.1} />
@@ -396,7 +413,7 @@ export function PokerTableScene({
       {seats.you && (
         <PlayedCard angle={Math.PI} voted={seats.you.voted} revealed={revealed} points={seats.you.revealedPoints} radius={1.45} />
       )}
-      {/* … und die eigene Hand hältst du vor dir. */}
+      {/* … und die eigene Hand hältst du vor dir (HUD, immer im Vordergrund). */}
       {!top && hand && <FirstPersonHand hand={hand} />}
     </Canvas>
   );

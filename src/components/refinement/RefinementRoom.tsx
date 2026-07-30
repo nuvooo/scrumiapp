@@ -29,6 +29,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const [tokenLoaded, setTokenLoaded] = useState(false);
   const [state, setState] = useState<RefinementStateView | null>(null);
   const [joinName, setJoinName] = useState("");
+  const [joinAsAdmin, setJoinAsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
 
   const join = async () => {
     setError(null);
-    const result = await joinRefinement(refinementId, joinName);
+    const result = await joinRefinement(refinementId, joinName, joinAsAdmin);
     if (!result.ok || !result.data) {
       setError(result.error ?? "Beitritt fehlgeschlagen.");
       return;
@@ -92,6 +93,15 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             Beitreten
           </button>
         </div>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] text-mid">
+          <input
+            type="checkbox"
+            checked={joinAsAdmin}
+            onChange={(e) => setJoinAsAdmin(e.target.checked)}
+            className="h-4 w-4 accent-[#6e8ff6]"
+          />
+          Als Moderator beitreten (Draufsicht, deckt auf und übernimmt Schätzungen)
+        </label>
         {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
       </div>
     );

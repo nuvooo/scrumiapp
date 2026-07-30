@@ -52,6 +52,7 @@ export async function createRefinement(
 export async function joinRefinement(
   refinementId: string,
   name: string,
+  asAdmin = false,
 ): Promise<ActionResult<{ token: string }>> {
   const trimmed = name.trim();
   if (!trimmed) return fail("Bitte einen Namen angeben.");
@@ -61,7 +62,7 @@ export async function joinRefinement(
 
   try {
     const participant = await prisma.refinementParticipant.create({
-      data: { refinementId, name: trimmed },
+      data: { refinementId, name: trimmed, isAdmin: asAdmin },
     });
     return { ok: true, data: { token: participant.token } };
   } catch {
