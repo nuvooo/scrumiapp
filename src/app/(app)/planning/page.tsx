@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { KpiCard } from "@/components/KpiCard";
 import { PlanningList } from "@/components/PlanningList";
 import { loadTeams, loadPlanning } from "@/lib/view/loaders";
@@ -41,7 +42,10 @@ export default async function PlanningPage({
     <div>
       <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Planning</h1>
       <div className="mt-[7px] text-[13px] text-muted">
-        {data.sprintName} · Refinement und Planungs-Check für den nächsten Sprint
+        {data.sprintName} · Planungs-Check für den nächsten Sprint ·{" "}
+        <Link href="/refinement" className="text-link hover:text-linkhi">
+          Schätzen im Refinement →
+        </Link>
       </div>
 
       <div className="mt-[26px] grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">

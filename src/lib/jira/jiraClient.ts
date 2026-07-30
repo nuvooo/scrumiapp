@@ -24,12 +24,23 @@ export interface BoardColumn {
   statuses: string[];
 }
 
+export interface JiraSearchResult {
+  jiraKey: string;
+  summary: string;
+  issueType: string;
+  status: string;
+  /** Aktuelle Schätzung (null = unbewertet). */
+  storyPoints: number | null;
+}
+
 export interface JiraClient {
   fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
   fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
   fetchBoardColumns(boardId: string): Promise<BoardColumn[]>;
   /** Schreibt die Schätzung ins konfigurierte Story-Points-Feld des Tickets. */
   setStoryPoints(issueKey: string, points: number): Promise<void>;
+  /** Volltext-/Key-Suche für das Refinement (max. 20 Treffer). */
+  searchIssues(query: string): Promise<JiraSearchResult[]>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -53,6 +64,30 @@ export class JiraCloudClient implements JiraClient {
       throw new Error(`Jira request failed: ${res.status} ${res.statusText} (${path})`);
     }
     return (await res.json()) as T;
+  }
+
+  // Sucht per JQL: sieht die Eingabe wie ein Ticket-Key aus, zusätzlich exakt
+  // nach dem Key — sonst reine Volltextsuche, aktuellste zuerst.
+  async searchIssues(query: string): Promise<JiraSearchResult[]> {
+    const text = query.trim().replace(/"/g, '\\"');
+    const isKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(text);
+    const jql = isKey
+      ? `key = "${text.toUpperCase()}" OR text ~ "${text}"`
+      : `text ~ "${text}" ORDER BY updated DESC`;
+    const fields = ["summary", "status", "issuetype", this.config.storyPointsField].join(",");
+    const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
+      `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=20&fields=${fields}`,
+    );
+    return (page.issues ?? []).map((raw) => {
+      const points = raw.fields[this.config.storyPointsField];
+      return {
+        jiraKey: raw.key,
+        summary: raw.fields.summary,
+        issueType: raw.fields.issuetype?.name ?? "",
+        status: raw.fields.status.name,
+        storyPoints: typeof points === "number" ? points : null,
+      };
+    });
   }
 
   async setStoryPoints(issueKey: string, points: number): Promise<void> {

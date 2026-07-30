@@ -225,6 +225,54 @@ describe("JiraCloudClient.fetchSprintIssues", () => {
   });
 });
 
+describe("JiraCloudClient.searchIssues", () => {
+  const raw = (key: string) => ({
+    key,
+    fields: {
+      summary: `Issue ${key}`,
+      resolutiondate: null,
+      status: { name: "To Do", statusCategory: { key: "new" } },
+      issuetype: { name: "Story" },
+      customfield_10016: 5,
+    },
+  });
+
+  it("sucht per Volltext-JQL, sortiert nach Aktualität, max. 20 Treffer", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ issues: [raw("AB-7")] }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const results = await client.searchIssues("login flow");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/rest/api/3/search/jql");
+    expect(decodeURIComponent(url as string)).toContain('text ~ "login flow" ORDER BY updated DESC');
+    expect(url).toContain("maxResults=20");
+    expect(results).toEqual([
+      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", storyPoints: 5 },
+    ]);
+  });
+
+  it("erkennt Ticket-Keys und sucht zusätzlich exakt", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ issues: [] }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.searchIssues("AB-123");
+
+    const jql = decodeURIComponent(fetchMock.mock.calls[0][0] as string);
+    expect(jql).toContain('key = "AB-123" OR text ~ "AB-123"');
+  });
+
+  it("escaped Anführungszeichen in der Eingabe", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ issues: [] }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.searchIssues('foo "bar"');
+
+    const jql = decodeURIComponent(fetchMock.mock.calls[0][0] as string);
+    expect(jql).toContain('text ~ "foo \\"bar\\""');
+  });
+});
+
 describe("JiraCloudClient.setStoryPoints", () => {
   it("schreibt die Punkte per PUT ins konfigurierte Story-Points-Feld", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
