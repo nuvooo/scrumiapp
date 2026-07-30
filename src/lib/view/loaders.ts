@@ -13,6 +13,7 @@ import { calcCelebration, type CelebrationEffect } from "@/lib/metrics/celebrati
 import { buildStandupGroups, previousWorkingDay, workingDaysInStatus, STALE_AFTER_WORKING_DAYS } from "@/lib/metrics/standup";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
+import type { ReportData, ReportIssue } from "@/lib/report/markdown";
 
 export async function loadTeams() {
   return listTeams();
@@ -393,6 +394,80 @@ export async function loadCapacity(sprintId: string) {
   const result = calcCapacityEfficiency(toDomainSprint(sprint), rows);
 
   return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, ...result };
+}
+
+/**
+ * Sprint-Report: KPIs und Carry-Over aus dem Dashboard, Kapazitätszeilen aus
+ * loadCapacity, dazu die Ticket-Listen „Geliefert" (im Sprint-Zeitraum
+ * erledigt) und „Nicht geschafft" (offen auf dem Board). Geplante Sprints
+ * haben nichts zu berichten.
+ */
+export async function loadReport(
+  sprintId: string,
+): Promise<
+  | null
+  | { state: "FUTURE"; sprintName: string }
+  | { state: "ACTIVE" | "CLOSED"; data: ReportData }
+> {
+  const dash = await loadDashboard(sprintId);
+  if (!dash) return null;
+  if (dash.sprintState === "FUTURE") return { state: "FUTURE", sprintName: dash.sprintName };
+
+  const cap = await loadCapacity(sprintId);
+  const sprint = await prisma.sprint.findUnique({
+    where: { id: sprintId },
+    include: { issues: { orderBy: { jiraKey: "asc" } } },
+  });
+  if (!cap || !sprint) return null;
+
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
+  const toReportIssue = (i: {
+    jiraKey: string;
+    summary: string;
+    storyPoints: number;
+    status: string;
+  }): ReportIssue => ({
+    jiraKey: i.jiraKey,
+    summary: i.summary,
+    storyPoints: i.storyPoints,
+    status: i.status,
+    url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
+  });
+  const delivered = sprint.issues.filter((i) => isDoneInSprint(i, sprint)).map(toReportIssue);
+  const open = sprint.issues
+    .filter((i) => i.statusCategory !== "DONE" && i.onBoard)
+    .map(toReportIssue);
+
+  const fmt = (d: Date) => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const period = dash.startDate && dash.endDate ? `${fmt(dash.startDate)} – ${fmt(dash.endDate)}` : "";
+  const state = dash.sprintState as "ACTIVE" | "CLOSED";
+
+  return {
+    state,
+    data: {
+      teamName: dash.teamName,
+      sprintName: dash.sprintName,
+      state,
+      period,
+      generatedAt: fmt(new Date()),
+      committed: dash.committed,
+      completed: dash.velocity,
+      carryOverPoints: dash.carriedOver,
+      ticketsDone: dash.tickets.done,
+      ticketsTotal: dash.tickets.total,
+      bugsClosed: dash.bugs.closed,
+      bugsTotal: dash.bugs.total,
+      plannedPersonDays: dash.totalPlanned,
+      actualPersonDays: dash.totalActual,
+      capacity: cap.rows.map((r) => ({
+        name: r.name,
+        planned: r.plannedPersonDays,
+        actual: r.actualPersonDays,
+      })),
+      delivered,
+      open,
+    },
+  };
 }
 
 /**

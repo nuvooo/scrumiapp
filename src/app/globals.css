@@ -8,6 +8,49 @@ body {
   background-repeat: no-repeat;
 }
 
+/* Druckansicht (Sprint-Report): helle Seite, ohne Navigation und Chrome.
+   Die Farb-Utilities sind fest verdrahtet — daher hier gezielt überschrieben. */
+@media print {
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #1c2029 !important;
+  }
+  aside,
+  header {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .card {
+    background: #fff !important;
+    box-shadow: none !important;
+    border-color: #d7dbe4 !important;
+    break-inside: avoid;
+  }
+  .text-fg,
+  .text-mid,
+  .text-muted,
+  .text-dim,
+  .text-faint,
+  .mono-label {
+    color: #3a404d !important;
+  }
+  .text-link {
+    color: #3451b2 !important;
+  }
+  .bg-field,
+  .bg-raise,
+  .bg-cell {
+    background: #f3f5f9 !important;
+  }
+  a {
+    text-decoration: none;
+  }
+}
+
 input::placeholder {
   color: #56607a;
 }

@@ -8,6 +8,7 @@ export const NAV_GROUPS = [
       { href: "/burndown", label: "Burndown" },
       { href: "/velocity", label: "Velocity" },
       { href: "/capacity", label: "Kapazität" },
+      { href: "/report", label: "Report" },
     ],
   },
   {
