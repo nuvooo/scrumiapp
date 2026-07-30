@@ -25,6 +25,7 @@ export async function replaceIssuesForSprint(
         addedAfterSprintStart: i.addedAfterSprintStart,
         onBoard: i.onBoard,
         assignee: i.assignee,
+        statusSince: i.statusSince,
       })),
     }),
   ]);

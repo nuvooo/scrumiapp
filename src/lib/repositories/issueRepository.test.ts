@@ -27,7 +27,7 @@ async function makeSprint() {
 
 const issue = (key: string, points: number): DomainIssue => ({
   jiraKey: key, summary: key, issueType: "Story", storyPoints: points, status: "Done", statusCategory: "DONE",
-  resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null,
+  resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null, statusSince: null,
 });
 
 describe("issueRepository", () => {
@@ -42,5 +42,15 @@ describe("issueRepository", () => {
     stored = await listIssuesForSprint(sprintId);
     expect(stored.length).toBe(1);
     expect(stored[0].storyPoints).toBe(8);
+  });
+
+  it("persists statusSince", async () => {
+    const sprintId = await makeSprint();
+
+    await replaceIssuesForSprint(sprintId, [
+      { ...issue("AB-1", 5), statusSince: new Date("2026-07-10T09:00:00.000Z") },
+    ]);
+    const stored = await listIssuesForSprint(sprintId);
+    expect(stored[0].statusSince).toEqual(new Date("2026-07-10T09:00:00.000Z"));
   });
 });
