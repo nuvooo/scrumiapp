@@ -1,5 +1,5 @@
 import type { DomainIssue } from "@/lib/domain/types";
-import type { JiraSprintPage, JiraIssuePage, JiraIssueRaw } from "./types";
+import type { JiraSprintPage, JiraIssuePage, JiraIssueRaw, JiraChangelogHistory } from "./types";
 import { mapIssue, mapSprintState } from "./mapper";
 
 export interface JiraConfig {
@@ -92,12 +92,12 @@ export class JiraCloudClient implements JiraClient {
     }));
   }
 
-  private async paginateIssues(path: string, fields: string): Promise<JiraIssueRaw[]> {
+  private async paginateIssues(path: string, fields: string, extraQuery = ""): Promise<JiraIssueRaw[]> {
     const issues: JiraIssueRaw[] = [];
     let startAt = 0;
     for (;;) {
       const page = await this.getJson<JiraIssuePage>(
-        `${path}?startAt=${startAt}&maxResults=50&fields=${fields}`,
+        `${path}?startAt=${startAt}&maxResults=50&fields=${fields}${extraQuery}`,
       );
       issues.push(...page.issues);
       if (page.issues.length === 0) break;
@@ -107,23 +107,52 @@ export class JiraCloudClient implements JiraClient {
     return issues;
   }
 
+  // Jira liefert im Inline-Changelog höchstens 100 Einträge (die ältesten).
+  // Für Issues mit mehr Einträgen alle Seiten holen und den jüngsten
+  // Status-Wechsel per Datumsvergleich bestimmen.
+  private async latestStatusChange(issueKey: string): Promise<Date | null> {
+    let latest: Date | null = null;
+    let startAt = 0;
+    for (;;) {
+      const page = await this.getJson<{ values: JiraChangelogHistory[]; total: number }>(
+        `/rest/api/3/issue/${issueKey}/changelog?startAt=${startAt}&maxResults=100`,
+      );
+      for (const h of page.values) {
+        if (!h.items.some((it) => it.field === "status")) continue;
+        const d = new Date(h.created);
+        if (latest === null || d > latest) latest = d;
+      }
+      if (page.values.length === 0) break;
+      startAt += page.values.length;
+      if (startAt >= page.total) break;
+    }
+    return latest;
+  }
+
   // Zwei Sichten pro Sprint: der globale /sprint/{id}/issue-Endpoint liefert alle
   // Vorgänge (nötig für Velocity — Erledigtes verschwindet oft vom Board), der
   // Board-Endpoint bestimmt, was die Board-Ansicht zeigt (onBoard-Flag für
   // Ticket-/Bug-Zähler). Sub-Tasks stehen selbst nie auf dem Board; sie gelten
   // als sichtbar, wenn ihr Hauptticket auf dem Board steht.
   async fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]> {
-    const fields = ["summary", "resolutiondate", "status", "issuetype", "parent", "assignee", this.config.storyPointsField].join(",");
-    const all = await this.paginateIssues(`/rest/agile/1.0/sprint/${sprintId}/issue`, fields);
+    const fields = ["summary", "resolutiondate", "status", "issuetype", "parent", "assignee", "created", this.config.storyPointsField].join(",");
+    const all = await this.paginateIssues(`/rest/agile/1.0/sprint/${sprintId}/issue`, fields, "&expand=changelog");
     const onBoard = await this.paginateIssues(
       `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue`,
       "issuetype",
     );
     const boardKeys = new Set(onBoard.map((raw) => raw.key));
-    return all.map((raw) => {
-      const visibleKey = raw.fields.issuetype?.subtask ? raw.fields.parent?.key : raw.key;
-      return mapIssue(raw, this.config.storyPointsField, visibleKey ? boardKeys.has(visibleKey) : false);
-    });
+    return Promise.all(
+      all.map(async (raw) => {
+        const visibleKey = raw.fields.issuetype?.subtask ? raw.fields.parent?.key : raw.key;
+        const issue = mapIssue(raw, this.config.storyPointsField, visibleKey ? boardKeys.has(visibleKey) : false);
+        const log = raw.changelog;
+        if (log && log.total > log.histories.length) {
+          issue.statusSince = (await this.latestStatusChange(raw.key)) ?? issue.statusSince;
+        }
+        return issue;
+      }),
+    );
   }
 }
 

@@ -174,4 +174,53 @@ describe("JiraCloudClient.fetchSprintIssues", () => {
       ["SUB-2", false],
     ]);
   });
+
+  it("fordert das Changelog nur für den Sprint-Endpoint an und mappt statusSince", async () => {
+    const withLog = issue("AB-1");
+    (withLog as Record<string, unknown>).changelog = {
+      startAt: 0, maxResults: 100, total: 1,
+      histories: [{ created: "2026-07-10T09:00:00.000Z", items: [{ field: "status" }] }],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ issues: [withLog], startAt: 0, maxResults: 50, total: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ issues: [], startAt: 0, maxResults: 50, total: 0 }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.fetchSprintIssues("42", "100");
+
+    const urls = fetchMock.mock.calls.map(([u]) => u as string);
+    expect(urls[0]).toContain("expand=changelog");
+    expect(urls[0]).toContain("created");
+    expect(urls[1]).not.toContain("expand=changelog");
+    expect(result[0].statusSince).toEqual(new Date("2026-07-10T09:00:00.000Z"));
+  });
+
+  it("lädt bei abgeschnittenem Changelog alle Seiten nach und nimmt den letzten Status-Wechsel", async () => {
+    const truncated = issue("AB-1");
+    (truncated as Record<string, unknown>).changelog = {
+      startAt: 0, maxResults: 1, total: 2,
+      histories: [{ created: "2026-07-01T09:00:00.000Z", items: [{ field: "status" }] }],
+    };
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("/rest/api/3/issue/AB-1/changelog")) {
+        return Promise.resolve(jsonResponse({
+          startAt: 0, maxResults: 100, total: 2,
+          values: [
+            { created: "2026-07-01T09:00:00.000Z", items: [{ field: "status" }] },
+            { created: "2026-07-18T09:00:00.000Z", items: [{ field: "status" }] },
+          ],
+        }));
+      }
+      if (url.includes("/board/42/sprint/100/issue")) {
+        return Promise.resolve(jsonResponse({ issues: [], startAt: 0, maxResults: 50, total: 0 }));
+      }
+      return Promise.resolve(jsonResponse({ issues: [truncated], startAt: 0, maxResults: 50, total: 1 }));
+    });
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.fetchSprintIssues("42", "100");
+
+    expect(result[0].statusSince).toEqual(new Date("2026-07-18T09:00:00.000Z"));
+  });
 });
