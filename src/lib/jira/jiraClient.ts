@@ -100,15 +100,25 @@ export class JiraCloudClient implements JiraClient {
 
   // Board-Backlog ohne Schätzung: das Story-Points-Feld heißt in JQL cf[<id>].
   // Zur Sicherheit zusätzlich clientseitig filtern (falls das Feld abweicht).
+  // Paginiert bis zu 200 Tickets in Rank-Reihenfolge.
   async fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]> {
     const fieldId = this.config.storyPointsField.match(/(\d+)$/)?.[1];
     const emptyClause = fieldId ? `cf[${fieldId}] is EMPTY AND ` : "";
     const jql = `${emptyClause}statusCategory != Done ORDER BY Rank ASC`;
     const fields = ["summary", "status", "issuetype", "description", this.config.storyPointsField].join(",");
-    const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
-      `/rest/agile/1.0/board/${boardId}/backlog?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`,
-    );
-    return (page.issues ?? []).map((raw) => this.toSearchResult(raw)).filter((r) => r.storyPoints === null);
+
+    const raws: JiraIssueRaw[] = [];
+    let startAt = 0;
+    for (;;) {
+      const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
+        `/rest/agile/1.0/board/${boardId}/backlog?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=50&fields=${fields}`,
+      );
+      const issues = page.issues ?? [];
+      raws.push(...issues);
+      startAt += issues.length;
+      if (issues.length < 50 || startAt >= 200) break;
+    }
+    return raws.map((raw) => this.toSearchResult(raw)).filter((r) => r.storyPoints === null);
   }
 
   async setStoryPoints(issueKey: string, points: number): Promise<void> {

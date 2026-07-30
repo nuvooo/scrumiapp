@@ -114,8 +114,10 @@ export function RefinementDraft({
       {isAdmin && (
         <div className="card p-[18px]">
           <div className="flex flex-wrap items-baseline gap-2">
-            <div className="text-sm font-semibold">Backlog ohne Schätzung</div>
-            <div className="text-xs text-dim">unbewertete Tickets vom Jira-Board, nach Rang sortiert (max. 50)</div>
+            <div className="text-sm font-semibold">
+              Backlog ohne Schätzung{backlog !== null && ` (${backlog.length})`}
+            </div>
+            <div className="text-xs text-dim">unbewertete Tickets vom Jira-Board, nach Rang sortiert (max. 200)</div>
           </div>
           {backlogError && <div className="mt-2 text-[12.5px] text-danger">{backlogError}</div>}
           {backlog === null && !backlogError && (
