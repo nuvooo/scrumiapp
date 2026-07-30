@@ -2,12 +2,60 @@
 
 import { useEffect, useState } from "react";
 import { formatPoints } from "@/lib/format";
-import type { RefinementStateView } from "@/lib/view/refinementState";
+import type { RefinementStateView, RefinementParticipantView } from "@/lib/view/refinementState";
 
 const POKER_CARDS = [1, 2, 3, 5, 8, 13, 20];
 
 function cardLabel(points: number | null): string {
   return points === null ? "?" : formatPoints(points);
+}
+
+/** Ein Sitzplatz am Tisch: Kartenplatz (leer / Rücken / offen) über dem Namen. */
+function Seat({
+  participant,
+  revealedPoints,
+}: {
+  participant: RefinementParticipantView;
+  /** undefined = noch nicht aufgedeckt; sonst der offene Wert (null = „?"). */
+  revealedPoints: number | null | undefined;
+}) {
+  const { name, isAdmin, voted } = participant;
+  const faceUp = voted && revealedPoints !== undefined;
+  return (
+    <div
+      data-testid={`participant-${name}`}
+      data-voted={voted}
+      className="flex w-[64px] flex-col items-center gap-1.5"
+    >
+      <span
+        data-testid={`seat-card-${name}`}
+        className={`flex h-[52px] w-[38px] items-center justify-center rounded-[7px] font-mono text-[15px] font-semibold ${
+          faceUp
+            ? "border border-accent bg-chip text-fg"
+            : voted
+              ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
+              : "border border-dashed border-edge bg-field"
+        }`}
+      >
+        {faceUp ? cardLabel(revealedPoints ?? null) : ""}
+      </span>
+      <span className="max-w-[64px] truncate text-[11.5px] text-mid">
+        {name}
+        {isAdmin && <span className="ml-1 font-mono text-[9px] text-faint">★</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Sitzverteilung rund um den Tisch: reihum oben, unten, links, rechts. */
+function seats(participants: RefinementParticipantView[]) {
+  const top: RefinementParticipantView[] = [];
+  const bottom: RefinementParticipantView[] = [];
+  const left: RefinementParticipantView[] = [];
+  const right: RefinementParticipantView[] = [];
+  const order = [top, bottom, left, right];
+  participants.forEach((p, i) => order[i % 4].push(p));
+  return { top, bottom, left, right };
 }
 
 export function RefinementVoting({
@@ -43,117 +91,131 @@ export function RefinementVoting({
     if (Number.isFinite(points) && points >= 0) onAccept(points);
   };
 
+  const pointsByName = new Map((active?.votes ?? []).map((v) => [v.name, v.points]));
+  // Achtung: „?“-Votes sind null — deshalb has() statt ?? (das würde null verschlucken).
+  const revealedFor = (name: string) =>
+    revealed && pointsByName.has(name) ? pointsByName.get(name) : undefined;
+  const votedCount = state.participants.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
+  const { top, bottom, left, right } = seats(state.participants);
 
   return (
     <div className="mt-6 flex flex-col gap-3.5">
-      <div className="flex flex-wrap gap-2">
-        {state.participants.map((p) => (
-          <span
-            key={p.name}
-            data-testid={`participant-${p.name}`}
-            className={`rounded-full border px-2.5 py-1 text-[12.5px] ${
-              active && p.voted ? "border-[#1F3D2B] bg-[#0F1A14] text-ok" : "border-edge bg-field text-mid"
-            }`}
-          >
-            {p.name}
-            {p.isAdmin && <span className="ml-1 font-mono text-[10px] text-faint">Admin</span>}
-            {active && p.voted && <span className="ml-1">✓</span>}
-          </span>
-        ))}
-        <span className="ml-auto self-center font-mono text-[11px] text-faint">
-          {estimated} von {state.tickets.length} geschätzt
-        </span>
-      </div>
-
       {active ? (
         <div className="card p-[22px]">
-          <div className="font-mono text-[11.5px] text-link">{active.jiraKey}</div>
-          <div className="mt-1 text-[17px] font-semibold">{active.summary}</div>
-          <div className="mt-1 text-[12.5px] text-muted">
-            {active.issueType}
-            {active.previousPoints !== null && <> · bisher {formatPoints(active.previousPoints)} SP</>}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="font-mono text-[11.5px] text-link">{active.jiraKey}</span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{active.summary}</span>
+            <span className="flex-none text-[12px] text-muted">
+              {active.issueType}
+              {active.previousPoints !== null && <> · bisher {formatPoints(active.previousPoints)} SP</>}
+            </span>
           </div>
 
-          {!revealed && (
-            <div className="mt-5 flex flex-wrap gap-2">
-              {POKER_CARDS.map((points) => (
-                <button
-                  key={points}
-                  type="button"
-                  aria-label={`${points} Punkte`}
-                  onClick={() => onVote(points)}
-                  className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold ${
-                    active.myVoteGiven && active.myVote === points
-                      ? "border-accent bg-chip text-fg"
-                      : "border-edge bg-field text-mid hover:border-tipline"
-                  }`}
-                >
-                  {points}
-                </button>
-              ))}
-              <button
-                type="button"
-                aria-label="Unklar"
-                onClick={() => onVote(null)}
-                className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold ${
-                  active.myVoteGiven && active.myVote === null
-                    ? "border-accent bg-chip text-fg"
-                    : "border-edge bg-field text-mid hover:border-tipline"
-                }`}
-              >
-                ?
-              </button>
-            </div>
-          )}
-
-          {!revealed && (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <span className="text-[12.5px] text-muted">
-                {active.myVoteGiven ? "Deine Karte ist gesetzt — warten auf die anderen…" : "Wähle verdeckt deine Karte."}
-              </span>
-              {isAdmin && (
-                <button type="button" onClick={onReveal} className="btn-primary ml-auto px-4 py-[9px]">
-                  Aufdecken
-                </button>
-              )}
-            </div>
-          )}
-
-          {revealed && (
-            <>
-              <div data-testid="revealed-votes" className="mt-5 flex flex-wrap gap-2">
-                {(active.votes ?? []).map((v) => (
-                  <div key={v.name} className="flex flex-col items-center gap-1">
-                    <span className="flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border border-accent bg-chip font-mono text-[17px] font-semibold">
-                      {cardLabel(v.points)}
-                    </span>
-                    <span className="max-w-[64px] truncate text-[11px] text-mid">{v.name}</span>
-                  </div>
-                ))}
+          {/* Der Pokertisch */}
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {top.length > 0 && (
+              <div className="flex justify-center gap-4">
+                {top.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
               </div>
-              <div className="mt-3 font-mono text-[12.5px] text-mid">
-                {active.stats?.average != null
-                  ? `Ø ${formatPoints(active.stats.average)} · Median ${formatPoints(active.stats.median ?? 0)} · ${active.stats.count} Stimmen`
-                  : "Keine numerischen Stimmen."}
-              </div>
-              {isAdmin && (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-2 text-[13px] text-mid">
-                    Finale Schätzung
-                    <input
-                      aria-label="Finale Schätzung"
-                      value={finalText}
-                      onChange={(e) => setFinalText(e.target.value)}
-                      className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
-                    />
-                  </label>
-                  <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
-                    Übernehmen
-                  </button>
+            )}
+            <div className="flex w-full items-center justify-center gap-4">
+              {left.length > 0 && (
+                <div className="flex flex-col gap-4">
+                  {left.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
                 </div>
               )}
-            </>
+              <div className="flex min-h-[130px] w-full max-w-[440px] flex-col items-center justify-center gap-3 rounded-[22px] border border-line bg-[rgba(124,156,255,0.07)] px-6 py-5 text-center">
+                {!revealed && (
+                  <>
+                    <div className="text-[13px] text-mid">
+                      Warten auf Stimmen… <span className="font-mono">{votedCount} / {state.participants.length}</span>
+                    </div>
+                    {isAdmin && (
+                      <button type="button" onClick={onReveal} className="btn-primary px-5 py-[9px]">
+                        Aufdecken
+                      </button>
+                    )}
+                  </>
+                )}
+                {revealed && (
+                  <>
+                    <div className="font-mono text-[13px] text-fg">
+                      {active.stats?.average != null
+                        ? <>Ø {formatPoints(active.stats.average)} · Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen</>
+                        : "Keine numerischen Stimmen."}
+                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <label className="flex items-center gap-2 text-[13px] text-mid">
+                          Finale Schätzung
+                          <input
+                            aria-label="Finale Schätzung"
+                            value={finalText}
+                            onChange={(e) => setFinalText(e.target.value)}
+                            className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
+                          />
+                        </label>
+                        <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
+                          Übernehmen
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              {right.length > 0 && (
+                <div className="flex flex-col gap-4">
+                  {right.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                </div>
+              )}
+            </div>
+            {bottom.length > 0 && (
+              <div className="flex justify-center gap-4">
+                {bottom.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+              </div>
+            )}
+          </div>
+
+          {/* Die eigene Hand */}
+          {!revealed && (
+            <div className="mt-7 flex flex-col items-center gap-3">
+              <div className="text-[13px] text-muted">
+                {active.myVoteGiven ? "Deine Karte ist gesetzt — du kannst noch wechseln." : "Wähle deine Karte 👇"}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {POKER_CARDS.map((points) => {
+                  const selected = active.myVoteGiven && active.myVote === points;
+                  return (
+                    <button
+                      key={points}
+                      type="button"
+                      aria-label={`${points} Punkte`}
+                      onClick={() => onVote(points)}
+                      className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
+                        selected
+                          ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"
+                          : "border-edge bg-field text-mid hover:-translate-y-0.5 hover:border-tipline"
+                      }`}
+                    >
+                      {points}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  aria-label="Unklar"
+                  onClick={() => onVote(null)}
+                  className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
+                    active.myVoteGiven && active.myVote === null
+                      ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"
+                      : "border-edge bg-field text-mid hover:-translate-y-0.5 hover:border-tipline"
+                  }`}
+                >
+                  ?
+                </button>
+              </div>
+            </div>
           )}
         </div>
       ) : (
@@ -166,6 +228,7 @@ export function RefinementVoting({
         <div className="card overflow-hidden">
           <div className="flex items-center gap-3 border-b border-line px-[18px] py-3">
             <div className="text-sm font-semibold">Tickets</div>
+            <span className="font-mono text-[11px] text-faint">{estimated} von {state.tickets.length} geschätzt</span>
             <button type="button" onClick={onFinish} className="btn-secondary ml-auto px-3.5 py-[7px]">
               Refinement abschließen
             </button>
@@ -191,6 +254,11 @@ export function RefinementVoting({
               </span>
             </button>
           ))}
+        </div>
+      )}
+      {!isAdmin && (
+        <div className="text-center font-mono text-[11px] text-faint">
+          {estimated} von {state.tickets.length} Tickets geschätzt
         </div>
       )}
     </div>
