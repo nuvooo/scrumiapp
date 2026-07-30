@@ -23,51 +23,85 @@ function label(points: number | null | undefined): string {
   return Number.isInteger(points) ? String(points) : String(points).replace(".", ",");
 }
 
-/** Clay-Figur: Kapsel-Körper, Kugel-Kopf, Ärmchen — sitzt auf einem simplen Stuhl. */
-function Figure({ color, angle, isAdmin, name }: { color: string; angle: number; isAdmin: boolean; name: string }) {
-  const r = TABLE_RADIUS + 0.55;
+/**
+ * Clay-Figur auf einem Stuhl, Blick zum Tisch (lokal +z zeigt zur Tischmitte):
+ * Kapsel-Körper, Kugel-Kopf, Arme mit Kugel-Händen, die einen kleinen
+ * Kartenfächer halten (bis aufgedeckt wird).
+ */
+function Figure({
+  color,
+  angle,
+  isAdmin,
+  name,
+  holdsCards,
+}: {
+  color: string;
+  angle: number;
+  isAdmin: boolean;
+  name: string;
+  holdsCards: boolean;
+}) {
+  const r = TABLE_RADIUS + 0.62;
   const x = Math.sin(angle) * r;
   const z = -Math.cos(angle) * r;
   return (
-    <group position={[x, 0, z]} rotation={[0, -angle + Math.PI, 0]}>
-      {/* Stuhl */}
-      <RoundedBox args={[0.62, 0.09, 0.6]} radius={0.04} position={[0, 0.48, -0.28]}>
+    <group position={[x, 0, z]} rotation={[0, -angle, 0]}>
+      {/* Stuhl: Sitzfläche, Lehne (vom Tisch abgewandt), Holzbeine */}
+      <RoundedBox args={[0.62, 0.09, 0.6]} radius={0.04} position={[0, 0.48, -0.1]}>
         <meshStandardMaterial color="#cfd4dc" roughness={1} />
       </RoundedBox>
-      <RoundedBox args={[0.62, 0.75, 0.09]} radius={0.04} position={[0, 0.9, -0.56]}>
+      <RoundedBox args={[0.62, 0.78, 0.09]} radius={0.04} position={[0, 0.9, -0.38]}>
         <meshStandardMaterial color="#cfd4dc" roughness={1} />
       </RoundedBox>
-      {[-0.24, 0.24].map((ox) => (
-        <mesh key={ox} position={[ox, 0.22, -0.28]}>
-          <cylinderGeometry args={[0.035, 0.035, 0.46, 12]} />
-          <meshStandardMaterial color="#b9861f" roughness={1} />
+      {[[-0.24, 0.1], [0.24, 0.1], [-0.24, -0.3], [0.24, -0.3]].map(([ox, oz]) => (
+        <mesh key={`${ox}:${oz}`} position={[ox, 0.22, oz]}>
+          <cylinderGeometry args={[0.032, 0.032, 0.46, 12]} />
+          <meshStandardMaterial color="#c9a86b" roughness={1} />
         </mesh>
       ))}
       {/* Körper */}
-      <mesh position={[0, 0.86, -0.24]}>
-        <capsuleGeometry args={[0.21, 0.34, 8, 20]} />
+      <mesh position={[0, 0.88, -0.08]}>
+        <capsuleGeometry args={[0.22, 0.36, 8, 20]} />
         <meshStandardMaterial color={color} roughness={1} />
       </mesh>
-      {/* Arme zum Tisch */}
-      {[-0.2, 0.2].map((ox) => (
-        <mesh key={ox} position={[ox, 0.92, -0.02]} rotation={[1.15, 0, ox > 0 ? -0.35 : 0.35]}>
-          <capsuleGeometry args={[0.065, 0.3, 6, 12]} />
+      {/* Oberarme: von der Schulter schräg nach vorn-unten zum Tisch */}
+      {[-0.22, 0.22].map((ox) => (
+        <mesh key={ox} position={[ox, 1.0, 0.12]} rotation={[0.9, 0, ox > 0 ? -0.3 : 0.3]}>
+          <capsuleGeometry args={[0.06, 0.3, 6, 12]} />
           <meshStandardMaterial color={color} roughness={1} />
         </mesh>
       ))}
+      {/* Hände auf der Tischkante */}
+      {[-0.15, 0.15].map((ox) => (
+        <mesh key={ox} position={[ox, 1.12, 0.3]}>
+          <sphereGeometry args={[0.08, 16, 16]} />
+          <meshStandardMaterial color={color} roughness={1} />
+        </mesh>
+      ))}
+      {/* Kartenfächer zwischen den Händen (solange verdeckt gespielt wird) */}
+      {holdsCards && (
+        <group position={[0, 1.22, 0.3]} rotation={[-0.35, 0, 0]}>
+          {[-1, 0, 1].map((i) => (
+            <RoundedBox key={i} args={[0.16, 0.24, 0.012]} radius={0.01} position={[i * 0.07, 0.02, i * 0.006]} rotation={[0, 0, -i * 0.25]}>
+              <meshStandardMaterial color="#6e8ff6" roughness={0.7} />
+            </RoundedBox>
+          ))}
+        </group>
+      )}
       {/* Kopf */}
-      <mesh position={[0, 1.42, -0.26]}>
-        <sphereGeometry args={[0.22, 24, 24]} />
+      <mesh position={[0, 1.46, -0.1]}>
+        <sphereGeometry args={[0.23, 24, 24]} />
         <meshStandardMaterial color={color} roughness={1} />
       </mesh>
       {/* Namensschild */}
-      <Billboard position={[0, 1.85, -0.26]}>
+      <Billboard position={[0, 1.9, -0.1]}>
         <Text fontSize={0.14} color="#3a404d" outlineWidth={0.008} outlineColor="#ffffff">
           {isAdmin ? `★ ${name}` : name}
         </Text>
       </Billboard>
+      {/* Moderator-Schild vor der Figur auf dem Tisch */}
       {isAdmin && (
-        <group position={[0, 0.78, 0.34]} rotation={[-0.5, 0, 0]}>
+        <group position={[0, 1.14, 0.55]} rotation={[-0.35, 0, 0]}>
           <RoundedBox args={[0.72, 0.2, 0.03]} radius={0.02}>
             <meshStandardMaterial color="#ffffff" roughness={0.9} />
           </RoundedBox>
@@ -128,19 +162,26 @@ function TableAndRoom() {
         <circleGeometry args={[14, 48]} />
         <meshStandardMaterial color="#e8e6e2" roughness={1} />
       </mesh>
-      {/* Tischplatte + Fuß */}
+      {/* Tischplatte mit Kante */}
       <mesh position={[0, 1, 0]}>
         <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.12, 64]} />
         <meshStandardMaterial color="#e5cfa5" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 0.97, 0]}>
-        <cylinderGeometry args={[TABLE_RADIUS, TABLE_RADIUS, 0.05, 64]} />
+      <mesh position={[0, 0.93, 0]}>
+        <cylinderGeometry args={[TABLE_RADIUS - 0.02, TABLE_RADIUS - 0.06, 0.04, 64]} />
         <meshStandardMaterial color="#d9bd8c" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.32, 0.44, 0.95, 32]} />
-        <meshStandardMaterial color="#d9bd8c" roughness={0.9} />
-      </mesh>
+      {/* Vier schräg gestellte Holzbeine */}
+      {[Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4].map((a) => (
+        <mesh
+          key={a}
+          position={[Math.sin(a) * (TABLE_RADIUS - 0.55), 0.47, -Math.cos(a) * (TABLE_RADIUS - 0.55)]}
+          rotation={[Math.cos(a) * 0.12, 0, -Math.sin(a) * 0.12]}
+        >
+          <cylinderGeometry args={[0.055, 0.075, 0.96, 16]} />
+          <meshStandardMaterial color="#c9a86b" roughness={0.95} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -176,8 +217,8 @@ export function PokerTableScene({
 
   return (
     <Canvas
-      camera={{ position: [0, 2.35, 4.1], fov: 42 }}
-      onCreated={({ camera }) => camera.lookAt(0, 1.05, 0)}
+      camera={{ position: [0, 2.15, 4.35], fov: 44 }}
+      onCreated={({ camera }) => camera.lookAt(0, 0.95, 0)}
       style={{ touchAction: "pan-y" }}
     >
       <ambientLight intensity={1.1} />
@@ -191,6 +232,7 @@ export function PokerTableScene({
             angle={angle}
             isAdmin={participant.isAdmin}
             name={participant.name}
+            holdsCards={!revealed}
           />
           <PlayedCard angle={angle} voted={participant.voted} revealed={revealed} points={participant.revealedPoints} />
         </group>
