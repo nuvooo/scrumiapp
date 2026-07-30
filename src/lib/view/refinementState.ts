@@ -16,6 +16,8 @@ export interface RefinementTicketView {
 export interface RefinementParticipantView {
   name: string;
   isAdmin: boolean;
+  /** Anwesend = hat innerhalb der letzten ~12 s gepollt (Heartbeat). */
+  online: boolean;
   voted: boolean;
 }
 

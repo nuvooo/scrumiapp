@@ -234,6 +234,20 @@ export async function vote(
   return { ok: true };
 }
 
+/** Eigene Schätzung zurücknehmen (Klick auf die bereits gewählte Karte). */
+export async function retractVote(
+  refinementId: string,
+  token: string,
+  ticketId: string,
+): Promise<ActionResult> {
+  const participant = await requireParticipant(refinementId, token);
+  if (!participant) return fail("Nicht Teil dieser Session.");
+  const ticket = await prisma.refinementTicket.findFirst({ where: { id: ticketId, refinementId } });
+  if (!ticket || ticket.state !== "VOTING") return fail("Gerade keine Abstimmung offen.");
+  await prisma.refinementVote.deleteMany({ where: { ticketId, participantId: participant.id } });
+  return { ok: true };
+}
+
 export async function revealVotes(refinementId: string, token: string, ticketId: string): Promise<ActionResult> {
   if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
   await prisma.refinementTicket.updateMany({

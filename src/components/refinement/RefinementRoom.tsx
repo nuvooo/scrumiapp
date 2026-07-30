@@ -15,6 +15,7 @@ import {
   startRefinement,
   selectTicket,
   vote,
+  retractVote,
   revealVotes,
   acceptEstimate,
   finishRefinement,
@@ -210,6 +211,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           state={state}
           onVote={(points) => {
             if (state.activeTicket) run(() => vote(refinementId, t, state.activeTicket!.id, points));
+          }}
+          onRetract={() => {
+            if (state.activeTicket) run(() => retractVote(refinementId, t, state.activeTicket!.id));
           }}
           onSelect={(ticketId) => run(() => selectTicket(refinementId, t, ticketId))}
           onReveal={() => {

@@ -11,9 +11,9 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
   state: "RUNNING",
   you: { name: "Ben", isAdmin: false },
   participants: [
-    { name: "Anna", isAdmin: true, voted: false },
-    { name: "Ben", isAdmin: false, voted: false },
-    { name: "Zoe", isAdmin: false, voted: true },
+    { name: "Anna", isAdmin: true, online: true, voted: false },
+    { name: "Ben", isAdmin: false, online: true, voted: false },
+    { name: "Zoe", isAdmin: false, online: true, voted: true },
   ],
   tickets: [
     { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null, state: "VOTING", finalPoints: null },
@@ -30,9 +30,9 @@ const revealedState = (): RefinementStateView =>
   baseState({
     you: { name: "Anna", isAdmin: true },
     participants: [
-      { name: "Anna", isAdmin: true, voted: false },
-      { name: "Ben", isAdmin: false, voted: true },
-      { name: "Zoe", isAdmin: false, voted: true },
+      { name: "Anna", isAdmin: true, online: true, voted: false },
+      { name: "Ben", isAdmin: false, online: true, voted: true },
+      { name: "Zoe", isAdmin: false, online: true, voted: true },
     ],
     activeTicket: {
       id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null,
@@ -46,7 +46,7 @@ const revealedState = (): RefinementStateView =>
   });
 
 const noop = () => {};
-const handlers = { onVote: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
+const handlers = { onVote: noop, onRetract: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
 
 describe("RefinementVoting", () => {
   it("zeigt den Tisch: abgestimmt = Kartenrücken, Moderator ohne Sitzplatz", () => {
@@ -71,6 +71,24 @@ describe("RefinementVoting", () => {
     expect(onVote).toHaveBeenCalledWith(null);
   });
 
+  it("ein erneuter Klick auf die gewählte Karte nimmt die Schätzung zurück", () => {
+    const onVote = vi.fn();
+    const onRetract = vi.fn();
+    const voted = baseState({
+      activeTicket: {
+        id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null,
+        state: "VOTING", myVoteGiven: true, myVote: 8, votes: null, stats: null,
+      },
+    });
+    render(<RefinementVoting state={voted} {...handlers} onVote={onVote} onRetract={onRetract} />);
+    fireEvent.click(screen.getByRole("button", { name: "8 Punkte" }));
+    expect(onRetract).toHaveBeenCalled();
+    expect(onVote).not.toHaveBeenCalled();
+    // eine andere Karte wählt normal um
+    fireEvent.click(screen.getByRole("button", { name: "5 Punkte" }));
+    expect(onVote).toHaveBeenCalledWith(5);
+  });
+
   it("der Moderator schätzt nicht mit: keine Kartenhand, aber Aufdecken und Ticketwahl", () => {
     const onReveal = vi.fn();
     const admin = baseState({ you: { name: "Anna", isAdmin: true } });
@@ -91,6 +109,19 @@ describe("RefinementVoting", () => {
     expect(screen.getByTestId("seat-card-Ben")).toHaveTextContent("8");
     expect(screen.getByTestId("seat-card-Zoe")).toHaveTextContent("?");
     expect(screen.getByText(/Ø 8/)).toBeInTheDocument();
+  });
+
+  it("abwesende Teilnehmer sitzen nicht am Tisch und zählen nicht", () => {
+    const withOffline = baseState({
+      participants: [
+        { name: "Anna", isAdmin: true, online: true, voted: false },
+        { name: "Ben", isAdmin: false, online: true, voted: false },
+        { name: "Zoe", isAdmin: false, online: false, voted: true }, // Tab zu
+      ],
+    });
+    render(<RefinementVoting state={withOffline} {...handlers} />);
+    expect(screen.queryByTestId("participant-Zoe")).not.toBeInTheDocument();
+    expect(screen.getByText(/0\s*\/\s*1/)).toBeInTheDocument();
   });
 
   it("markiert das ausgewählte Ticket in der Seitenliste", () => {

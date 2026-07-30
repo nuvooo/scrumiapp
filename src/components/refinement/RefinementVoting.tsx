@@ -58,6 +58,7 @@ function seats(participants: RefinementParticipantView[]) {
 export function RefinementVoting({
   state,
   onVote,
+  onRetract,
   onSelect,
   onReveal,
   onAccept,
@@ -65,6 +66,8 @@ export function RefinementVoting({
 }: {
   state: RefinementStateView;
   onVote: (points: number | null) => void;
+  /** Erneuter Klick auf die gewählte Karte nimmt die Schätzung zurück. */
+  onRetract: () => void;
   onSelect: (ticketId: string) => void;
   onReveal: () => void;
   onAccept: (points: number) => void;
@@ -93,8 +96,9 @@ export function RefinementVoting({
   const revealedFor = (name: string) =>
     revealed && pointsByName.has(name) ? pointsByName.get(name) : undefined;
 
-  // Moderatoren sitzen nicht am Tisch und schätzen nicht mit.
-  const estimators = state.participants.filter((p) => !p.isAdmin);
+  // Am Tisch sitzen nur anwesende Schätzende — Moderatoren nie, und wer
+  // nicht mehr pollt (Tab zu), verschwindet nach dem Heartbeat-Timeout.
+  const estimators = state.participants.filter((p) => !p.isAdmin && p.online);
   const votedCount = estimators.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
   const { top, bottom, left, right } = seats(estimators);
@@ -217,7 +221,9 @@ export function RefinementVoting({
           {!revealed && !isAdmin && (
             <div className="mt-7 flex flex-col items-center gap-3">
               <div className="text-[13px] text-muted">
-                {active.myVoteGiven ? "Deine Karte ist gesetzt — du kannst noch wechseln." : "Wähle deine Karte 👇"}
+                {active.myVoteGiven
+                  ? "Deine Karte ist gesetzt — nochmal klicken nimmt sie zurück."
+                  : "Wähle deine Karte 👇"}
               </div>
               <div className="flex flex-wrap justify-center gap-2">
                 {POKER_CARDS.map((points) => {
@@ -227,7 +233,7 @@ export function RefinementVoting({
                       key={points}
                       type="button"
                       aria-label={`${points} Punkte`}
-                      onClick={() => onVote(points)}
+                      onClick={() => (selected ? onRetract() : onVote(points))}
                       className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
                         selected
                           ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"
@@ -241,7 +247,7 @@ export function RefinementVoting({
                 <button
                   type="button"
                   aria-label="Unklar"
-                  onClick={() => onVote(null)}
+                  onClick={() => (active.myVoteGiven && active.myVote === null ? onRetract() : onVote(null))}
                   className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
                     active.myVoteGiven && active.myVote === null
                       ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"

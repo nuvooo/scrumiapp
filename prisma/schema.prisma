@@ -163,6 +163,8 @@ model RefinementParticipant {
   isAdmin      Boolean          @default(false)
   /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
   token        String           @unique @default(cuid())
+  /// Letzter Heartbeat (State-Poll) — bestimmt, wer als anwesend gilt
+  lastSeenAt   DateTime?
   votes        RefinementVote[]
 
   @@unique([refinementId, name])

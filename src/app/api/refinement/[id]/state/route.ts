@@ -23,6 +23,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!refinement) return Response.json({ error: "not found" }, { status: 404 });
 
   const you = refinement.participants.find((p) => p.token === token) ?? null;
+
+  // Jeder Poll ist ein Heartbeat: wer länger nicht gepollt hat, gilt als
+  // abwesend und sitzt nicht am Tisch.
+  const now = Date.now();
+  if (you) {
+    await prisma.refinementParticipant.update({
+      where: { id: you.id },
+      data: { lastSeenAt: new Date(now) },
+    });
+  }
+  const isOnline = (p: { token: string; lastSeenAt: Date | null }) =>
+    p.token === token || (p.lastSeenAt !== null && now - p.lastSeenAt.getTime() < 12_000);
+
   const active = refinement.activeTicketId
     ? refinement.tickets.find((t) => t.id === refinement.activeTicketId) ?? null
     : null;
@@ -37,6 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     participants: refinement.participants.map((p) => ({
       name: p.name,
       isAdmin: p.isAdmin,
+      online: isOnline(p),
       voted: active ? active.votes.some((v) => v.participantId === p.id) : false,
     })),
     tickets: refinement.tickets.map((t) => ({
