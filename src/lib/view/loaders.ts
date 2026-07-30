@@ -14,6 +14,7 @@ import { buildStandupGroups, previousWorkingDay, workingDaysInStatus, STALE_AFTE
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 import type { ReportData, ReportIssue } from "@/lib/report/markdown";
+import { calcPlanning } from "@/lib/metrics/planning";
 
 export async function loadTeams() {
   return listTeams();
@@ -394,6 +395,54 @@ export async function loadCapacity(sprintId: string) {
   const result = calcCapacityEfficiency(toDomainSprint(sprint), rows);
 
   return { sprintName: sprint.name, completedPoints: sprint.completedPoints, rows, ...result };
+}
+
+/**
+ * Planning-Daten: der nächste geplante Sprint des Teams (frühestes startDate,
+ * sonst Name) mit seinen offenen Board-Tickets, dem Forecast aus Kapazität ×
+ * gepoolter Effizienz und dem Planungs-Check. null ohne geplanten Sprint.
+ */
+export async function loadPlanning(teamId: string) {
+  const future = await prisma.sprint.findMany({
+    where: { teamId, state: "FUTURE" },
+    include: { issues: { orderBy: { jiraKey: "asc" } } },
+  });
+  if (future.length === 0) return null;
+  const sprint = [...future].sort((a, b) => {
+    if (a.startDate && b.startDate) return a.startDate.getTime() - b.startDate.getTime();
+    if (a.startDate) return -1;
+    if (b.startDate) return 1;
+    return a.name.localeCompare(b.name, "de");
+  })[0];
+
+  const cap = await loadCapacity(sprint.id);
+  const totalPlanned = cap?.totalPlanned ?? 0;
+  const forecast =
+    totalPlanned > 0 ? (await loadForecast(teamId, sprint.id, totalPlanned))?.possiblePoints ?? null : null;
+  const summary = calcPlanning(sprint.issues, forecast);
+
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
+  const issues = sprint.issues
+    .filter((i) => i.statusCategory !== "DONE" && i.onBoard)
+    .map((i) => ({
+      id: i.id,
+      jiraKey: i.jiraKey,
+      summary: i.summary,
+      issueType: i.issueType,
+      status: i.status,
+      storyPoints: i.storyPoints,
+      url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
+    }));
+
+  return {
+    sprintId: sprint.id,
+    sprintName: sprint.name,
+    startDate: sprint.startDate,
+    forecast,
+    totalPlanned,
+    summary,
+    issues,
+  };
 }
 
 /**

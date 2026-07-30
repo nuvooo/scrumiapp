@@ -224,3 +224,25 @@ describe("JiraCloudClient.fetchSprintIssues", () => {
     expect(result[0].statusSince).toEqual(new Date("2026-07-18T09:00:00.000Z"));
   });
 });
+
+describe("JiraCloudClient.setStoryPoints", () => {
+  it("schreibt die Punkte per PUT ins konfigurierte Story-Points-Feld", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.setStoryPoints("AB-1", 5);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://example.atlassian.net/rest/api/3/issue/AB-1");
+    expect(init.method).toBe("PUT");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(init.body as string)).toEqual({ fields: { customfield_10016: 5 } });
+  });
+
+  it("wirft bei einer abgelehnten Antwort (z. B. Token ohne Schreibrecht)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ errorMessages: ["forbidden"] }, 403));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await expect(client.setStoryPoints("AB-1", 5)).rejects.toThrow(/403/);
+  });
+});

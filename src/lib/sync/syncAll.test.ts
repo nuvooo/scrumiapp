@@ -17,12 +17,14 @@ class NoopJira implements JiraClient {
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { return []; }
   async fetchSprintIssues() { return []; }
+  async setStoryPoints() {}
 }
 
 class FailingJira implements JiraClient {
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("boom"); }
   async fetchSprintIssues(): Promise<[]> { return []; }
+  async setStoryPoints() {}
 }
 
 describe("syncAllTeams", () => {

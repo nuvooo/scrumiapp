@@ -18,6 +18,7 @@ afterEach(async () => {
 });
 
 class FakeJira implements JiraClient {
+  async setStoryPoints() {}
   async fetchBoardColumns() { return []; }
   constructor(private sprints: MappedSprint[], private issues: Record<string, DomainIssue[]>) {}
   async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
@@ -25,12 +26,14 @@ class FakeJira implements JiraClient {
 }
 
 class FailingJira implements JiraClient {
+  async setStoryPoints() {}
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("401 Unauthorized"); }
   async fetchSprintIssues(): Promise<DomainIssue[]> { return []; }
 }
 
 class CountingJira implements JiraClient {
+  async setStoryPoints() {}
   async fetchBoardColumns() { return []; }
   issueCalls: string[] = [];
   constructor(private sprints: MappedSprint[]) {}

@@ -28,6 +28,8 @@ export interface JiraClient {
   fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
   fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
   fetchBoardColumns(boardId: string): Promise<BoardColumn[]>;
+  /** Schreibt die Schätzung ins konfigurierte Story-Points-Feld des Tickets. */
+  setStoryPoints(issueKey: string, points: number): Promise<void>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -51,6 +53,22 @@ export class JiraCloudClient implements JiraClient {
       throw new Error(`Jira request failed: ${res.status} ${res.statusText} (${path})`);
     }
     return (await res.json()) as T;
+  }
+
+  async setStoryPoints(issueKey: string, points: number): Promise<void> {
+    const path = `/rest/api/3/issue/${issueKey}`;
+    const res = await this.fetchFn(`${this.config.baseUrl}${path}`, {
+      method: "PUT",
+      headers: {
+        Authorization: this.authHeader(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fields: { [this.config.storyPointsField]: points } }),
+    });
+    if (!res.ok) {
+      throw new Error(`Jira request failed: ${res.status} ${res.statusText} (${path})`);
+    }
   }
 
   async fetchBoardSprints(boardId: string): Promise<MappedSprint[]> {
