@@ -1,6 +1,7 @@
 import type { DomainIssue } from "@/lib/domain/types";
 import type { JiraSprintPage, JiraIssuePage, JiraIssueRaw, JiraChangelogHistory } from "./types";
 import { mapIssue, mapSprintState } from "./mapper";
+import { adfToText } from "./adf";
 
 export interface JiraConfig {
   baseUrl: string;
@@ -29,6 +30,8 @@ export interface JiraSearchResult {
   summary: string;
   issueType: string;
   status: string;
+  /** Beschreibung als gekürzter Klartext (aus ADF). */
+  description: string;
   /** Aktuelle Schätzung (null = unbewertet). */
   storyPoints: number | null;
 }
@@ -76,20 +79,23 @@ export class JiraCloudClient implements JiraClient {
     const jql = isKey
       ? `key = "${text.toUpperCase()}" OR text ~ "${text}"`
       : `text ~ "${text}" ORDER BY updated DESC`;
-    const fields = ["summary", "status", "issuetype", this.config.storyPointsField].join(",");
+    const fields = ["summary", "status", "issuetype", "description", this.config.storyPointsField].join(",");
     const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
       `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=20&fields=${fields}`,
     );
-    return (page.issues ?? []).map((raw) => {
-      const points = raw.fields[this.config.storyPointsField];
-      return {
-        jiraKey: raw.key,
-        summary: raw.fields.summary,
-        issueType: raw.fields.issuetype?.name ?? "",
-        status: raw.fields.status.name,
-        storyPoints: typeof points === "number" ? points : null,
-      };
-    });
+    return (page.issues ?? []).map((raw) => this.toSearchResult(raw));
+  }
+
+  private toSearchResult(raw: JiraIssueRaw): JiraSearchResult {
+    const points = raw.fields[this.config.storyPointsField];
+    return {
+      jiraKey: raw.key,
+      summary: raw.fields.summary,
+      issueType: raw.fields.issuetype?.name ?? "",
+      status: raw.fields.status.name,
+      description: adfToText(raw.fields.description),
+      storyPoints: typeof points === "number" ? points : null,
+    };
   }
 
   // Board-Backlog ohne Schätzung: das Story-Points-Feld heißt in JQL cf[<id>].
@@ -98,22 +104,11 @@ export class JiraCloudClient implements JiraClient {
     const fieldId = this.config.storyPointsField.match(/(\d+)$/)?.[1];
     const emptyClause = fieldId ? `cf[${fieldId}] is EMPTY AND ` : "";
     const jql = `${emptyClause}statusCategory != Done ORDER BY Rank ASC`;
-    const fields = ["summary", "status", "issuetype", this.config.storyPointsField].join(",");
+    const fields = ["summary", "status", "issuetype", "description", this.config.storyPointsField].join(",");
     const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
       `/rest/agile/1.0/board/${boardId}/backlog?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`,
     );
-    return (page.issues ?? [])
-      .map((raw) => {
-        const points = raw.fields[this.config.storyPointsField];
-        return {
-          jiraKey: raw.key,
-          summary: raw.fields.summary,
-          issueType: raw.fields.issuetype?.name ?? "",
-          status: raw.fields.status.name,
-          storyPoints: typeof points === "number" ? points : null,
-        };
-      })
-      .filter((r) => r.storyPoints === null);
+    return (page.issues ?? []).map((raw) => this.toSearchResult(raw)).filter((r) => r.storyPoints === null);
   }
 
   async setStoryPoints(issueKey: string, points: number): Promise<void> {

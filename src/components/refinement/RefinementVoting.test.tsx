@@ -16,11 +16,11 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
     { name: "Zoe", isAdmin: false, online: true, voted: true },
   ],
   tickets: [
-    { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null, state: "VOTING", finalPoints: null },
-    { id: "t2", jiraKey: "AB-2", summary: "Suche", issueType: "Story", previousPoints: 5, state: "PENDING", finalPoints: null },
+    { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null, state: "VOTING", finalPoints: null },
+    { id: "t2", jiraKey: "AB-2", summary: "Suche", issueType: "Story", description: "", url: null, previousPoints: 5, state: "PENDING", finalPoints: null },
   ],
   activeTicket: {
-    id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null,
+    id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
     state: "VOTING", myVoteGiven: false, votes: null, stats: null,
   },
   ...over,
@@ -35,7 +35,7 @@ const revealedState = (): RefinementStateView =>
       { name: "Zoe", isAdmin: false, online: true, voted: true },
     ],
     activeTicket: {
-      id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null,
+      id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
       state: "REVEALED", myVoteGiven: false,
       votes: [
         { name: "Ben", points: 8 },
@@ -76,7 +76,7 @@ describe("RefinementVoting", () => {
     const onRetract = vi.fn();
     const voted = baseState({
       activeTicket: {
-        id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null,
+        id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
         state: "VOTING", myVoteGiven: true, myVote: 8, votes: null, stats: null,
       },
     });

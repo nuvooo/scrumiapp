@@ -39,8 +39,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const active = refinement.activeTicketId
     ? refinement.tickets.find((t) => t.id === refinement.activeTicketId) ?? null
     : null;
-  const revealed = active?.state === "REVEALED";
+  // Auch nach dem Übernehmen (ESTIMATED) bleiben die Karten offen liegen.
+  const revealed = active?.state === "REVEALED" || active?.state === "ESTIMATED";
   const nameById = new Map(refinement.participants.map((p) => [p.id, p.name]));
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
+  const jiraUrl = (jiraKey: string) => (jiraBase ? `${jiraBase}/browse/${jiraKey}` : null);
 
   return Response.json({
     id: refinement.id,
@@ -58,6 +61,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       jiraKey: t.jiraKey,
       summary: t.summary,
       issueType: t.issueType,
+      description: t.description,
+      url: jiraUrl(t.jiraKey),
       previousPoints: t.previousPoints,
       state: t.state,
       finalPoints: t.finalPoints,
@@ -68,6 +73,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           jiraKey: active.jiraKey,
           summary: active.summary,
           issueType: active.issueType,
+          description: active.description,
+          url: jiraUrl(active.jiraKey),
           previousPoints: active.previousPoints,
           state: active.state,
           myVote: you ? active.votes.find((v) => v.participantId === you.id)?.points ?? undefined : undefined,

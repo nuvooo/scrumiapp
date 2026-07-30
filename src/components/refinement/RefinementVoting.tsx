@@ -75,7 +75,9 @@ export function RefinementVoting({
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
   const active = state.activeTicket;
-  const revealed = active?.state === "REVEALED";
+  // Nach dem Übernehmen (ESTIMATED) bleiben die Karten offen auf dem Tisch.
+  const revealed = active?.state === "REVEALED" || active?.state === "ESTIMATED";
+  const accepted = active?.state === "ESTIMATED";
   const [finalText, setFinalText] = useState("");
 
   // Median als Vorschlag, sobald aufgedeckt wird (Admin kann überschreiben).
@@ -105,6 +107,7 @@ export function RefinementVoting({
 
   // Das nächste offene Ticket (noch nicht geschätzt, nicht das aktuelle).
   const nextTicket = state.tickets.find((t) => t.state !== "ESTIMATED" && t.id !== active?.id) ?? null;
+  const activeFinal = state.tickets.find((t) => t.id === active?.id)?.finalPoints ?? null;
 
   const ticketRow = (t: RefinementStateView["tickets"][number]) => (
     <>
@@ -127,13 +130,30 @@ export function RefinementVoting({
       {active ? (
         <div className="card p-[22px]">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="font-mono text-[11.5px] text-link">{active.jiraKey}</span>
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{active.summary}</span>
+            {active.url ? (
+              <a
+                href={active.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="In Jira öffnen"
+                className="font-mono text-[11.5px] text-link hover:text-linkhi hover:underline"
+              >
+                {active.jiraKey} ↗
+              </a>
+            ) : (
+              <span className="font-mono text-[11.5px] text-link">{active.jiraKey}</span>
+            )}
+            <span className="min-w-0 flex-1 text-[15px] font-semibold">{active.summary}</span>
             <span className="flex-none text-[12px] text-muted">
               {active.issueType}
               {active.previousPoints !== null && <> · bisher {formatPoints(active.previousPoints)} SP</>}
             </span>
           </div>
+          {active.description && (
+            <p className="mt-2.5 max-h-[130px] overflow-y-auto whitespace-pre-line border-l-2 border-edge pl-3 text-[12.5px] leading-relaxed text-muted">
+              {active.description}
+            </p>
+          )}
 
           {/* Der Pokertisch */}
           <div className="mt-6 flex flex-col items-center gap-3">
@@ -168,20 +188,29 @@ export function RefinementVoting({
                         ? <>Ø {formatPoints(active.stats.average)} · Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen</>
                         : "Keine numerischen Stimmen."}
                     </div>
+                    {accepted && activeFinal !== null && (
+                      <div className="text-[13px] font-semibold text-ok">
+                        Übernommen: {formatPoints(activeFinal)} SP ✓
+                      </div>
+                    )}
                     {isAdmin && (
                       <div className="flex flex-wrap items-center justify-center gap-2">
-                        <label className="flex items-center gap-2 text-[13px] text-mid">
-                          Finale Schätzung
-                          <input
-                            aria-label="Finale Schätzung"
-                            value={finalText}
-                            onChange={(e) => setFinalText(e.target.value)}
-                            className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
-                          />
-                        </label>
-                        <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
-                          Übernehmen
-                        </button>
+                        {!accepted && (
+                          <>
+                            <label className="flex items-center gap-2 text-[13px] text-mid">
+                              Finale Schätzung
+                              <input
+                                aria-label="Finale Schätzung"
+                                value={finalText}
+                                onChange={(e) => setFinalText(e.target.value)}
+                                className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
+                              />
+                            </label>
+                            <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
+                              Übernehmen
+                            </button>
+                          </>
+                        )}
                         <button
                           type="button"
                           onClick={() => onSelect(active.id)}
@@ -194,7 +223,7 @@ export function RefinementVoting({
                           <button
                             type="button"
                             onClick={() => onSelect(nextTicket.id)}
-                            className="btn-secondary px-3.5 py-[9px]"
+                            className={`${accepted ? "btn-primary" : "btn-secondary"} px-3.5 py-[9px]`}
                           >
                             Nächstes Ticket →
                           </button>

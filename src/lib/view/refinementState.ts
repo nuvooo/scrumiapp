@@ -8,6 +8,10 @@ export interface RefinementTicketView {
   jiraKey: string;
   summary: string;
   issueType: string;
+  /** Beschreibung aus Jira als gekürzter Klartext ("" = keine). */
+  description: string;
+  /** Link zum Ticket in Jira (null, wenn keine Basis-URL konfiguriert ist). */
+  url: string | null;
   previousPoints: number | null;
   state: RefinementTicketPhase;
   finalPoints: number | null;

@@ -248,7 +248,7 @@ describe("JiraCloudClient.searchIssues", () => {
     expect(decodeURIComponent(url as string)).toContain('text ~ "login flow" ORDER BY updated DESC');
     expect(url).toContain("maxResults=20");
     expect(results).toEqual([
-      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", storyPoints: 5 },
+      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", description: "", storyPoints: 5 },
     ]);
   });
 
@@ -295,7 +295,7 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
     expect(url).toContain("cf[10016] is EMPTY");
     expect(url).toContain("statusCategory != Done");
     expect(results).toEqual([
-      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", storyPoints: null },
+      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", description: "", storyPoints: null },
     ]);
   });
 

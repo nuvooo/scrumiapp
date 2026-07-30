@@ -104,7 +104,7 @@ export async function loadBacklogSuggestions(
 export async function addTicket(
   refinementId: string,
   token: string,
-  ticket: { jiraKey: string; summary: string; issueType: string; storyPoints: number | null },
+  ticket: { jiraKey: string; summary: string; issueType: string; description?: string; storyPoints: number | null },
 ): Promise<ActionResult> {
   if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
   const count = await prisma.refinementTicket.count({ where: { refinementId } });
@@ -115,6 +115,7 @@ export async function addTicket(
         jiraKey: ticket.jiraKey,
         summary: ticket.summary,
         issueType: ticket.issueType,
+        description: ticket.description ?? "",
         previousPoints: ticket.storyPoints,
         position: count,
       },
@@ -277,12 +278,13 @@ export async function acceptEstimate(
     return fail(e instanceof Error ? e.message : "Jira-Update fehlgeschlagen.");
   }
 
+  // Das Ticket bleibt ausgewählt — der Tisch zeigt weiter, wer was geschätzt
+  // hat, bis der Moderator das nächste Ticket wählt.
   await prisma.$transaction([
     prisma.refinementTicket.update({
       where: { id: ticketId },
       data: { state: "ESTIMATED", finalPoints: points },
     }),
-    prisma.refinement.update({ where: { id: refinementId }, data: { activeTicketId: null } }),
     // Das Ticket kann in gesyncten Sprints liegen — Ansichten sofort aktuell halten.
     prisma.issue.updateMany({ where: { jiraKey: ticket.jiraKey }, data: { storyPoints: points } }),
   ]);

@@ -145,6 +145,8 @@ model RefinementTicket {
   jiraKey        String
   summary        String
   issueType      String                @default("")
+  /// Beschreibung aus Jira (gekürzter Klartext) zum Zeitpunkt des Hinzufügens
+  description    String                @default("")
   /// Schätzung in Jira zum Zeitpunkt des Hinzufügens (null = unbewertet)
   previousPoints Float?
   position       Int

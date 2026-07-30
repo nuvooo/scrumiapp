@@ -6,19 +6,19 @@ import type { RefinementTicketView } from "@/lib/view/refinementState";
 afterEach(cleanup);
 
 const tickets: RefinementTicketView[] = [
-  { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null, state: "PENDING", finalPoints: null },
+  { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null, state: "PENDING", finalPoints: null },
 ];
 
 const handlers = {
   onSearch: vi.fn(async () => ({
     ok: true,
-    data: [{ jiraKey: "AB-9", summary: "Neu", issueType: "Story", status: "Backlog", storyPoints: null }],
+    data: [{ jiraKey: "AB-9", summary: "Neu", issueType: "Story", status: "Backlog", description: "", storyPoints: null }],
   })),
   onLoadBacklog: vi.fn(async () => ({
     ok: true,
     data: [
-      { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", storyPoints: null },
-      { jiraKey: "AB-21", summary: "Backlog zwei", issueType: "Bug", status: "Backlog", storyPoints: null },
+      { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", description: "", storyPoints: null },
+      { jiraKey: "AB-21", summary: "Backlog zwei", issueType: "Bug", status: "Backlog", description: "", storyPoints: null },
     ],
   })),
   onAdd: vi.fn(),
