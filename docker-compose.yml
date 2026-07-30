@@ -10,12 +10,18 @@ services:
       - "5432:5432"
     volumes:
       - scrumi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scrumi -d scrumi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   scrumi:
     build: .
     restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
@@ -24,6 +30,7 @@ services:
       JIRA_EMAIL: "${JIRA_EMAIL:-}"
       JIRA_API_TOKEN: "${JIRA_API_TOKEN:-}"
       JIRA_STORY_POINTS_FIELD: "${JIRA_STORY_POINTS_FIELD:-customfield_10016}"
+      JIRA_BUG_ISSUE_TYPES: "${JIRA_BUG_ISSUE_TYPES:-}"
       SYNC_DEFAULT_INTERVAL: "${SYNC_DEFAULT_INTERVAL:-60}"
 
 volumes:
