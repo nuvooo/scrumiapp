@@ -99,8 +99,12 @@ export function RefinementVoting({
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
   const { top, bottom, left, right } = seats(estimators);
 
+  // Das nächste offene Ticket (noch nicht geschätzt, nicht das aktuelle).
+  const nextTicket = state.tickets.find((t) => t.state !== "ESTIMATED" && t.id !== active?.id) ?? null;
+
   const ticketRow = (t: RefinementStateView["tickets"][number]) => (
     <>
+      <span className={`w-[8px] flex-none text-[11px] ${t.id === active?.id ? "text-accent" : "text-transparent"}`}>▶</span>
       <span className="w-[76px] flex-none font-mono text-[11.5px] text-link">{t.jiraKey}</span>
       <span className="min-w-0 flex-1 truncate">{t.summary}</span>
       <span className={`flex-none font-mono text-[11px] ${t.state === "ESTIMATED" ? "text-ok" : "text-dim"}`}>
@@ -182,6 +186,15 @@ export function RefinementVoting({
                         >
                           Neu abstimmen
                         </button>
+                        {nextTicket && (
+                          <button
+                            type="button"
+                            onClick={() => onSelect(nextTicket.id)}
+                            className="btn-secondary px-3.5 py-[9px]"
+                          >
+                            Nächstes Ticket →
+                          </button>
+                        )}
                       </div>
                     )}
                   </>
@@ -242,8 +255,13 @@ export function RefinementVoting({
           )}
         </div>
       ) : (
-        <div className="card px-[22px] py-8 text-center text-[13px] text-muted">
+        <div className="card flex flex-col items-center gap-4 px-[22px] py-8 text-center text-[13px] text-muted">
           {isAdmin ? "Wähle rechts das nächste Ticket." : "Der Moderator wählt das nächste Ticket…"}
+          {isAdmin && nextTicket && (
+            <button type="button" onClick={() => onSelect(nextTicket.id)} className="btn-primary px-4 py-[9px]">
+              Nächstes Ticket →
+            </button>
+          )}
         </div>
       )}
       </div>
@@ -261,8 +279,9 @@ export function RefinementVoting({
               type="button"
               onClick={() => onSelect(t.id)}
               aria-label={`${t.jiraKey} besprechen`}
-              className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 border-b border-row px-[18px] py-2.5 text-left text-[13px] last:border-b-0 hover:bg-raise ${
-                t.id === active?.id ? "bg-chip" : ""
+              aria-current={t.id === active?.id ? "true" : undefined}
+              className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b border-row px-[14px] py-2.5 text-left text-[13px] last:border-b-0 hover:bg-raise ${
+                t.id === active?.id ? "border-l-2 border-l-accent bg-[rgba(124,156,255,0.13)]" : "border-l-2 border-l-transparent"
               }`}
             >
               {ticketRow(t)}
@@ -270,8 +289,8 @@ export function RefinementVoting({
           ) : (
             <div
               key={t.id}
-              className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-row px-[18px] py-2.5 text-[13px] last:border-b-0 ${
-                t.id === active?.id ? "bg-chip" : ""
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-row px-[14px] py-2.5 text-[13px] last:border-b-0 ${
+                t.id === active?.id ? "border-l-2 border-l-accent bg-[rgba(124,156,255,0.13)]" : "border-l-2 border-l-transparent"
               }`}
             >
               {ticketRow(t)}

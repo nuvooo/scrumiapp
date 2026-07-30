@@ -93,6 +93,28 @@ describe("RefinementVoting", () => {
     expect(screen.getByText(/Ø 8/)).toBeInTheDocument();
   });
 
+  it("markiert das ausgewählte Ticket in der Seitenliste", () => {
+    render(<RefinementVoting state={baseState({ you: { name: "Anna", isAdmin: true } })} {...handlers} />);
+    expect(screen.getByRole("button", { name: "AB-1 besprechen" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "AB-2 besprechen" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("„Nächstes Ticket“ springt zum nächsten offenen Ticket", () => {
+    const onSelect = vi.fn();
+    // Aufgedeckt: weiter zum nächsten offenen Ticket (t2)
+    const { unmount } = render(<RefinementVoting state={revealedState()} {...handlers} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächstes Ticket →" }));
+    expect(onSelect).toHaveBeenCalledWith("t2");
+    unmount();
+
+    // Kein aktives Ticket: Button erscheint im Platzhalter
+    const idle = baseState({ you: { name: "Anna", isAdmin: true }, activeTicket: null });
+    onSelect.mockClear();
+    render(<RefinementVoting state={idle} {...handlers} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächstes Ticket →" }));
+    expect(onSelect).toHaveBeenCalledWith("t1");
+  });
+
   it("der Moderator kann das Voting neu starten", () => {
     const onSelect = vi.fn();
     render(<RefinementVoting state={revealedState()} {...handlers} onSelect={onSelect} />);
