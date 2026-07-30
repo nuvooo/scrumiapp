@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import type { SceneParticipant } from "./PokerTableScene";
+
+// jsdom kann kein WebGL — die three.js-Szene wird durch ein Props-Echo ersetzt.
+vi.mock("./PokerTableScene", () => ({
+  PokerTableScene: ({ participants, revealed }: { participants: SceneParticipant[]; revealed: boolean }) => (
+    <div data-testid="poker-scene" data-revealed={String(revealed)}>
+      {participants.map((p) => (
+        <span key={p.name} data-testid={`participant-${p.name}`} data-voted={String(p.voted)}>
+          {p.name}:{p.revealedPoints === undefined ? "" : p.revealedPoints === null ? "?" : p.revealedPoints}
+        </span>
+      ))}
+    </div>
+  ),
+}));
+
 import { RefinementVoting } from "./RefinementVoting";
 import type { RefinementStateView } from "@/lib/view/refinementState";
 
@@ -49,12 +64,12 @@ const noop = () => {};
 const handlers = { onVote: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
 
 describe("RefinementVoting", () => {
-  it("zeigt den Tisch mit Sitzen: abgestimmt = Kartenrücken, sonst leerer Platz", () => {
+  it("übergibt Teilnehmer und Abstimm-Status an die 3D-Szene", () => {
     render(<RefinementVoting state={baseState()} {...handlers} />);
     expect(screen.getByText("AB-1")).toBeInTheDocument();
+    expect(screen.getByTestId("poker-scene")).toHaveAttribute("data-revealed", "false");
     expect(screen.getByTestId("participant-Anna")).toHaveAttribute("data-voted", "true");
     expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-voted", "false");
-    expect(screen.getByTestId("seat-card-Anna")).toHaveTextContent("");
     expect(screen.getByText(/Warten auf Stimmen/)).toBeInTheDocument();
     expect(screen.getByText(/1\s*\/\s*2/)).toBeInTheDocument();
   });
@@ -69,7 +84,7 @@ describe("RefinementVoting", () => {
     expect(onVote).toHaveBeenCalledWith(null);
   });
 
-  it("Admin sieht Aufdecken im Tisch und die Ticketwahl, Teilnehmer nicht", () => {
+  it("Admin sieht Aufdecken und die Ticketwahl, Teilnehmer nicht", () => {
     const onReveal = vi.fn();
     const admin = baseState({ you: { name: "Anna", isAdmin: true } });
     const { unmount } = render(<RefinementVoting state={admin} {...handlers} onReveal={onReveal} />);
@@ -82,11 +97,12 @@ describe("RefinementVoting", () => {
     expect(screen.queryByRole("button", { name: "Aufdecken" })).not.toBeInTheDocument();
   });
 
-  it("nach dem Aufdecken liegen die Karten offen an den Sitzen", () => {
+  it("nach dem Aufdecken bekommen die Sitze ihre offenen Werte — inklusive „?“", () => {
     render(<RefinementVoting state={revealedState()} {...handlers} />);
-    expect(screen.getByTestId("seat-card-Anna")).toHaveTextContent("5");
-    expect(screen.getByTestId("seat-card-Ben")).toHaveTextContent("8");
-    expect(screen.getByTestId("seat-card-Zoe")).toHaveTextContent("?");
+    expect(screen.getByTestId("poker-scene")).toHaveAttribute("data-revealed", "true");
+    expect(screen.getByTestId("participant-Anna")).toHaveTextContent("Anna:5");
+    expect(screen.getByTestId("participant-Ben")).toHaveTextContent("Ben:8");
+    expect(screen.getByTestId("participant-Zoe")).toHaveTextContent("Zoe:?");
     expect(screen.getByText(/Ø 6,5/)).toBeInTheDocument();
   });
 
