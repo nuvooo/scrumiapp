@@ -1,0 +1,52 @@
+parameters:
+  - name: name
+    type: string
+    default: "deploy"
+  - name: environment
+    type: string
+  - name: acrServiceConnection
+    type: string
+    default: "sc-CCoE-acr01-prod-starkde-ecommerce-STARK DE Ecommerce"
+  - name: imageRepository
+    type: string
+  - name: imageTag
+    type: string
+  - name: dockerFilePath
+    type: string
+  - name: buildContext
+    type: string
+    default: "**"
+  - name: buildArguments
+    type: object
+    default: [ ]
+
+jobs:
+  - deployment: ${{ parameters.name }}
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: ${{ parameters.environment }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: Docker@2
+              displayName: Build image
+              inputs:
+                command: build
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                repository: ${{ parameters.imageRepository }}
+                dockerfile: $(Build.SourcesDirectory)/${{ parameters.dockerFilePath }}
+                buildContext: ${{ parameters.buildContext }}
+                tags: ${{ parameters.imageTag }}
+                ${{ if ne(length(parameters.buildArguments), 0) }}:
+                  arguments: "--build-arg ${{ join(' --build-arg ',parameters.buildArguments) }}"
+
+            - task: Docker@2
+              displayName: Push image to container registry
+              inputs:
+                command: push
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                repository: ${{ parameters.imageRepository }}
+                tags: ${{ parameters.imageTag }}
