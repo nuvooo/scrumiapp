@@ -50,10 +50,10 @@ describe("syncTeam", () => {
       [{ jiraSprintId: "100", name: "Sprint 1", state: "ACTIVE",
          startDate: new Date("2026-05-18"), endDate: new Date("2026-05-22"), completeDate: null }],
       { "100": [
-        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: new Date("2026-05-19"), addedAfterSprintStart: false, onBoard: false, assignee: null },
-        { jiraKey: "AB-2", summary: "AB-2", issueType: "Story", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null },
-        { jiraKey: "AB-3", summary: "AB-3", issueType: "Bug", storyPoints: 0, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null },
-        { jiraKey: "AB-4", summary: "AB-4", issueType: "Bug", storyPoints: 0, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false, onBoard: false, assignee: null },
+        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "Done", statusCategory: "DONE", resolvedAt: new Date("2026-05-19"), addedAfterSprintStart: false, onBoard: false, assignee: null, statusSince: null },
+        { jiraKey: "AB-2", summary: "AB-2", issueType: "Story", storyPoints: 3, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null, statusSince: null },
+        { jiraKey: "AB-3", summary: "AB-3", issueType: "Bug", storyPoints: 0, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null, statusSince: null },
+        { jiraKey: "AB-4", summary: "AB-4", issueType: "Bug", storyPoints: 0, status: "Done", statusCategory: "DONE", resolvedAt: null, addedAfterSprintStart: false, onBoard: false, assignee: null, statusSince: null },
       ] },
     );
 

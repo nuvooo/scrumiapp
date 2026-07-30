@@ -10,7 +10,7 @@ import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from
 import { calcForecast } from "@/lib/metrics/forecast";
 import { calcCarryOver } from "@/lib/metrics/carryOver";
 import { calcCelebration, type CelebrationEffect } from "@/lib/metrics/celebration";
-import { buildStandupGroups, previousWorkingDay } from "@/lib/metrics/standup";
+import { buildStandupGroups, previousWorkingDay, workingDaysInStatus, STALE_AFTER_WORKING_DAYS } from "@/lib/metrics/standup";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
 import { getBugIssueTypes } from "@/lib/jira/jiraClient";
 
@@ -242,13 +242,29 @@ export async function loadStandup(teamId: string) {
   if (!sprint) return null;
 
   const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
-  const toView = (i: { jiraKey: string; summary: string; issueType: string; status: string }) => ({
-    jiraKey: i.jiraKey,
-    summary: i.summary,
-    issueType: i.issueType,
-    status: i.status,
-    url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
-  });
+  const now = new Date();
+  const toView = (i: {
+    jiraKey: string;
+    summary: string;
+    issueType: string;
+    status: string;
+    statusCategory: string;
+    statusSince: Date | null;
+  }) => {
+    const days =
+      i.statusCategory !== "DONE" && i.statusSince !== null
+        ? workingDaysInStatus(i.statusSince, now)
+        : null;
+    return {
+      jiraKey: i.jiraKey,
+      summary: i.summary,
+      issueType: i.issueType,
+      status: i.status,
+      url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
+      daysInStatus: days,
+      stale: days !== null && days > STALE_AFTER_WORKING_DAYS,
+    };
+  };
   const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()));
   return {
     sprintName: sprint.name,
