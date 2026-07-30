@@ -32,6 +32,7 @@ model Team {
   createdAt           DateTime @default(now())
   sprints             Sprint[]
   members             TeamMember[]
+  refinements         Refinement[]
 }
 
 model Sprint {
@@ -109,4 +110,72 @@ model CapacityEntry {
   actualPersonDays  Float       @default(0)
 
   @@unique([sprintId, teamMemberId])
+}
+
+enum RefinementState {
+  DRAFT
+  RUNNING
+  DONE
+}
+
+enum RefinementTicketState {
+  PENDING
+  VOTING
+  REVEALED
+  ESTIMATED
+}
+
+model Refinement {
+  id             String              @id @default(cuid())
+  team           Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId         String
+  name           String
+  state          RefinementState     @default(DRAFT)
+  /// Gerade besprochenes Ticket (null = keines gewählt)
+  activeTicketId String?
+  createdAt      DateTime            @default(now())
+  tickets        RefinementTicket[]
+  participants   RefinementParticipant[]
+}
+
+model RefinementTicket {
+  id             String                @id @default(cuid())
+  refinement     Refinement            @relation(fields: [refinementId], references: [id], onDelete: Cascade)
+  refinementId   String
+  jiraKey        String
+  summary        String
+  issueType      String                @default("")
+  /// Schätzung in Jira zum Zeitpunkt des Hinzufügens (null = unbewertet)
+  previousPoints Float?
+  position       Int
+  state          RefinementTicketState @default(PENDING)
+  finalPoints    Float?
+  votes          RefinementVote[]
+
+  @@unique([refinementId, jiraKey])
+}
+
+model RefinementParticipant {
+  id           String           @id @default(cuid())
+  refinement   Refinement       @relation(fields: [refinementId], references: [id], onDelete: Cascade)
+  refinementId String
+  name         String
+  isAdmin      Boolean          @default(false)
+  /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
+  token        String           @unique @default(cuid())
+  votes        RefinementVote[]
+
+  @@unique([refinementId, name])
+}
+
+model RefinementVote {
+  id            String                @id @default(cuid())
+  ticket        RefinementTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId      String
+  participant   RefinementParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  /// null = „?" (unklar)
+  points        Float?
+
+  @@unique([ticketId, participantId])
 }
