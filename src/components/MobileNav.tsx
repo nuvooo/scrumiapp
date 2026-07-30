@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { NAV_GROUPS } from "@/lib/view/nav";
 
 /** Burger-Button + Slide-in-Menü — nur unter lg sichtbar (Desktop hat die Sidebar). */
@@ -34,8 +35,10 @@ export function MobileNav({ jiraHost }: { jiraHost: string | null }) {
         <span className="h-px w-4 bg-fg" />
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex">
+      {/* Portal: der Header hat durch backdrop-blur einen eigenen Stacking-
+          Kontext — dort gerendert läge das Overlay unter dem Seiteninhalt. */}
+      {open && createPortal(
+        <div className="fixed inset-0 z-50 flex lg:hidden">
           <div className="flex h-full w-[264px] flex-col gap-[26px] border-r border-line bg-[#0B0E14] px-3.5 py-[22px]">
             <div className="flex items-center gap-2.5 px-2">
               <Image src="/scrumi-logo.png" alt="Scrumi-Logo" width={26} height={26} />
@@ -87,7 +90,8 @@ export function MobileNav({ jiraHost }: { jiraHost: string | null }) {
             onClick={() => setOpen(false)}
             className="flex-1 bg-[rgba(4,6,10,0.6)] backdrop-blur-sm"
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
