@@ -110,4 +110,32 @@ describe("buildStandupGroups", () => {
     );
     expect(groups).toEqual([]);
   });
+
+  it("verschiebt Tickets von Nicht-Mitgliedern zu „Ohne Bearbeiter“", () => {
+    const groups = buildStandupGroups(
+      [
+        issue({ jiraKey: "A-1", assignee: "Ben" }),
+        issue({ jiraKey: "A-2", assignee: "Externer Dienstleister" }),
+        issue({ jiraKey: "A-3", assignee: null }),
+      ],
+      since,
+      ["Ben", "Zoe"],
+    );
+    expect(groups.map((g) => g.name)).toEqual(["Ben", null]);
+    expect(groups[1].openIssues.map((i) => i.jiraKey)).toEqual(["A-2", "A-3"]);
+  });
+
+  it("Mitglieder-Abgleich ignoriert Groß-/Kleinschreibung und Leerzeichen", () => {
+    const groups = buildStandupGroups(
+      [issue({ jiraKey: "A-1", assignee: "Ben Maier" })],
+      since,
+      ["  ben maier "],
+    );
+    expect(groups.map((g) => g.name)).toEqual(["Ben Maier"]);
+  });
+
+  it("filtert nicht, wenn keine Mitglieder hinterlegt sind", () => {
+    const groups = buildStandupGroups([issue({ jiraKey: "A-1", assignee: "Ben" })], since, []);
+    expect(groups.map((g) => g.name)).toEqual(["Ben"]);
+  });
 });

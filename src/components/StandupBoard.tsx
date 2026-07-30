@@ -47,6 +47,13 @@ function shuffled<T>(items: T[]): T[] {
   return arr;
 }
 
+/** Mischt nur die benannten Gruppen — „Ohne Bearbeiter" spricht immer zuletzt. */
+function shuffledOrder(groups: StandupGroupView[]): StandupGroupView[] {
+  const named = groups.filter((g) => g.name !== null);
+  const unassigned = groups.filter((g) => g.name === null);
+  return [...shuffled(named), ...unassigned];
+}
+
 function groupLabel(name: string | null): string {
   return name ?? "Ohne Bearbeiter";
 }
@@ -160,7 +167,7 @@ export function StandupBoard({ groups }: { groups: StandupGroupView[] }) {
     const seconds = parseDuration(durationText) ?? DEFAULT_SECONDS;
     secondsRef.current = seconds;
     window.localStorage.setItem(STORAGE_KEY, String(seconds));
-    setOrder(shuffled(groups));
+    setOrder(shuffledOrder(groups));
     setCurrent(0);
     setRemaining(seconds);
     setElapsedByPerson([]);

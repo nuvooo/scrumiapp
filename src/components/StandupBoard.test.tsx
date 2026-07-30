@@ -95,6 +95,28 @@ describe("StandupBoard", () => {
     );
   });
 
+  it("lässt „Ohne Bearbeiter“ trotz Mischens immer als letzte Gruppe sprechen", () => {
+    // Mit gemocktem Math.random=0 würde das alte Mischen diese Gruppe nach vorn
+    // rotieren — die Position in der Mitte macht den Test aussagekräftig.
+    const withUnassigned: StandupGroupView[] = [
+      groups[0],
+      {
+        name: null,
+        openIssues: [
+          { jiraKey: "A-9", summary: "Herrenlos", issueType: "Story", status: "To Do", url: null, daysInStatus: null, stale: false },
+        ],
+        doneIssues: [],
+      },
+      groups[1],
+    ];
+    render(<StandupBoard groups={withUnassigned} />);
+    fireEvent.click(screen.getByRole("button", { name: "Standup starten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    expect(screen.getByRole("heading", { name: "Ohne Bearbeiter" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fertig" })).toBeInTheDocument();
+  });
+
   it("zeigt bei daysInStatus 0 „heute“ und ohne Wert nichts", () => {
     const mixed: StandupGroupView[] = [
       {

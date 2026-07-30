@@ -32,10 +32,28 @@ export function previousWorkingDay(today: Date): Date {
  * Standup-Gruppen: je Bearbeiter die offenen Board-Tickets plus die seit
  * `doneSince` erledigten Tickets. Alphabetisch sortiert, unzugewiesene
  * Tickets als letzte Gruppe. Personen ohne relevante Tickets entfallen.
+ *
+ * `memberNames`: Nur hinterlegte Teammitglieder bekommen eine eigene Gruppe;
+ * Tickets anderer Bearbeiter (Externe, Ausgeschiedene) wandern zu „Ohne
+ * Bearbeiter". Abgleich case-insensitiv und getrimmt. Eine leere Liste
+ * filtert nicht — sonst wäre das Standup ohne gepflegte Mitglieder leer.
  */
-export function buildStandupGroups(issues: DomainIssue[], doneSince: Date): StandupGroup[] {
+export function buildStandupGroups(
+  issues: DomainIssue[],
+  doneSince: Date,
+  memberNames?: string[],
+): StandupGroup[] {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const members = new Set((memberNames ?? []).map(norm));
+  const toGroupName = (assignee: string | null): string | null => {
+    if (assignee === null) return null;
+    if (members.size === 0) return assignee;
+    return members.has(norm(assignee)) ? assignee : null;
+  };
+
   const byName = new Map<string | null, StandupGroup>();
-  const group = (name: string | null): StandupGroup => {
+  const group = (assignee: string | null): StandupGroup => {
+    const name = toGroupName(assignee);
     let g = byName.get(name);
     if (!g) {
       g = { name, openIssues: [], doneIssues: [] };

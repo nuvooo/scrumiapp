@@ -265,7 +265,9 @@ export async function loadStandup(teamId: string) {
       stale: days !== null && days > STALE_AFTER_WORKING_DAYS,
     };
   };
-  const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()));
+  const team = await prisma.team.findUnique({ where: { id: teamId }, include: { members: true } });
+  const memberNames = (team?.members ?? []).map((m) => m.name);
+  const groups = buildStandupGroups(sprint.issues, previousWorkingDay(new Date()), memberNames);
   return {
     sprintName: sprint.name,
     groups: groups.map((g) => ({
