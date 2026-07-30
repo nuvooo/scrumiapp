@@ -1,13 +1,9 @@
-<p align="center">
-  <img src="public/scrumi-logo.png" alt="Scrumi-Logo" width="140" />
-</p>
+![Scrumi-Logo](docs/assets/scrumi-logo-readme.png)
 
-<h1 align="center">Scrumi</h1>
+# Scrumi
 
-<p align="center">
-  Self-hosted, quelloffenes Werkzeug zur Visualisierung des Scrum-Prozesses —
-  mit automatischem Jira-Cloud-Sync.
-</p>
+Self-hosted, quelloffenes Werkzeug zur Visualisierung des Scrum-Prozesses —
+mit automatischem Jira-Cloud-Sync.
 
 ---
 
