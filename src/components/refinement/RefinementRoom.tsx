@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
 import type { RefinementStateView } from "@/lib/view/refinementState";
@@ -39,6 +39,10 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Zählt lokale Aktionen: Poll-Antworten, die vor einer Aktion gestartet
+  // sind, werden verworfen — sonst überschreibt veralteter Server-Stand die
+  // optimistische Anzeige (Karte "flackert" zurück).
+  const actionSeqRef = useRef(0);
 
   useEffect(() => {
     setToken(window.localStorage.getItem(tokenKey(refinementId)));
@@ -46,11 +50,14 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   }, [refinementId]);
 
   const refresh = useCallback(async () => {
+    const seq = actionSeqRef.current;
     const res = await fetch(
       `/api/refinement/${refinementId}/state?token=${encodeURIComponent(token ?? "")}`,
       { cache: "no-store" },
     );
-    if (res.ok) setState((await res.json()) as RefinementStateView);
+    if (res.ok && seq === actionSeqRef.current) {
+      setState((await res.json()) as RefinementStateView);
+    }
   }, [refinementId, token]);
 
   useEffect(() => {
@@ -65,6 +72,24 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
     const result = await fn();
     if (!result.ok) setError(result.error ?? "Aktion fehlgeschlagen.");
     await refresh();
+  };
+
+  /** Eigene Kartenwahl sofort anzeigen, ohne auf den Server zu warten. */
+  const applyLocalVote = (given: boolean, points?: number | null) => {
+    actionSeqRef.current += 1;
+    setState((prev) => {
+      if (!prev || !prev.activeTicket || !prev.you) return prev;
+      const youName = prev.you.name;
+      return {
+        ...prev,
+        participants: prev.participants.map((p) => (p.name === youName ? { ...p, voted: given } : p)),
+        activeTicket: {
+          ...prev.activeTicket,
+          myVoteGiven: given,
+          myVote: given ? points : undefined,
+        },
+      };
+    });
   };
 
   const join = async () => {
@@ -229,10 +254,14 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
         <RefinementVoting
           state={state}
           onVote={(points) => {
-            if (state.activeTicket) run(() => vote(refinementId, t, state.activeTicket!.id, points));
+            if (!state.activeTicket) return;
+            applyLocalVote(true, points);
+            run(() => vote(refinementId, t, state.activeTicket!.id, points));
           }}
           onRetract={() => {
-            if (state.activeTicket) run(() => retractVote(refinementId, t, state.activeTicket!.id));
+            if (!state.activeTicket) return;
+            applyLocalVote(false);
+            run(() => retractVote(refinementId, t, state.activeTicket!.id));
           }}
           onSelect={(ticketId) => run(() => selectTicket(refinementId, t, ticketId))}
           onReveal={() => {
