@@ -41,18 +41,20 @@ export function RefinementVoting({
   };
 
   const pointsByName = new Map((active?.votes ?? []).map((v) => [v.name, v.points]));
-  // Achtung: „?“-Votes sind null — deshalb has() statt ?? (das würde null verschlucken).
-  const sceneParticipants: SceneParticipant[] = state.participants.map((p) => ({
+  // Moderatoren sitzen nicht am Tisch und schätzen nicht mit — gezählt und
+  // gerendert werden nur die Schätzenden. Achtung: „?“-Votes sind null —
+  // deshalb has() statt ?? (das würde null verschlucken).
+  const estimators = state.participants.filter((p) => !p.isAdmin);
+  const sceneParticipants: SceneParticipant[] = estimators.map((p) => ({
     name: p.name,
     isAdmin: p.isAdmin,
     voted: p.voted,
     revealedPoints: revealed && pointsByName.has(p.name) ? pointsByName.get(p.name) : undefined,
   }));
-  const votedCount = state.participants.filter((p) => p.voted).length;
+  const votedCount = estimators.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
 
-  // Teilnehmer halten die Hand in der Szene; der Moderator schaut von oben
-  // und stimmt über die kompakte Kartenleiste ab.
+  // Nur Teilnehmer halten eine Kartenhand — der Moderator beobachtet von oben.
   const hand: SceneHand | null =
     !revealed && !isAdmin && state.you
       ? {
@@ -93,36 +95,14 @@ export function RefinementVoting({
             {!revealed && (
               <>
                 <span className="text-[13px] text-mid">
-                  {active.myVoteGiven
-                    ? "Deine Karte liegt verdeckt auf dem Tisch — du kannst noch wechseln."
-                    : isAdmin
-                      ? "Wähle deine Karte:"
+                  {isAdmin
+                    ? "Warten, bis alle ihre Karte verdeckt gelegt haben…"
+                    : active.myVoteGiven
+                      ? "Deine Karte liegt verdeckt auf dem Tisch — du kannst noch wechseln."
                       : "Wähle deine Karte in der Hand 👆"}
                 </span>
-                {isAdmin && (
-                  <span className="flex flex-wrap gap-1.5">
-                    {POKER_CARDS.map((points) => {
-                      const selected = active.myVoteGiven && active.myVote === points;
-                      return (
-                        <button
-                          key={points === null ? "?" : points}
-                          type="button"
-                          aria-label={points === null ? "Unklar" : `${points} Punkte`}
-                          onClick={() => onVote(points)}
-                          className={`flex h-[42px] w-[32px] items-center justify-center rounded-[7px] border font-mono text-[13px] font-semibold ${
-                            selected
-                              ? "border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink"
-                              : "border-edge bg-field text-mid hover:border-tipline"
-                          }`}
-                        >
-                          {points === null ? "?" : points}
-                        </button>
-                      );
-                    })}
-                  </span>
-                )}
                 <span className="text-[13px] text-mid">
-                  Stimmen: <span className="font-mono">{votedCount} / {state.participants.length}</span>
+                  Stimmen: <span className="font-mono">{votedCount} / {estimators.length}</span>
                 </span>
                 {isAdmin && (
                   <button type="button" onClick={onReveal} className="btn-primary px-5 py-[9px]">

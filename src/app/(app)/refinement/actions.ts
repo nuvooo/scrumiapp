@@ -186,6 +186,7 @@ export async function vote(
 ): Promise<ActionResult> {
   const participant = await requireParticipant(refinementId, token);
   if (!participant) return fail("Nicht Teil dieser Session.");
+  if (participant.isAdmin) return fail("Der Moderator schätzt nicht mit.");
   const ticket = await prisma.refinementTicket.findFirst({ where: { id: ticketId, refinementId } });
   if (!ticket || ticket.state !== "VOTING") return fail("Gerade keine Abstimmung offen.");
   await prisma.refinementVote.upsert({

@@ -75,7 +75,6 @@ function HeldCard({ voted, revealed, points }: { voted: boolean; revealed: boole
 function Figure({
   color,
   angle,
-  isAdmin,
   name,
   voted,
   revealed,
@@ -84,7 +83,6 @@ function Figure({
 }: {
   color: string;
   angle: number;
-  isAdmin: boolean;
   name: string;
   voted: boolean;
   revealed: boolean;
@@ -149,20 +147,9 @@ function Figure({
       {/* Namensschild */}
       <Billboard position={[0, 1.9, -0.1]}>
         <Text fontSize={0.14} color="#3a404d" outlineWidth={0.008} outlineColor="#ffffff">
-          {isAdmin ? `★ ${name}` : name}
+          {name}
         </Text>
       </Billboard>
-      {/* Moderator-Schild vor der Figur auf dem Tisch */}
-      {isAdmin && (
-        <group position={[0, 1.14, 0.55]} rotation={[-0.35, 0, 0]}>
-          <RoundedBox args={[0.72, 0.2, 0.03]} radius={0.02}>
-            <meshStandardMaterial color="#ffffff" roughness={0.9} />
-          </RoundedBox>
-          <Text position={[0, 0, 0.02]} fontSize={0.085} color="#3a404d">
-            MODERATOR
-          </Text>
-        </group>
-      )}
     </group>
   );
 }
@@ -206,27 +193,33 @@ function PlayedCard({ angle, voted, revealed, points, radius = 0.85 }: { angle: 
   );
 }
 
-/** Eine klickbare Karte der eigenen Hand (HUD-Raum, immer im Vordergrund). */
+/** Eine klickbare Karte im Fächer (HUD-Raum): Position/Drehung um den Drehpunkt. */
 function HandCard({
   value,
-  index,
-  mid,
+  theta,
+  zIndex,
   selected,
   onPick,
 }: {
   value: number | null;
-  index: number;
-  mid: number;
+  /** Fächerwinkel der Karte (0 = Mitte). */
+  theta: number;
+  zIndex: number;
   selected: boolean;
   onPick: (points: number | null) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   useCursor(hovered);
-  const off = index - mid;
+  // Karten drehen sich um einen gemeinsamen Punkt unterhalb der Hand —
+  // dadurch entsteht der echte Fächer wie im Referenzbild.
+  const R = 1.15;
+  const lift = selected ? 0.22 : hovered ? 0.1 : 0;
+  const x = Math.sin(theta) * (R + lift);
+  const y = Math.cos(theta) * (R + lift) - R;
   return (
     <group
-      position={[off * 0.36, -Math.abs(off) * 0.055 + (selected ? 0.2 : hovered ? 0.09 : 0), index * 0.012]}
-      rotation={[0, 0, -off * 0.09]}
+      position={[x, y, zIndex * 0.012]}
+      rotation={[0, 0, -theta]}
       onClick={(e) => {
         e.stopPropagation();
         onPick(value);
@@ -237,10 +230,11 @@ function HandCard({
       }}
       onPointerOut={() => setHovered(false)}
     >
-      <RoundedBox args={[0.44, 0.62, 0.025]} radius={0.02}>
+      <RoundedBox args={[0.46, 0.68, 0.025]} radius={0.02}>
         <meshStandardMaterial color={selected ? "#6e8ff6" : hovered ? "#ffffff" : "#f4f6fa"} roughness={0.85} />
       </RoundedBox>
-      <Text position={[0, 0, 0.02]} fontSize={0.21} color={selected ? "#10131b" : "#31415f"} fontWeight={700}>
+      {/* Wert oben links wie bei echten Spielkarten, plus groß in der Mitte */}
+      <Text position={[0, 0.06, 0.02]} fontSize={0.22} color={selected ? "#10131b" : "#31415f"} fontWeight={700}>
         {value === null ? "?" : Number.isInteger(value) ? String(value) : String(value).replace(".", ",")}
       </Text>
     </group>
@@ -248,44 +242,57 @@ function HandCard({
 }
 
 /**
- * Die eigene Hand als HUD-Overlay in Ego-Perspektive: eigene Kamera und
- * Beleuchtung, dadurch immer vollständig lesbar über der Tisch-Szene.
- * Zwei Clay-Hände mit Unterarmen halten den Kartenfächer.
+ * Die eigene Hand als HUD-Overlay in Ego-Perspektive (eigene Kamera und
+ * Beleuchtung, immer lesbar über der Tisch-Szene). Zwei Hände greifen den
+ * Fächer von unten in der Mitte — Finger vor den Karten, Ärmel laufen
+ * unten aus dem Bild, wie im Referenzbild.
  */
 function FirstPersonHand({ hand }: { hand: SceneHand }) {
-  const mid = (hand.cards.length - 1) / 2;
+  const n = hand.cards.length;
+  const maxTheta = 0.62;
   return (
     <Hud renderPriority={1}>
       <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={40} />
       <ambientLight intensity={1.2} />
       <directionalLight position={[2, 4, 5]} intensity={0.9} />
-      <group position={[0, -1.42, 0]} rotation={[0.15, 0, 0]}>
+      <group position={[0, -1.28, 0]} rotation={[0.12, 0, 0]}>
         {hand.cards.map((value, i) => (
           <HandCard
             key={value === null ? "?" : value}
             value={value}
-            index={i}
-            mid={mid}
+            theta={n === 1 ? 0 : -maxTheta + (2 * maxTheta * i) / (n - 1)}
+            zIndex={i}
             selected={hand.hasSelection && hand.selected === value}
             onPick={hand.onPick}
           />
         ))}
-        {/* Daumen auf den Karten … */}
+        {/* Zwei Hände greifen den Fächer unten in der Mitte */}
         {[-1, 1].map((side) => (
-          <mesh key={side} position={[side * 0.62, -0.34, 0.14]} rotation={[0, 0, side * -0.5]}>
-            <capsuleGeometry args={[0.09, 0.16, 8, 16]} />
-            <meshStandardMaterial color="#e8b08c" roughness={1} />
-          </mesh>
-        ))}
-        {/* … Handballen und Unterarme (laufen unten aus dem Bild) */}
-        {[-1, 1].map((side) => (
-          <group key={side} position={[side * 0.72, -0.52, 0.1]}>
-            <mesh>
+          <group key={side} position={[side * 0.3, -0.42, 0]}>
+            {/* Handballen hinter den Karten */}
+            <mesh position={[0, -0.06, -0.03]}>
               <sphereGeometry args={[0.17, 20, 20]} />
               <meshStandardMaterial color="#e8b08c" roughness={1} />
             </mesh>
-            <mesh position={[side * 0.3, -0.5, 0]} rotation={[0, 0, side * -0.45]}>
-              <capsuleGeometry args={[0.15, 0.6, 8, 16]} />
+            {/* Finger greifen VOR die Karten */}
+            {[0, 1, 2].map((f) => (
+              <mesh
+                key={f}
+                position={[side * (0.02 + f * 0.09), 0.1 - f * 0.02, 0.12]}
+                rotation={[0, 0, side * (-0.25 - f * 0.18)]}
+              >
+                <capsuleGeometry args={[0.045, 0.16, 6, 12]} />
+                <meshStandardMaterial color="#e8b08c" roughness={1} />
+              </mesh>
+            ))}
+            {/* Daumen von innen */}
+            <mesh position={[side * -0.1, 0.04, 0.12]} rotation={[0, 0, side * 0.5]}>
+              <capsuleGeometry args={[0.05, 0.14, 6, 12]} />
+              <meshStandardMaterial color="#e8b08c" roughness={1} />
+            </mesh>
+            {/* Ärmel-Unterarm läuft schräg nach unten aus dem Bild */}
+            <mesh position={[side * 0.42, -0.62, -0.05]} rotation={[0, 0, side * -0.55]}>
+              <capsuleGeometry args={[0.16, 0.7, 8, 16]} />
               <meshStandardMaterial color="#e6e2dc" roughness={1} />
             </mesh>
           </group>
@@ -350,20 +357,21 @@ export function PokerTableScene({
 }) {
   const top = viewpoint === "top";
 
-  // Sitzordnung: Ego-Perspektive = alle anderen im Bogen gegenüber;
-  // Draufsicht = alle (auch du) gleichmäßig rund um den Tisch, du unten.
+  // Am Tisch sitzen nur die Schätzenden — Moderatoren stehen daneben.
+  // Ego-Perspektive: alle anderen im Bogen gegenüber; Draufsicht: alle rundum.
   const seats = useMemo(() => {
+    const seated = participants.filter((p) => !p.isAdmin);
     if (top) {
       return {
-        others: participants.map((p, i) => ({
+        others: seated.map((p, i) => ({
           participant: p,
-          angle: Math.PI + (2 * Math.PI * i) / participants.length,
+          angle: Math.PI + (2 * Math.PI * i) / seated.length,
         })),
         you: null,
       };
     }
-    const others = participants.filter((p) => p.name !== youName);
-    const you = participants.find((p) => p.name === youName) ?? null;
+    const others = seated.filter((p) => p.name !== youName);
+    const you = seated.find((p) => p.name === youName) ?? null;
     const spread = Math.min(Math.PI * 1.25, others.length * 0.55);
     return {
       others: others.map((p, i) => ({
@@ -390,7 +398,6 @@ export function PokerTableScene({
           <Figure
             color={CLAY_COLORS[i % CLAY_COLORS.length]}
             angle={angle}
-            isAdmin={participant.isAdmin}
             name={participant.name}
             voted={participant.voted}
             revealed={revealed}
