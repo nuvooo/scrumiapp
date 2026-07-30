@@ -1,10 +1,22 @@
 import type { DomainIssue } from "@/lib/domain/types";
+import { workingDaysBetween } from "./workingDays";
 
 export interface StandupGroup {
   /** Anzeigename des Bearbeiters; null = "Ohne Bearbeiter" (steht immer am Ende). */
   name: string | null;
   openIssues: DomainIssue[];
   doneIssues: DomainIssue[];
+}
+
+/** Ab so vielen Arbeitstagen im selben Status gilt ein Ticket als hängend. */
+export const STALE_AFTER_WORKING_DAYS = 5;
+
+/**
+ * Volle Arbeitstage (Mo–Fr) seit dem Status-Wechsel, exklusive des
+ * Wechseltags: Wechsel heute ⇒ 0, Freitag → Montag ⇒ 1.
+ */
+export function workingDaysInStatus(statusSince: Date, today: Date): number {
+  return Math.max(0, workingDaysBetween(statusSince, today).length - 1);
 }
 
 /** Letzter Arbeitstag (Mo–Fr) vor dem übergebenen Datum, 00:00 lokale Zeit. */
