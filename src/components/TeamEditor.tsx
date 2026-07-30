@@ -37,7 +37,7 @@ export function TeamEditor({ team, status }: TeamEditorProps) {
 
   return (
     <div>
-      <form id={formId} action={editTeam} className="grid grid-cols-[1.6fr,1fr,1fr,1fr] gap-3">
+      <form id={formId} action={editTeam} className="grid grid-cols-1 gap-3 md:grid-cols-[1.6fr,1fr,1fr,1fr]">
         <input type="hidden" name="id" value={team.id} />
         <div>
           <label htmlFor={`${formId}-name`} className="mono-label mb-[7px] block">Name</label>

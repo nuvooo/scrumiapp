@@ -12,7 +12,18 @@ export interface CapacityRosterRow {
   actualPersonDays: number;
 }
 
-const GRID = "grid grid-cols-[2fr,1fr,1fr,1fr] gap-3";
+const GRID_MD = "md:grid-cols-[2fr,1fr,1fr,1fr] md:gap-3";
+/** Zeilen-Grid: mobil drei Spalten (Name volle Breite darüber), ab md die Tabellen-Spalten. */
+const ROW_GRID = `grid grid-cols-3 gap-2 ${GRID_MD}`;
+
+/** Mobile-Spaltenlabel über Soll/Ist/Delta — ab md übernimmt die Kopfzeile. */
+function MobileLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pb-1 text-right font-mono text-[10px] uppercase tracking-[0.1em] text-dim md:hidden">
+      {children}
+    </div>
+  );
+}
 
 function num(v: string): number {
   const n = parseFloat(v.replace(",", "."));
@@ -72,7 +83,7 @@ export function CapacityRoster({ sprintId, rows }: { sprintId: string; rows: Cap
           Mitglieder verwalten →
         </Link>
       </div>
-      <div className={`${GRID} border-b border-line px-[18px] py-[11px] font-mono text-[10.5px] uppercase tracking-[0.1em] text-dim`}>
+      <div className={`hidden ${GRID_MD} border-b border-line px-[18px] py-[11px] font-mono text-[10.5px] uppercase tracking-[0.1em] text-dim md:grid`}>
         <div>Mitglied</div>
         <div className="text-right">PT Soll</div>
         <div className="text-right">PT Ist</div>
@@ -86,34 +97,43 @@ export function CapacityRoster({ sprintId, rows }: { sprintId: string; rows: Cap
           <form
             key={r.teamMemberId}
             action={upsertCapacity}
-            className={`${GRID} items-center border-b border-row px-[18px] py-[9px] hover:bg-raise`}
+            className={`${ROW_GRID} items-center border-b border-row px-[18px] py-3 hover:bg-raise md:py-[9px]`}
           >
             <input type="hidden" name="sprintId" value={sprintId} />
             <input type="hidden" name="teamMemberId" value={r.teamMemberId} />
             <input type="hidden" name="name" value={r.name} />
-            <div className="flex items-center gap-2.5 text-[13px] text-fg">
+            <div className="col-span-3 flex items-center gap-2.5 text-[13px] text-fg md:col-span-1">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-cell font-mono text-[10.5px] text-mid">
                 {initials(r.name)}
               </span>
               {r.name}
             </div>
-            <input
-              name="plannedPersonDays"
-              aria-label={`PT Soll von ${r.name}`}
-              value={v.soll}
-              onChange={(e) => patch(r.teamMemberId, "soll", e.target.value)}
-              onBlur={(e) => e.currentTarget.form?.requestSubmit()}
-              className={inputClass}
-            />
-            <input
-              name="actualPersonDays"
-              aria-label={`PT Ist von ${r.name}`}
-              value={v.ist}
-              onChange={(e) => patch(r.teamMemberId, "ist", e.target.value)}
-              onBlur={(e) => e.currentTarget.form?.requestSubmit()}
-              className={inputClass}
-            />
-            <div className={`pr-[9px] text-right font-mono text-[13px] ${deltaClass(delta)}`}>{formatDelta(delta)}</div>
+            <div>
+              <MobileLabel>PT Soll</MobileLabel>
+              <input
+                name="plannedPersonDays"
+                aria-label={`PT Soll von ${r.name}`}
+                value={v.soll}
+                onChange={(e) => patch(r.teamMemberId, "soll", e.target.value)}
+                onBlur={(e) => e.currentTarget.form?.requestSubmit()}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <MobileLabel>PT Ist</MobileLabel>
+              <input
+                name="actualPersonDays"
+                aria-label={`PT Ist von ${r.name}`}
+                value={v.ist}
+                onChange={(e) => patch(r.teamMemberId, "ist", e.target.value)}
+                onBlur={(e) => e.currentTarget.form?.requestSubmit()}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <MobileLabel>Delta</MobileLabel>
+              <div className={`pr-[9px] text-right font-mono text-[13px] ${deltaClass(delta)}`}>{formatDelta(delta)}</div>
+            </div>
           </form>
         );
       })}
@@ -128,8 +148,8 @@ export function CapacityRoster({ sprintId, rows }: { sprintId: string; rows: Cap
         </div>
       )}
 
-      <div className={`${GRID} bg-raise px-[18px] py-3.5 text-[13px] font-semibold`}>
-        <div>Summe</div>
+      <div className={`${ROW_GRID} bg-raise px-[18px] py-3.5 text-[13px] font-semibold`}>
+        <div className="col-span-3 md:col-span-1">Summe</div>
         <div className="pr-[9px] text-right font-mono">{formatPoints(sollTotal)}</div>
         <div className="pr-[9px] text-right font-mono">{formatPoints(istTotal)}</div>
         <div className={`pr-[9px] text-right font-mono ${deltaClass(totalDelta)}`}>{formatDelta(totalDelta)}</div>

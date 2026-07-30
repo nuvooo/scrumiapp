@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
 import { TeamSprintSelector } from "@/components/TeamSprintSelector";
 import { SyncButton } from "@/components/SyncButton";
 import { loadTeams, loadSprints } from "@/lib/view/loaders";
@@ -40,7 +41,8 @@ export default async function AppLayout({
     <div className="flex min-h-screen">
       <Sidebar jiraHost={jiraHostFromEnv()} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-[rgba(8,11,17,0.66)] px-[34px] py-3.5 backdrop-blur-xl">
+        <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-line bg-[rgba(8,11,17,0.66)] px-4 py-3.5 backdrop-blur-xl lg:px-[34px]">
+          <MobileNav jiraHost={jiraHostFromEnv()} />
           <TeamSprintSelector
             teams={teams.map((t) => ({ id: t.id, name: t.name }))}
             sprints={sprints.map((s) => ({
@@ -52,7 +54,7 @@ export default async function AppLayout({
             <SyncButton lastSyncedLabel={lastSyncedLabel} />
           </div>
         </header>
-        <main className="max-w-[1320px] flex-1 px-[34px] pb-[60px] pt-[34px]">{children}</main>
+        <main className="max-w-[1320px] flex-1 px-4 pb-10 pt-5 lg:px-[34px] lg:pb-[60px] lg:pt-[34px]">{children}</main>
       </div>
     </div>
   );

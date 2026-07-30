@@ -6,7 +6,7 @@ export function TeamForm() {
   return (
     <form action={addTeam}>
       <div className="text-sm font-semibold">Neues Team anlegen</div>
-      <div className="mt-4 grid grid-cols-[1.6fr,1fr,1fr,auto] items-end gap-3">
+      <div className="mt-4 grid grid-cols-1 items-end gap-3 md:grid-cols-[1.6fr,1fr,1fr,auto]">
         <div>
           <label htmlFor="new-team-name" className="mono-label mb-[7px] block">Name</label>
           <input id="new-team-name" name="name" required placeholder="z. B. Growth Web" className="input-field" />

@@ -3,30 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
-
-const NAV_GROUPS = [
-  {
-    title: "Analyse",
-    items: [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/standup", label: "Standup" },
-      { href: "/burndown", label: "Burndown" },
-      { href: "/velocity", label: "Velocity" },
-      { href: "/capacity", label: "Kapazität" },
-    ],
-  },
-  {
-    title: "Verwaltung",
-    items: [{ href: "/settings/teams", label: "Teams / Jira" }],
-  },
-];
+import { NAV_GROUPS } from "@/lib/view/nav";
 
 export function Sidebar({ jiraHost }: { jiraHost: string | null }) {
   const pathname = usePathname();
   const qs = useSearchParams().toString();
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[236px] flex-none flex-col gap-[26px] border-r border-line bg-[rgba(11,14,20,0.55)] px-3.5 py-[22px]">
+    <aside className="sticky top-0 hidden h-screen w-[236px] flex-none flex-col gap-[26px] border-r border-line bg-[rgba(11,14,20,0.55)] px-3.5 py-[22px] lg:flex">
       <div className="flex items-center gap-2.5 px-2">
         <Image
           src="/scrumi-logo.png"

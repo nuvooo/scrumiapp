@@ -54,7 +54,7 @@ export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprint
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <LabeledSelect
         label="Team"
         value={params.get("team") ?? ""}

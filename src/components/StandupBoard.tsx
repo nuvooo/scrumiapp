@@ -72,7 +72,7 @@ function IssueCard({ issue, done }: { issue: StandupIssue; done: boolean }) {
   return (
     <div
       data-testid={`standup-card-${issue.jiraKey}`}
-      className={`flex items-center gap-3 rounded-[10px] border px-3.5 py-2.5 ${
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] border px-3.5 py-2.5 ${
         done ? "border-[#1F3D2B] bg-[#0F1A14]" : "border-edge bg-field"
       }`}
     >
@@ -80,61 +80,63 @@ function IssueCard({ issue, done }: { issue: StandupIssue; done: boolean }) {
       <span className={`min-w-0 flex-1 truncate text-[13px] ${done ? "text-dim line-through" : "text-fg"}`}>
         {issue.summary}
       </span>
-      {!done && issue.daysInStatus !== null && (
+      <div className="flex w-full items-center gap-3 md:w-auto md:flex-none">
+        {!done && issue.daysInStatus !== null && (
+          <span
+            data-testid={`status-age-${issue.jiraKey}`}
+            title={issue.stale ? `Seit ${issue.daysInStatus} Arbeitstagen in „${issue.status}"` : undefined}
+            className={`flex flex-none items-center gap-1 font-mono text-[10.5px] ${
+              issue.stale ? "text-warn" : "text-faint"
+            }`}
+          >
+            {issue.stale && (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                role="img"
+                aria-label={`Warnung: ${issue.jiraKey} hängt im Status`}
+              >
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            )}
+            {daysLabel(issue.daysInStatus)}
+          </span>
+        )}
+        <span className="flex-none font-mono text-[10.5px] uppercase tracking-[0.08em] text-faint">
+          {issue.issueType}
+        </span>
         <span
-          data-testid={`status-age-${issue.jiraKey}`}
-          title={issue.stale ? `Seit ${issue.daysInStatus} Arbeitstagen in „${issue.status}"` : undefined}
-          className={`flex flex-none items-center gap-1 font-mono text-[10.5px] ${
-            issue.stale ? "text-warn" : "text-faint"
+          className={`flex-none rounded-full border px-2 py-[2px] font-mono text-[10.5px] ${
+            done ? "border-[#1F3D2B] text-ok" : "border-edge text-mid"
           }`}
         >
-          {issue.stale && (
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              role="img"
-              aria-label={`Warnung: ${issue.jiraKey} hängt im Status`}
-            >
-              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          )}
-          {daysLabel(issue.daysInStatus)}
+          {done ? "erledigt" : issue.status}
         </span>
-      )}
-      <span className="flex-none font-mono text-[10.5px] uppercase tracking-[0.08em] text-faint">
-        {issue.issueType}
-      </span>
-      <span
-        className={`flex-none rounded-full border px-2 py-[2px] font-mono text-[10.5px] ${
-          done ? "border-[#1F3D2B] text-ok" : "border-edge text-mid"
-        }`}
-      >
-        {done ? "erledigt" : issue.status}
-      </span>
-      {issue.url && (
-        <a
-          href={issue.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${issue.jiraKey} in Jira öffnen`}
-          title="In Jira öffnen"
-          className="flex-none rounded-md p-1 text-faint hover:bg-chip hover:text-link"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-            <polyline points="15 3 21 3 21 9" />
-            <line x1="10" y1="14" x2="21" y2="3" />
-          </svg>
-        </a>
-      )}
+        {issue.url && (
+          <a
+            href={issue.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${issue.jiraKey} in Jira öffnen`}
+            title="In Jira öffnen"
+            className="ml-auto flex-none rounded-md p-1 text-faint hover:bg-chip hover:text-link md:ml-0"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -280,7 +282,7 @@ export function StandupBoard({ groups }: { groups: StandupGroupView[] }) {
           </div>
           <div
             aria-label="Verbleibende Redezeit"
-            className={`ml-auto font-mono text-[34px] font-semibold tabular-nums tracking-[-0.02em] ${overrun ? "text-warn" : "text-fg"}`}
+            className={`ml-auto font-mono text-[26px] font-semibold tabular-nums tracking-[-0.02em] md:text-[34px] ${overrun ? "text-warn" : "text-fg"}`}
           >
             {formatClock(remaining)}
           </div>
