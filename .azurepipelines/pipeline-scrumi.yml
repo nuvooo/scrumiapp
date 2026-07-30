@@ -1,0 +1,19 @@
+name: "scrumi-$(Date:yyyyMMdd)$(Rev:.rr)"
+
+trigger:
+  branches:
+    include:
+      - "main"
+
+#variables:
+#  - group: default
+
+jobs:
+  - template: ./job-docker-build-push.yml
+    parameters:
+      environment: "scrumi"
+      imageRepository: "starkde-ecommerce/scrumi"
+      imageTag: "latest"
+
+      dockerFilePath: "Dockerfile"
+      buildContext: "."
