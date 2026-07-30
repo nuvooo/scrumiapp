@@ -24,6 +24,22 @@ export function mapSprintState(state: string): SprintState {
   }
 }
 
+/**
+ * Zeitpunkt des letzten Status-Wechsels aus dem Issue-Changelog; ohne
+ * Status-Wechsel gilt das Erstelldatum. Datumsvergleich statt Reihenfolge,
+ * damit die Sortierung der Histories egal ist.
+ */
+export function statusSinceFromChangelog(raw: JiraIssueRaw): Date | null {
+  let latest: Date | null = null;
+  for (const h of raw.changelog?.histories ?? []) {
+    if (!h.items.some((it) => it.field === "status")) continue;
+    const d = new Date(h.created);
+    if (latest === null || d > latest) latest = d;
+  }
+  if (latest) return latest;
+  return raw.fields.created ? new Date(raw.fields.created) : null;
+}
+
 export function mapIssue(raw: JiraIssueRaw, storyPointsField: string, onBoard = true): DomainIssue {
   const rawPoints = raw.fields[storyPointsField];
   const storyPoints = typeof rawPoints === "number" ? rawPoints : 0;
@@ -38,6 +54,7 @@ export function mapIssue(raw: JiraIssueRaw, storyPointsField: string, onBoard = 
     addedAfterSprintStart: false,
     onBoard,
     assignee: raw.fields.assignee?.displayName ?? null,
+    statusSince: statusSinceFromChangelog(raw),
   };
 }
 

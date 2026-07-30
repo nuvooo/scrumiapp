@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState, countOpenBugs, countOpenTickets } from "./mapper";
+import { mapStatusCategory, mapIssue, computeSprintPoints, mapSprintState, countOpenBugs, countOpenTickets, statusSinceFromChangelog } from "./mapper";
 import type { JiraIssueRaw } from "./types";
 
 const FIELD = "customfield_10016";
@@ -66,6 +66,42 @@ describe("mapIssue", () => {
     const raw = rawIssue("AB-10", 0, "new", null);
     delete raw.fields.issuetype;
     expect(mapIssue(raw, FIELD).issueType).toBe("");
+  });
+});
+
+describe("statusSinceFromChangelog", () => {
+  const withLog = (
+    histories: { created: string; items: { field: string }[] }[],
+    created: string | null = "2026-07-01T08:00:00.000Z",
+  ): JiraIssueRaw => {
+    const raw = rawIssue("AB-9", 1, "indeterminate", null);
+    raw.fields.created = created ?? undefined;
+    raw.changelog = { startAt: 0, maxResults: 100, total: histories.length, histories };
+    return raw;
+  };
+
+  it("nimmt den jüngsten Eintrag mit einem status-Item", () => {
+    const raw = withLog([
+      { created: "2026-07-10T09:00:00.000Z", items: [{ field: "status" }] },
+      { created: "2026-07-20T09:00:00.000Z", items: [{ field: "assignee" }] },
+      { created: "2026-07-15T09:00:00.000Z", items: [{ field: "status" }] },
+    ]);
+    expect(statusSinceFromChangelog(raw)).toEqual(new Date("2026-07-15T09:00:00.000Z"));
+  });
+
+  it("fällt ohne Status-Wechsel auf das Erstelldatum zurück", () => {
+    const raw = withLog([{ created: "2026-07-20T09:00:00.000Z", items: [{ field: "assignee" }] }]);
+    expect(statusSinceFromChangelog(raw)).toEqual(new Date("2026-07-01T08:00:00.000Z"));
+  });
+
+  it("gibt null zurück, wenn weder Changelog-Status noch created vorhanden sind", () => {
+    const raw = rawIssue("AB-9", 1, "new", null);
+    expect(statusSinceFromChangelog(raw)).toBeNull();
+  });
+
+  it("mapIssue befüllt statusSince aus dem Changelog", () => {
+    const raw = withLog([{ created: "2026-07-12T09:00:00.000Z", items: [{ field: "status" }] }]);
+    expect(mapIssue(raw, FIELD).statusSince).toEqual(new Date("2026-07-12T09:00:00.000Z"));
   });
 });
 

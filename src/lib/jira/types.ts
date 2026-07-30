@@ -16,8 +16,21 @@ export interface JiraStatusCategory {
   key: "new" | "indeterminate" | "done";
 }
 
+export interface JiraChangelogHistory {
+  created: string;
+  items: { field: string }[];
+}
+
+export interface JiraChangelog {
+  startAt: number;
+  maxResults: number;
+  total: number;
+  histories: JiraChangelogHistory[];
+}
+
 export interface JiraIssueRaw {
   key: string;
+  changelog?: JiraChangelog;
   fields: {
     summary: string;
     resolutiondate: string | null;
@@ -25,6 +38,7 @@ export interface JiraIssueRaw {
     issuetype?: { name: string; subtask?: boolean };
     parent?: { key: string };
     assignee?: { displayName?: string } | null;
+    created?: string;
     [storyPointsField: string]: unknown;
   };
 }

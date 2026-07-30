@@ -15,6 +15,8 @@ export interface DomainIssue {
   onBoard: boolean;
   /** Anzeigename des Bearbeiters aus Jira (null = nicht zugewiesen). */
   assignee: string | null;
+  /** Zeitpunkt des letzten Status-Wechsels in Jira (null = unbekannt). */
+  statusSince: Date | null;
 }
 
 export interface DomainSprint {
