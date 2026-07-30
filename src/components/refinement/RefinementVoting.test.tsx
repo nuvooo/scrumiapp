@@ -1,38 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { SceneParticipant, SceneHand } from "./PokerTableScene";
-
-// jsdom kann kein WebGL — die three.js-Szene wird durch ein Props-Echo ersetzt.
-vi.mock("./PokerTableScene", () => ({
-  PokerTableScene: ({
-    participants,
-    revealed,
-    hand,
-    viewpoint,
-  }: {
-    participants: SceneParticipant[];
-    revealed: boolean;
-    hand: SceneHand | null;
-    viewpoint?: string;
-  }) => (
-    <div data-testid="poker-scene" data-revealed={String(revealed)} data-viewpoint={viewpoint}>
-      {participants.map((p) => (
-        <span key={p.name} data-testid={`participant-${p.name}`} data-voted={String(p.voted)}>
-          {p.name}:{p.revealedPoints === undefined ? "" : p.revealedPoints === null ? "?" : p.revealedPoints}
-        </span>
-      ))}
-      {hand &&
-        hand.cards.map((c) => (
-          <button
-            key={c === null ? "?" : c}
-            aria-label={c === null ? "Unklar" : `${c} Punkte`}
-            onClick={() => hand.onPick(c)}
-          />
-        ))}
-    </div>
-  ),
-}));
-
 import { RefinementVoting } from "./RefinementVoting";
 import type { RefinementStateView } from "@/lib/view/refinementState";
 
@@ -44,8 +11,9 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
   state: "RUNNING",
   you: { name: "Ben", isAdmin: false },
   participants: [
-    { name: "Anna", isAdmin: true, voted: true },
+    { name: "Anna", isAdmin: true, voted: false },
     { name: "Ben", isAdmin: false, voted: false },
+    { name: "Zoe", isAdmin: false, voted: true },
   ],
   tickets: [
     { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", previousPoints: null, state: "VOTING", finalPoints: null },
@@ -73,7 +41,7 @@ const revealedState = (): RefinementStateView =>
         { name: "Ben", points: 8 },
         { name: "Zoe", points: null },
       ],
-      stats: { average: 6.5, median: 6.5, count: 2 },
+      stats: { average: 8, median: 8, count: 1 },
     },
   });
 
@@ -81,33 +49,33 @@ const noop = () => {};
 const handlers = { onVote: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
 
 describe("RefinementVoting", () => {
-  it("Teilnehmer sehen die Ego-Perspektive mit Kartenhand — Moderatoren sitzen nicht am Tisch", () => {
+  it("zeigt den Tisch: abgestimmt = Kartenrücken, Moderator ohne Sitzplatz", () => {
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    expect(screen.getByText("AB-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("participant-Anna")).not.toBeInTheDocument(); // Moderator sitzt nicht am Tisch
+    expect(screen.getByTestId("participant-Zoe")).toHaveAttribute("data-voted", "true");
+    expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-voted", "false");
+    expect(screen.getByTestId("seat-card-Zoe")).toHaveTextContent("");
+    expect(screen.getByText(/Warten auf Stimmen/)).toBeInTheDocument();
+    expect(screen.getByText(/1\s*\/\s*2/)).toBeInTheDocument(); // nur Schätzende zählen
+  });
+
+  it("bietet die eigene Kartenhand an und meldet die Wahl", () => {
     const onVote = vi.fn();
     render(<RefinementVoting state={baseState()} {...handlers} onVote={onVote} />);
-    expect(screen.getByText("AB-1")).toBeInTheDocument();
-    expect(screen.getByTestId("poker-scene")).toHaveAttribute("data-viewpoint", "first-person");
-    expect(screen.queryByTestId("participant-Anna")).not.toBeInTheDocument(); // Admin ohne Sitzplatz
-    expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-voted", "false");
+    expect(screen.getByText(/Wähle deine Karte/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "8 Punkte" }));
     expect(onVote).toHaveBeenCalledWith(8);
     fireEvent.click(screen.getByRole("button", { name: "Unklar" }));
     expect(onVote).toHaveBeenCalledWith(null);
-    expect(screen.getByText(/0\s*\/\s*1/)).toBeInTheDocument(); // nur Schätzende zählen
   });
 
-  it("der Moderator sieht die Draufsicht und schätzt nicht mit", () => {
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
-    render(<RefinementVoting state={admin} {...handlers} />);
-    expect(screen.getByTestId("poker-scene")).toHaveAttribute("data-viewpoint", "top");
-    expect(screen.queryByRole("button", { name: "5 Punkte" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Unklar" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Warten, bis alle ihre Karte verdeckt gelegt haben/)).toBeInTheDocument();
-  });
-
-  it("Admin sieht Aufdecken und die Ticketwahl, Teilnehmer nicht", () => {
+  it("der Moderator schätzt nicht mit: keine Kartenhand, aber Aufdecken und Ticketwahl", () => {
     const onReveal = vi.fn();
     const admin = baseState({ you: { name: "Anna", isAdmin: true } });
     const { unmount } = render(<RefinementVoting state={admin} {...handlers} onReveal={onReveal} />);
+    expect(screen.queryByRole("button", { name: "5 Punkte" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Unklar" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Aufdecken" }));
     expect(onReveal).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "AB-2 besprechen" })).toBeInTheDocument();
@@ -117,22 +85,20 @@ describe("RefinementVoting", () => {
     expect(screen.queryByRole("button", { name: "Aufdecken" })).not.toBeInTheDocument();
   });
 
-  it("nach dem Aufdecken bekommen die Sitze ihre offenen Werte — inklusive „?“", () => {
+  it("nach dem Aufdecken liegen die Karten offen an den Sitzen — inklusive „?“", () => {
     render(<RefinementVoting state={revealedState()} {...handlers} />);
-    expect(screen.getByTestId("poker-scene")).toHaveAttribute("data-revealed", "true");
-    expect(screen.queryByTestId("participant-Anna")).not.toBeInTheDocument();
-    expect(screen.getByTestId("participant-Ben")).toHaveTextContent("Ben:8");
-    expect(screen.getByTestId("participant-Zoe")).toHaveTextContent("Zoe:?");
-    expect(screen.getByText(/Ø 6,5/)).toBeInTheDocument();
+    expect(screen.getByTestId("seat-card-Ben")).toHaveTextContent("8");
+    expect(screen.getByTestId("seat-card-Zoe")).toHaveTextContent("?");
+    expect(screen.getByText(/Ø 8/)).toBeInTheDocument();
   });
 
   it("Admin übernimmt mit Median vorbelegt oder passt an", () => {
     const onAccept = vi.fn();
     render(<RefinementVoting state={revealedState()} {...handlers} onAccept={onAccept} />);
     const input = screen.getByLabelText("Finale Schätzung") as HTMLInputElement;
-    expect(input.value).toBe("6.5");
-    fireEvent.change(input, { target: { value: "8" } });
+    expect(input.value).toBe("8");
+    fireEvent.change(input, { target: { value: "13" } });
     fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
-    expect(onAccept).toHaveBeenCalledWith(8);
+    expect(onAccept).toHaveBeenCalledWith(13);
   });
 });

@@ -2,10 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { formatPoints } from "@/lib/format";
-import type { RefinementStateView } from "@/lib/view/refinementState";
-import { PokerTableScene, type SceneParticipant, type SceneHand } from "./PokerTableScene";
+import type { RefinementStateView, RefinementParticipantView } from "@/lib/view/refinementState";
 
-const POKER_CARDS: (number | null)[] = [1, 2, 3, 5, 8, 13, 20, null];
+const POKER_CARDS = [1, 2, 3, 5, 8, 13, 20];
+
+function cardLabel(points: number | null): string {
+  return points === null ? "?" : formatPoints(points);
+}
+
+/** Ein Sitzplatz am Tisch: Kartenplatz (leer / Rücken / offen) über dem Namen. */
+function Seat({
+  participant,
+  revealedPoints,
+}: {
+  participant: RefinementParticipantView;
+  /** undefined = noch nicht aufgedeckt; sonst der offene Wert (null = „?"). */
+  revealedPoints: number | null | undefined;
+}) {
+  const { name, voted } = participant;
+  const faceUp = voted && revealedPoints !== undefined;
+  return (
+    <div
+      data-testid={`participant-${name}`}
+      data-voted={voted}
+      className="flex w-[64px] flex-col items-center gap-1.5"
+    >
+      <span
+        data-testid={`seat-card-${name}`}
+        className={`flex h-[52px] w-[38px] items-center justify-center rounded-[7px] font-mono text-[15px] font-semibold ${
+          faceUp
+            ? "border border-accent bg-chip text-fg"
+            : voted
+              ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
+              : "border border-dashed border-edge bg-field"
+        }`}
+      >
+        {faceUp ? cardLabel(revealedPoints ?? null) : ""}
+      </span>
+      <span className="max-w-[64px] truncate text-[11.5px] text-mid">{name}</span>
+    </div>
+  );
+}
+
+/** Sitzverteilung rund um den Tisch: reihum oben, unten, links, rechts. */
+function seats(participants: RefinementParticipantView[]) {
+  const top: RefinementParticipantView[] = [];
+  const bottom: RefinementParticipantView[] = [];
+  const left: RefinementParticipantView[] = [];
+  const right: RefinementParticipantView[] = [];
+  const order = [top, bottom, left, right];
+  participants.forEach((p, i) => order[i % 4].push(p));
+  return { top, bottom, left, right };
+}
 
 export function RefinementVoting({
   state,
@@ -41,36 +89,21 @@ export function RefinementVoting({
   };
 
   const pointsByName = new Map((active?.votes ?? []).map((v) => [v.name, v.points]));
-  // Moderatoren sitzen nicht am Tisch und schätzen nicht mit — gezählt und
-  // gerendert werden nur die Schätzenden. Achtung: „?“-Votes sind null —
-  // deshalb has() statt ?? (das würde null verschlucken).
+  // Achtung: „?“-Votes sind null — deshalb has() statt ?? (das würde null verschlucken).
+  const revealedFor = (name: string) =>
+    revealed && pointsByName.has(name) ? pointsByName.get(name) : undefined;
+
+  // Moderatoren sitzen nicht am Tisch und schätzen nicht mit.
   const estimators = state.participants.filter((p) => !p.isAdmin);
-  const sceneParticipants: SceneParticipant[] = estimators.map((p) => ({
-    name: p.name,
-    isAdmin: p.isAdmin,
-    voted: p.voted,
-    revealedPoints: revealed && pointsByName.has(p.name) ? pointsByName.get(p.name) : undefined,
-  }));
   const votedCount = estimators.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
-
-  // Nur Teilnehmer halten eine Kartenhand — der Moderator beobachtet von oben.
-  const hand: SceneHand | null =
-    !revealed && !isAdmin && state.you
-      ? {
-          cards: POKER_CARDS,
-          selected: active?.myVote,
-          hasSelection: active?.myVoteGiven ?? false,
-          onPick: onVote,
-        }
-      : null;
+  const { top, bottom, left, right } = seats(estimators);
 
   return (
     <div className="mt-6 flex flex-col gap-3.5">
       {active ? (
-        <div className="card overflow-hidden">
-          {/* Ticket-Panel wie im Referenzbild oben links */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-[22px] py-3.5">
+        <div className="card p-[22px]">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="font-mono text-[11.5px] text-link">{active.jiraKey}</span>
             <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{active.summary}</span>
             <span className="flex-none text-[12px] text-muted">
@@ -79,69 +112,115 @@ export function RefinementVoting({
             </span>
           </div>
 
-          {/* Der 3D-Pokertisch */}
-          <div className="h-[380px] w-full md:h-[460px]">
-            <PokerTableScene
-              participants={sceneParticipants}
-              revealed={revealed}
-              youName={state.you?.name ?? null}
-              hand={hand}
-              viewpoint={isAdmin ? "top" : "first-person"}
-            />
-          </div>
-
-          {/* Bedienleiste unter dem Tisch */}
-          <div className="flex flex-wrap items-center justify-center gap-3 border-t border-line px-[22px] py-3.5">
-            {!revealed && (
-              <>
-                <span className="text-[13px] text-mid">
-                  {isAdmin
-                    ? "Warten, bis alle ihre Karte verdeckt gelegt haben…"
-                    : active.myVoteGiven
-                      ? "Deine Karte liegt verdeckt auf dem Tisch — du kannst noch wechseln."
-                      : "Wähle deine Karte in der Hand 👆"}
-                </span>
-                <span className="text-[13px] text-mid">
-                  Stimmen: <span className="font-mono">{votedCount} / {estimators.length}</span>
-                </span>
-                {isAdmin && (
-                  <button type="button" onClick={onReveal} className="btn-primary px-5 py-[9px]">
-                    Aufdecken
-                  </button>
-                )}
-              </>
+          {/* Der Pokertisch */}
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {top.length > 0 && (
+              <div className="flex justify-center gap-4">
+                {top.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+              </div>
             )}
-            {revealed && (
-              <>
-                <span className="font-mono text-[13px] text-fg">
-                  {active.stats?.average != null
-                    ? <>Ø {formatPoints(active.stats.average)} · Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen</>
-                    : "Keine numerischen Stimmen."}
-                </span>
-                {isAdmin && (
+            <div className="flex w-full items-center justify-center gap-4">
+              {left.length > 0 && (
+                <div className="flex flex-col gap-4">
+                  {left.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                </div>
+              )}
+              <div className="flex min-h-[130px] w-full max-w-[440px] flex-col items-center justify-center gap-3 rounded-[22px] border border-line bg-[rgba(124,156,255,0.07)] px-6 py-5 text-center">
+                {!revealed && (
                   <>
-                    <label className="flex items-center gap-2 text-[13px] text-mid">
-                      Finale Schätzung
-                      <input
-                        aria-label="Finale Schätzung"
-                        value={finalText}
-                        onChange={(e) => setFinalText(e.target.value)}
-                        className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
-                      />
-                    </label>
-                    <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
-                      Übernehmen
-                    </button>
+                    <div className="text-[13px] text-mid">
+                      Warten auf Stimmen… <span className="font-mono">{votedCount} / {estimators.length}</span>
+                    </div>
+                    {isAdmin && (
+                      <button type="button" onClick={onReveal} className="btn-primary px-5 py-[9px]">
+                        Aufdecken
+                      </button>
+                    )}
                   </>
                 )}
-              </>
+                {revealed && (
+                  <>
+                    <div className="font-mono text-[13px] text-fg">
+                      {active.stats?.average != null
+                        ? <>Ø {formatPoints(active.stats.average)} · Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen</>
+                        : "Keine numerischen Stimmen."}
+                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <label className="flex items-center gap-2 text-[13px] text-mid">
+                          Finale Schätzung
+                          <input
+                            aria-label="Finale Schätzung"
+                            value={finalText}
+                            onChange={(e) => setFinalText(e.target.value)}
+                            className="w-[72px] rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-center font-mono text-[13px] text-fg"
+                          />
+                        </label>
+                        <button type="button" onClick={accept} className="btn-primary px-4 py-[9px]">
+                          Übernehmen
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              {right.length > 0 && (
+                <div className="flex flex-col gap-4">
+                  {right.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                </div>
+              )}
+            </div>
+            {bottom.length > 0 && (
+              <div className="flex justify-center gap-4">
+                {bottom.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+              </div>
             )}
           </div>
 
+          {/* Die eigene Hand — nur Schätzende, nicht der Moderator */}
+          {!revealed && !isAdmin && (
+            <div className="mt-7 flex flex-col items-center gap-3">
+              <div className="text-[13px] text-muted">
+                {active.myVoteGiven ? "Deine Karte ist gesetzt — du kannst noch wechseln." : "Wähle deine Karte 👇"}
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {POKER_CARDS.map((points) => {
+                  const selected = active.myVoteGiven && active.myVote === points;
+                  return (
+                    <button
+                      key={points}
+                      type="button"
+                      aria-label={`${points} Punkte`}
+                      onClick={() => onVote(points)}
+                      className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
+                        selected
+                          ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"
+                          : "border-edge bg-field text-mid hover:-translate-y-0.5 hover:border-tipline"
+                      }`}
+                    >
+                      {points}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  aria-label="Unklar"
+                  onClick={() => onVote(null)}
+                  className={`flex h-[64px] w-[46px] items-center justify-center rounded-[9px] border font-mono text-[17px] font-semibold transition-transform ${
+                    active.myVoteGiven && active.myVote === null
+                      ? "-translate-y-1.5 border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] text-ink shadow-btn"
+                      : "border-edge bg-field text-mid hover:-translate-y-0.5 hover:border-tipline"
+                  }`}
+                >
+                  ?
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="card px-[22px] py-8 text-center text-[13px] text-muted">
-          {isAdmin ? "Wähle unten das nächste Ticket." : "Der Admin wählt das nächste Ticket…"}
+          {isAdmin ? "Wähle unten das nächste Ticket." : "Der Moderator wählt das nächste Ticket…"}
         </div>
       )}
 
