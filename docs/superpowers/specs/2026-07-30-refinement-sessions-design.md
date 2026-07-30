@@ -79,6 +79,14 @@ geschrieben.
   Übernehmen mit Median vorbelegt).
 - Live-Check per curl (Seiten + State-Endpoint).
 
+## Nachtrag (2026-07-30)
+
+- **Backlog-Vorschläge im Draft:** Der Vorbereitungsmodus zeigt dem Admin
+  zusätzlich zur Suche eine Grid-Liste der unbewerteten, offenen Tickets
+  aus dem Board-Backlog (`/rest/agile/1.0/board/{id}/backlog`, JQL
+  `cf[<id>] is EMPTY AND statusCategory != Done ORDER BY Rank ASC`,
+  max. 50, clientseitig nachgefiltert) mit „Hinzufügen"-Button je Karte.
+
 ## Nicht-Ziele
 
 - Kein Login/Rechteverwaltung über das Session-Token hinaus, keine

@@ -41,6 +41,8 @@ export interface JiraClient {
   setStoryPoints(issueKey: string, points: number): Promise<void>;
   /** Volltext-/Key-Suche für das Refinement (max. 20 Treffer). */
   searchIssues(query: string): Promise<JiraSearchResult[]>;
+  /** Unbewertete, offene Tickets aus dem Board-Backlog (max. 50, in Rank-Reihenfolge). */
+  fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -88,6 +90,30 @@ export class JiraCloudClient implements JiraClient {
         storyPoints: typeof points === "number" ? points : null,
       };
     });
+  }
+
+  // Board-Backlog ohne Schätzung: das Story-Points-Feld heißt in JQL cf[<id>].
+  // Zur Sicherheit zusätzlich clientseitig filtern (falls das Feld abweicht).
+  async fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]> {
+    const fieldId = this.config.storyPointsField.match(/(\d+)$/)?.[1];
+    const emptyClause = fieldId ? `cf[${fieldId}] is EMPTY AND ` : "";
+    const jql = `${emptyClause}statusCategory != Done ORDER BY Rank ASC`;
+    const fields = ["summary", "status", "issuetype", this.config.storyPointsField].join(",");
+    const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
+      `/rest/agile/1.0/board/${boardId}/backlog?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`,
+    );
+    return (page.issues ?? [])
+      .map((raw) => {
+        const points = raw.fields[this.config.storyPointsField];
+        return {
+          jiraKey: raw.key,
+          summary: raw.fields.summary,
+          issueType: raw.fields.issuetype?.name ?? "",
+          status: raw.fields.status.name,
+          storyPoints: typeof points === "number" ? points : null,
+        };
+      })
+      .filter((r) => r.storyPoints === null);
   }
 
   async setStoryPoints(issueKey: string, points: number): Promise<void> {

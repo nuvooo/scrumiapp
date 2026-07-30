@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatPoints } from "@/lib/format";
 import type { RefinementTicketView } from "@/lib/view/refinementState";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
@@ -15,6 +15,7 @@ export function RefinementDraft({
   tickets,
   isAdmin,
   onSearch,
+  onLoadBacklog,
   onAdd,
   onRemove,
   onMove,
@@ -23,6 +24,7 @@ export function RefinementDraft({
   tickets: RefinementTicketView[];
   isAdmin: boolean;
   onSearch: (query: string) => Promise<SearchResponse>;
+  onLoadBacklog: () => Promise<SearchResponse>;
   onAdd: (result: JiraSearchResult) => void;
   onRemove: (ticketId: string) => void;
   onMove: (ticketId: string, direction: "up" | "down") => void;
@@ -32,7 +34,24 @@ export function RefinementDraft({
   const [results, setResults] = useState<JiraSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backlog, setBacklog] = useState<JiraSearchResult[] | null>(null);
+  const [backlogError, setBacklogError] = useState<string | null>(null);
   const added = new Set(tickets.map((t) => t.jiraKey));
+
+  // Vorschläge einmalig laden: unbewertete Tickets aus dem Board-Backlog.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    onLoadBacklog().then((res) => {
+      if (cancelled) return;
+      if (res.ok) setBacklog(res.data ?? []);
+      else setBacklogError(res.error ?? "Backlog konnte nicht geladen werden.");
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   const search = async () => {
     if (!query.trim() || searching) return;
@@ -82,6 +101,50 @@ export function RefinementDraft({
                     onClick={() => onAdd(r)}
                     disabled={added.has(r.jiraKey)}
                     className="btn-secondary flex-none px-3 py-1 disabled:opacity-40"
+                  >
+                    {added.has(r.jiraKey) ? "drin" : "+ Hinzufügen"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="card p-[18px]">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <div className="text-sm font-semibold">Backlog ohne Schätzung</div>
+            <div className="text-xs text-dim">unbewertete Tickets vom Jira-Board, nach Rang sortiert (max. 50)</div>
+          </div>
+          {backlogError && <div className="mt-2 text-[12.5px] text-danger">{backlogError}</div>}
+          {backlog === null && !backlogError && (
+            <div className="mt-3 text-[13px] text-muted">Lade Backlog…</div>
+          )}
+          {backlog !== null && backlog.length === 0 && (
+            <div className="mt-3 text-[13px] text-muted">Alles geschätzt — das Backlog hat keine offenen Tickets ohne Schätzung. 🎉</div>
+          )}
+          {backlog !== null && backlog.length > 0 && (
+            <div data-testid="backlog-grid" className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {backlog.map((r) => (
+                <div
+                  key={r.jiraKey}
+                  className="flex flex-col gap-1.5 rounded-[10px] border border-edge bg-field px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11.5px] text-link">{r.jiraKey}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">{r.issueType}</span>
+                    <span className="ml-auto rounded-full border border-edge px-1.5 py-px font-mono text-[10px] text-mid">
+                      {r.status}
+                    </span>
+                  </div>
+                  <div className="line-clamp-2 min-h-[34px] text-[12.5px] text-fg">{r.summary}</div>
+                  <button
+                    type="button"
+                    aria-label={`${r.jiraKey} hinzufügen`}
+                    onClick={() => onAdd(r)}
+                    disabled={added.has(r.jiraKey)}
+                    className="btn-secondary self-start px-3 py-1 disabled:opacity-40"
                   >
                     {added.has(r.jiraKey) ? "drin" : "+ Hinzufügen"}
                   </button>

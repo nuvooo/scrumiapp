@@ -273,6 +273,50 @@ describe("JiraCloudClient.searchIssues", () => {
   });
 });
 
+describe("JiraCloudClient.fetchBacklogUnestimated", () => {
+  it("fragt das Board-Backlog ohne Schätzung ab und mappt die Treffer", async () => {
+    const raw = {
+      key: "AB-30",
+      fields: {
+        summary: "Backlog-Ticket",
+        resolutiondate: null,
+        status: { name: "Backlog", statusCategory: { key: "new" } },
+        issuetype: { name: "Story" },
+        customfield_10016: null,
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ issues: [raw] }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const results = await client.fetchBacklogUnestimated("42");
+
+    const url = decodeURIComponent(fetchMock.mock.calls[0][0] as string);
+    expect(url).toContain("/rest/agile/1.0/board/42/backlog");
+    expect(url).toContain("cf[10016] is EMPTY");
+    expect(url).toContain("statusCategory != Done");
+    expect(results).toEqual([
+      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", storyPoints: null },
+    ]);
+  });
+
+  it("filtert clientseitig Tickets mit Schätzung heraus", async () => {
+    const withPoints = {
+      key: "AB-31",
+      fields: {
+        summary: "Schon geschätzt",
+        resolutiondate: null,
+        status: { name: "Backlog", statusCategory: { key: "new" } },
+        issuetype: { name: "Story" },
+        customfield_10016: 5,
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ issues: [withPoints] }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    expect(await client.fetchBacklogUnestimated("42")).toEqual([]);
+  });
+});
+
 describe("JiraCloudClient.setStoryPoints", () => {
   it("schreibt die Punkte per PUT ins konfigurierte Story-Points-Feld", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));

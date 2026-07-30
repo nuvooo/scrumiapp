@@ -80,6 +80,26 @@ export async function searchJira(query: string): Promise<ActionResult<JiraSearch
   }
 }
 
+/** Vorschläge für den Draft: unbewertete, offene Tickets aus dem Board-Backlog des Teams. */
+export async function loadBacklogSuggestions(
+  refinementId: string,
+  token: string,
+): Promise<ActionResult<JiraSearchResult[]>> {
+  if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
+  const refinement = await prisma.refinement.findUnique({
+    where: { id: refinementId },
+    include: { team: { select: { jiraBoardId: true } } },
+  });
+  if (!refinement) return fail("Refinement nicht gefunden.");
+  const client = jiraClient();
+  if (!client) return fail("Jira ist nicht konfiguriert.");
+  try {
+    return { ok: true, data: await client.fetchBacklogUnestimated(refinement.team.jiraBoardId) };
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Backlog konnte nicht geladen werden.");
+  }
+}
+
 export async function addTicket(
   refinementId: string,
   token: string,

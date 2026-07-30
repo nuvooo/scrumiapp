@@ -14,6 +14,13 @@ const handlers = {
     ok: true,
     data: [{ jiraKey: "AB-9", summary: "Neu", issueType: "Story", status: "Backlog", storyPoints: null }],
   })),
+  onLoadBacklog: vi.fn(async () => ({
+    ok: true,
+    data: [
+      { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", storyPoints: null },
+      { jiraKey: "AB-21", summary: "Backlog zwei", issueType: "Bug", status: "Backlog", storyPoints: null },
+    ],
+  })),
   onAdd: vi.fn(),
   onRemove: vi.fn(),
   onMove: vi.fn(),
@@ -45,6 +52,17 @@ describe("RefinementDraft", () => {
     render(<RefinementDraft tickets={tickets} isAdmin {...handlers} />);
     fireEvent.click(screen.getByRole("button", { name: "Refinement starten" }));
     expect(handlers.onStart).toHaveBeenCalled();
+  });
+
+  it("zeigt die unbewerteten Backlog-Tickets als Grid mit Hinzufügen", async () => {
+    render(<RefinementDraft tickets={tickets} isAdmin {...handlers} />);
+    await waitFor(() => expect(screen.getByTestId("backlog-grid")).toBeInTheDocument());
+    expect(screen.getByText("AB-20")).toBeInTheDocument();
+    expect(screen.getByText("Backlog zwei")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "AB-20 hinzufügen" }));
+    expect(handlers.onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ jiraKey: "AB-20", summary: "Backlog eins" }),
+    );
   });
 
   it("Teilnehmer sehen nur die Warteliste ohne Bedienelemente", () => {

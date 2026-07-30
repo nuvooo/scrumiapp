@@ -7,6 +7,7 @@ import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
   searchJira,
+  loadBacklogSuggestions,
   addTicket,
   removeTicket,
   moveTicket,
@@ -119,6 +120,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           tickets={state.tickets}
           isAdmin={isAdmin}
           onSearch={(q) => searchJira(q)}
+          onLoadBacklog={() => loadBacklogSuggestions(refinementId, t)}
           onAdd={(r: JiraSearchResult) => run(() => addTicket(refinementId, t, r))}
           onRemove={(ticketId) => run(() => removeTicket(refinementId, t, ticketId))}
           onMove={(ticketId, direction) => run(() => moveTicket(refinementId, t, ticketId, direction))}
