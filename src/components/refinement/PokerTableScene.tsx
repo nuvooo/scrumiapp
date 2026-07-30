@@ -24,22 +24,61 @@ function label(points: number | null | undefined): string {
 }
 
 /**
+ * Die in der Hand gehaltene Karte: wächst beim Abstimmen ein, Rückseite zum
+ * Tisch; beim Aufdecken dreht sie sich um und zeigt den Wert.
+ */
+function HeldCard({ voted, revealed, points }: { voted: boolean; revealed: boolean; points: number | null | undefined }) {
+  const group = useRef<Group>(null);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const targetFlip = revealed ? Math.PI : 0;
+    const targetScale = voted ? 1 : 0.001;
+    group.current.rotation.y += (targetFlip - group.current.rotation.y) * Math.min(1, delta * 6);
+    const s = group.current.scale.x + (targetScale - group.current.scale.x) * Math.min(1, delta * 8);
+    group.current.scale.setScalar(s);
+  });
+  return (
+    <group position={[0, 1.32, 0.36]} rotation={[-0.15, 0, 0]}>
+      <group ref={group} scale={0.001}>
+        {/* Rückseite zeigt zum Tisch (und damit zur Kamera) */}
+        <RoundedBox args={[0.34, 0.5, 0.02]} radius={0.015}>
+          <meshStandardMaterial color="#6e8ff6" roughness={0.7} />
+        </RoundedBox>
+        {/* Wertseite zeigt zur Figur, bis die Karte gedreht ist */}
+        <group rotation={[0, Math.PI, 0]}>
+          <RoundedBox args={[0.34, 0.5, 0.02]} radius={0.015} position={[0, 0, 0.011]}>
+            <meshStandardMaterial color="#f4f6fa" roughness={0.85} />
+          </RoundedBox>
+          <Text position={[0, 0, 0.025]} fontSize={0.2} color="#31415f" fontWeight={700}>
+            {label(points)}
+          </Text>
+        </group>
+      </group>
+    </group>
+  );
+}
+
+/**
  * Clay-Figur auf einem Stuhl, Blick zum Tisch (lokal +z zeigt zur Tischmitte):
- * Kapsel-Körper, Kugel-Kopf, Arme mit Kugel-Händen, die einen kleinen
- * Kartenfächer halten (bis aufgedeckt wird).
+ * Kapsel-Körper, Kugel-Kopf, Arme mit Kugel-Händen. In den Händen liegt vor
+ * der Abstimmung ein kleiner Kartenfächer, danach die gespielte Karte.
  */
 function Figure({
   color,
   angle,
   isAdmin,
   name,
-  holdsCards,
+  voted,
+  revealed,
+  points,
 }: {
   color: string;
   angle: number;
   isAdmin: boolean;
   name: string;
-  holdsCards: boolean;
+  voted: boolean;
+  revealed: boolean;
+  points: number | null | undefined;
 }) {
   const r = TABLE_RADIUS + 0.62;
   const x = Math.sin(angle) * r;
@@ -78,8 +117,8 @@ function Figure({
           <meshStandardMaterial color={color} roughness={1} />
         </mesh>
       ))}
-      {/* Kartenfächer zwischen den Händen (solange verdeckt gespielt wird) */}
-      {holdsCards && (
+      {/* Kartenfächer zwischen den Händen, bis eine Karte gespielt ist */}
+      {!voted && (
         <group position={[0, 1.22, 0.3]} rotation={[-0.35, 0, 0]}>
           {[-1, 0, 1].map((i) => (
             <RoundedBox key={i} args={[0.16, 0.24, 0.012]} radius={0.01} position={[i * 0.07, 0.02, i * 0.006]} rotation={[0, 0, -i * 0.25]}>
@@ -88,6 +127,8 @@ function Figure({
           ))}
         </group>
       )}
+      {/* Die gespielte Karte in den Händen */}
+      <HeldCard voted={voted} revealed={revealed} points={points} />
       {/* Kopf */}
       <mesh position={[0, 1.46, -0.1]}>
         <sphereGeometry args={[0.23, 24, 24]} />
@@ -226,16 +267,16 @@ export function PokerTableScene({
       <directionalLight position={[-5, 6, -3]} intensity={0.5} />
       <TableAndRoom />
       {seats.others.map(({ participant, angle }, i) => (
-        <group key={participant.name}>
-          <Figure
-            color={CLAY_COLORS[i % CLAY_COLORS.length]}
-            angle={angle}
-            isAdmin={participant.isAdmin}
-            name={participant.name}
-            holdsCards={!revealed}
-          />
-          <PlayedCard angle={angle} voted={participant.voted} revealed={revealed} points={participant.revealedPoints} />
-        </group>
+        <Figure
+          key={participant.name}
+          color={CLAY_COLORS[i % CLAY_COLORS.length]}
+          angle={angle}
+          isAdmin={participant.isAdmin}
+          name={participant.name}
+          voted={participant.voted}
+          revealed={revealed}
+          points={participant.revealedPoints}
+        />
       ))}
       {/* Die eigene gespielte Karte liegt vor dir am nahen Tischrand. */}
       {seats.you && (
