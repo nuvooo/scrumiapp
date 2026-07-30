@@ -9,6 +9,10 @@ export interface StandupIssue {
   status: string;
   /** Link zum Ticket in Jira (null, wenn keine Basis-URL konfiguriert ist). */
   url: string | null;
+  /** Arbeitstage im aktuellen Status (null = unbekannt oder erledigt). */
+  daysInStatus: number | null;
+  /** Mehr als 5 Arbeitstage im selben Status → Warnung. */
+  stale: boolean;
 }
 
 export interface StandupGroupView {
@@ -47,6 +51,11 @@ function groupLabel(name: string | null): string {
   return name ?? "Ohne Bearbeiter";
 }
 
+function daysLabel(days: number): string {
+  if (days === 0) return "heute";
+  return days === 1 ? "seit 1 Tag" : `seit ${days} Tagen`;
+}
+
 function initials(name: string | null): string {
   if (!name) return "–";
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -64,6 +73,35 @@ function IssueCard({ issue, done }: { issue: StandupIssue; done: boolean }) {
       <span className={`min-w-0 flex-1 truncate text-[13px] ${done ? "text-dim line-through" : "text-fg"}`}>
         {issue.summary}
       </span>
+      {!done && issue.daysInStatus !== null && (
+        <span
+          data-testid={`status-age-${issue.jiraKey}`}
+          title={issue.stale ? `Seit ${issue.daysInStatus} Arbeitstagen in „${issue.status}"` : undefined}
+          className={`flex flex-none items-center gap-1 font-mono text-[10.5px] ${
+            issue.stale ? "text-warn" : "text-faint"
+          }`}
+        >
+          {issue.stale && (
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              role="img"
+              aria-label={`Warnung: ${issue.jiraKey} hängt im Status`}
+            >
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          )}
+          {daysLabel(issue.daysInStatus)}
+        </span>
+      )}
       <span className="flex-none font-mono text-[10.5px] uppercase tracking-[0.08em] text-faint">
         {issue.issueType}
       </span>

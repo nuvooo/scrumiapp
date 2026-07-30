@@ -6,7 +6,7 @@ const groups: StandupGroupView[] = [
   {
     name: "Ben",
     openIssues: [
-      { jiraKey: "A-1", summary: "Login bauen", issueType: "Story", status: "In Arbeit", url: "https://x.atlassian.net/browse/A-1" },
+      { jiraKey: "A-1", summary: "Login bauen", issueType: "Story", status: "In Arbeit", url: "https://x.atlassian.net/browse/A-1", daysInStatus: 3, stale: false },
     ],
     doneIssues: [],
   },
@@ -14,7 +14,7 @@ const groups: StandupGroupView[] = [
     name: "Zoe",
     openIssues: [],
     doneIssues: [
-      { jiraKey: "A-2", summary: "Bug fixen", issueType: "Bug", status: "Geschlossen", url: "https://x.atlassian.net/browse/A-2" },
+      { jiraKey: "A-2", summary: "Bug fixen", issueType: "Bug", status: "Geschlossen", url: "https://x.atlassian.net/browse/A-2", daysInStatus: null, stale: false },
     ],
   },
 ];
@@ -66,6 +66,50 @@ describe("StandupBoard", () => {
     const card = screen.getByTestId("standup-card-A-2");
     expect(card).toHaveTextContent("Bug fixen");
     expect(card).toHaveTextContent("erledigt");
+  });
+
+  it("zeigt die Verweildauer auf offenen Cards", () => {
+    start();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" })); // zu Ben
+    expect(screen.getByText("seit 3 Tagen")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Warnung/ })).not.toBeInTheDocument();
+  });
+
+  it("zeigt ein rotes Warn-Icon, wenn das Ticket hängt", () => {
+    const stale: StandupGroupView[] = [
+      {
+        name: "Ben",
+        openIssues: [
+          { jiraKey: "A-3", summary: "Hängt", issueType: "Story", status: "Review", url: null, daysInStatus: 8, stale: true },
+        ],
+        doneIssues: [],
+      },
+    ];
+    render(<StandupBoard groups={stale} />);
+    fireEvent.click(screen.getByRole("button", { name: "Standup starten" }));
+    expect(screen.getByText("seit 8 Tagen")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Warnung/ })).toBeInTheDocument();
+    expect(screen.getByTestId("status-age-A-3")).toHaveAttribute(
+      "title",
+      'Seit 8 Arbeitstagen in „Review"',
+    );
+  });
+
+  it("zeigt bei daysInStatus 0 „heute“ und ohne Wert nichts", () => {
+    const mixed: StandupGroupView[] = [
+      {
+        name: "Ben",
+        openIssues: [
+          { jiraKey: "A-4", summary: "Frisch", issueType: "Story", status: "In Arbeit", url: null, daysInStatus: 0, stale: false },
+          { jiraKey: "A-5", summary: "Alt gesynct", issueType: "Story", status: "In Arbeit", url: null, daysInStatus: null, stale: false },
+        ],
+        doneIssues: [],
+      },
+    ];
+    render(<StandupBoard groups={mixed} />);
+    fireEvent.click(screen.getByRole("button", { name: "Standup starten" }));
+    expect(screen.getByText("heute")).toBeInTheDocument();
+    expect(screen.queryByTestId("status-age-A-5")).not.toBeInTheDocument();
   });
 
   it("counts down for the active person", () => {
