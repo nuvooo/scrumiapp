@@ -16,6 +16,7 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@tanstack/react-table": "^8.21.3",
     "canvas-confetti": "^1.9.4",
     "next": "^15.5.18",
     "node-cron": "^4.2.1",

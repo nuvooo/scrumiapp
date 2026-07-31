@@ -51,6 +51,35 @@ body {
   }
 }
 
+/* Schmale, dunkle Scrollbar passend zum Theme (Backlog-Grid, Seiten-Scroll). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2b3550 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #232c40;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #33405e;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 input::placeholder {
   color: #56607a;
 }

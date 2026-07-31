@@ -248,7 +248,7 @@ describe("JiraCloudClient.searchIssues", () => {
     expect(decodeURIComponent(url as string)).toContain('text ~ "login flow" ORDER BY updated DESC');
     expect(url).toContain("maxResults=20");
     expect(results).toEqual([
-      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", description: "", storyPoints: 5 },
+      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", description: "", storyPoints: 5, url: "https://example.atlassian.net/browse/AB-7" },
     ]);
   });
 
@@ -274,7 +274,7 @@ describe("JiraCloudClient.searchIssues", () => {
 });
 
 describe("JiraCloudClient.fetchBacklogUnestimated", () => {
-  it("fragt das Board-Backlog ohne Schätzung ab und mappt die Treffer", async () => {
+  it("fragt alle Board-Tickets ohne Schätzung ab und mappt die Treffer", async () => {
     const raw = {
       key: "AB-30",
       fields: {
@@ -291,11 +291,11 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
     const results = await client.fetchBacklogUnestimated("42");
 
     const url = decodeURIComponent(fetchMock.mock.calls[0][0] as string);
-    expect(url).toContain("/rest/agile/1.0/board/42/backlog");
+    expect(url).toContain("/rest/agile/1.0/board/42/issue");
     expect(url).toContain("cf[10016] is EMPTY");
     expect(url).toContain("statusCategory != Done");
     expect(results).toEqual([
-      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", description: "", storyPoints: null },
+      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", description: "", storyPoints: null, url: "https://example.atlassian.net/browse/AB-30" },
     ]);
   });
 
@@ -314,6 +314,32 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
     const client = new JiraCloudClient(config, fetchMock);
 
     expect(await client.fetchBacklogUnestimated("42")).toEqual([]);
+  });
+
+  it("paginiert über volle Seiten hinweg, bis alle Tickets geladen sind", async () => {
+    const makeIssue = (key: string) => ({
+      key,
+      fields: {
+        summary: key,
+        resolutiondate: null,
+        status: { name: "Backlog", statusCategory: { key: "new" } },
+        issuetype: { name: "Story" },
+        customfield_10016: null,
+      },
+    });
+    const fullPage = Array.from({ length: 50 }, (_, i) => makeIssue(`AB-${i + 1}`));
+    const lastPage = [makeIssue("AB-51")];
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ issues: fullPage }))
+      .mockResolvedValueOnce(jsonResponse({ issues: lastPage }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const results = await client.fetchBacklogUnestimated("42");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(decodeURIComponent(fetchMock.mock.calls[1][0] as string)).toContain("startAt=50");
+    expect(results).toHaveLength(51);
   });
 });
 

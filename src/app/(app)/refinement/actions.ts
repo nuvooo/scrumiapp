@@ -70,18 +70,7 @@ export async function joinRefinement(
   }
 }
 
-export async function searchJira(query: string): Promise<ActionResult<JiraSearchResult[]>> {
-  if (!query.trim()) return { ok: true, data: [] };
-  const client = jiraClient();
-  if (!client) return fail("Jira ist nicht konfiguriert.");
-  try {
-    return { ok: true, data: await client.searchIssues(query) };
-  } catch (e) {
-    return fail(e instanceof Error ? e.message : "Jira-Suche fehlgeschlagen.");
-  }
-}
-
-/** Vorschläge für den Draft: unbewertete, offene Tickets aus dem Board-Backlog des Teams. */
+/** Vorschläge für den Draft: unbewertete, offene Tickets vom Board des Teams. */
 export async function loadBacklogSuggestions(
   refinementId: string,
   token: string,
@@ -123,6 +112,33 @@ export async function addTicket(
   } catch {
     return fail(`${ticket.jiraKey} ist schon in der Liste.`);
   }
+  return { ok: true };
+}
+
+/** Mehrere Tickets auf einmal hinzufügen (Mehrfachauswahl im Backlog-Grid). */
+export async function addTickets(
+  refinementId: string,
+  token: string,
+  tickets: { jiraKey: string; summary: string; issueType: string; description?: string; storyPoints: number | null }[],
+): Promise<ActionResult> {
+  if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
+  const existing = await prisma.refinementTicket.findMany({
+    where: { refinementId },
+    select: { jiraKey: true },
+  });
+  const known = new Set(existing.map((t) => t.jiraKey));
+  const fresh = tickets.filter((t) => !known.has(t.jiraKey));
+  await prisma.refinementTicket.createMany({
+    data: fresh.map((t, i) => ({
+      refinementId,
+      jiraKey: t.jiraKey,
+      summary: t.summary,
+      issueType: t.issueType,
+      description: t.description ?? "",
+      previousPoints: t.storyPoints,
+      position: existing.length + i,
+    })),
+  });
   return { ok: true };
 }
 

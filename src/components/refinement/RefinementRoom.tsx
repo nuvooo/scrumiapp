@@ -7,9 +7,9 @@ import type { RefinementStateView } from "@/lib/view/refinementState";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
-  searchJira,
   loadBacklogSuggestions,
   addTicket,
+  addTickets,
   removeTicket,
   moveTicket,
   startRefinement,
@@ -241,9 +241,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
         <RefinementDraft
           tickets={state.tickets}
           isAdmin={isAdmin}
-          onSearch={(q) => searchJira(q)}
           onLoadBacklog={() => loadBacklogSuggestions(refinementId, t)}
           onAdd={(r: JiraSearchResult) => run(() => addTicket(refinementId, t, r))}
+          onAddMany={(rs: JiraSearchResult[]) => run(() => addTickets(refinementId, t, rs))}
           onRemove={(ticketId) => run(() => removeTicket(refinementId, t, ticketId))}
           onMove={(ticketId, direction) => run(() => moveTicket(refinementId, t, ticketId, direction))}
           onStart={() => run(() => startRefinement(refinementId, t))}

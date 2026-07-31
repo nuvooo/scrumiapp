@@ -34,6 +34,8 @@ export interface JiraSearchResult {
   description: string;
   /** Aktuelle Schätzung (null = unbewertet). */
   storyPoints: number | null;
+  /** Link zum Ticket in Jira. */
+  url: string;
 }
 
 export interface JiraClient {
@@ -44,7 +46,7 @@ export interface JiraClient {
   setStoryPoints(issueKey: string, points: number): Promise<void>;
   /** Volltext-/Key-Suche für das Refinement (max. 20 Treffer). */
   searchIssues(query: string): Promise<JiraSearchResult[]>;
-  /** Unbewertete, offene Tickets aus dem Board-Backlog (max. 50, in Rank-Reihenfolge). */
+  /** Alle unbewerteten, offenen Tickets des Boards (Backlog + Sprints, in Rank-Reihenfolge). */
   fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]>;
 }
 
@@ -95,12 +97,15 @@ export class JiraCloudClient implements JiraClient {
       status: raw.fields.status.name,
       description: adfToText(raw.fields.description),
       storyPoints: typeof points === "number" ? points : null,
+      url: `${this.config.baseUrl.replace(/\/$/, "")}/browse/${raw.key}`,
     };
   }
 
-  // Board-Backlog ohne Schätzung: das Story-Points-Feld heißt in JQL cf[<id>].
+  // Unbewertete Tickets des Boards: das Story-Points-Feld heißt in JQL cf[<id>].
   // Zur Sicherheit zusätzlich clientseitig filtern (falls das Feld abweicht).
-  // Paginiert bis zu 200 Tickets in Rank-Reihenfolge.
+  // Bewusst /issue statt /backlog: der Backlog-Endpoint liefert nur Tickets ohne
+  // Sprint-Zuordnung — unbewertete Altlasten in Sprints würden fehlen.
+  // Paginiert alles in Rank-Reihenfolge (Notbremse bei 1000).
   async fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]> {
     const fieldId = this.config.storyPointsField.match(/(\d+)$/)?.[1];
     const emptyClause = fieldId ? `cf[${fieldId}] is EMPTY AND ` : "";
@@ -111,12 +116,12 @@ export class JiraCloudClient implements JiraClient {
     let startAt = 0;
     for (;;) {
       const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
-        `/rest/agile/1.0/board/${boardId}/backlog?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=50&fields=${fields}`,
+        `/rest/agile/1.0/board/${boardId}/issue?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=50&fields=${fields}`,
       );
       const issues = page.issues ?? [];
       raws.push(...issues);
       startAt += issues.length;
-      if (issues.length < 50 || startAt >= 200) break;
+      if (issues.length < 50 || startAt >= 1000) break;
     }
     return raws.map((raw) => this.toSearchResult(raw)).filter((r) => r.storyPoints === null);
   }
