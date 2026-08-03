@@ -15,6 +15,9 @@ export const NAV_GROUPS = [
   },
   {
     title: "Verwaltung",
-    items: [{ href: "/settings/teams", label: "Teams / Jira" }],
+    items: [
+      { href: "/settings/teams", label: "Teams / Jira" },
+      { href: "/settings/data", label: "Daten" },
+    ],
   },
 ] as const;

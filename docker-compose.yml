@@ -32,6 +32,7 @@ services:
       JIRA_STORY_POINTS_FIELD: "${JIRA_STORY_POINTS_FIELD:-customfield_10016}"
       JIRA_BUG_ISSUE_TYPES: "${JIRA_BUG_ISSUE_TYPES:-}"
       SYNC_DEFAULT_INTERVAL: "${SYNC_DEFAULT_INTERVAL:-60}"
+      APP_PASSWORD: "${APP_PASSWORD:-}"
 
 volumes:
   scrumi_pgdata:
