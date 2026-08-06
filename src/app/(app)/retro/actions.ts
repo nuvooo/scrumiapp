@@ -124,6 +124,29 @@ export async function setRetroColumnColor(retroId: string, token: string, column
   return { ok: true };
 }
 
+/** Spalte nach links/rechts verschieben (Positionen tauschen). */
+export async function moveRetroColumn(
+  retroId: string,
+  token: string,
+  columnId: string,
+  direction: "left" | "right",
+): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  const columns = await prisma.retroColumn.findMany({
+    where: { retroId },
+    orderBy: { position: "asc" },
+  });
+  const index = columns.findIndex((c) => c.id === columnId);
+  const other = direction === "left" ? index - 1 : index + 1;
+  if (index < 0 || other < 0 || other >= columns.length) return { ok: true };
+  await prisma.$transaction([
+    prisma.retroColumn.update({ where: { id: columns[index].id }, data: { position: other } }),
+    prisma.retroColumn.update({ where: { id: columns[other].id }, data: { position: index } }),
+  ]);
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
 export async function deleteRetroColumn(retroId: string, token: string, columnId: string): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
   await prisma.retroColumn.deleteMany({ where: { id: columnId, retroId } });

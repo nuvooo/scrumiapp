@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cardSegments } from "@/lib/retroCardText";
+import { EmojiGifPicker } from "./EmojiGifPicker";
 import {
   RETRO_COLORS,
   type RetroCardView,
@@ -113,8 +114,9 @@ function Card({
             rows={3}
             className="input-field resize-y text-[13px]"
           />
-          <div className="flex gap-1.5">
-            <button type="button" onClick={saveEdit} className="btn-primary px-3 py-1.5">Speichern</button>
+          <div className="flex items-center gap-1.5">
+            <EmojiGifPicker onInsert={(s) => setEditText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))} />
+            <button type="button" onClick={saveEdit} className="btn-primary ml-auto px-3 py-1.5">Speichern</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-secondary px-3 py-1.5">Abbrechen</button>
           </div>
         </div>
@@ -226,6 +228,7 @@ function Column({
   onAddCard,
   onRename,
   onSetColor,
+  onMove,
   onDelete,
   cardHandlers,
 }: {
@@ -236,6 +239,7 @@ function Column({
   onAddCard: (text: string) => void;
   onRename: (name: string) => void;
   onSetColor: (color: string) => void;
+  onMove: (direction: "left" | "right") => void;
   onDelete: () => void;
   cardHandlers: (card: RetroCardView) => Parameters<typeof Card>[0];
 }) {
@@ -283,6 +287,24 @@ function Column({
             <span className="flex-none font-mono text-[11px] text-faint">{column.cards.length}</span>
             {isAdmin && (
               <span className="relative flex flex-none items-center gap-1">
+                <button
+                  type="button"
+                  aria-label={`Spalte ${column.name} nach links`}
+                  title="Nach links verschieben"
+                  onClick={() => onMove("left")}
+                  className="text-[12px] text-dim hover:text-fg"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Spalte ${column.name} nach rechts`}
+                  title="Nach rechts verschieben"
+                  onClick={() => onMove("right")}
+                  className="text-[12px] text-dim hover:text-fg"
+                >
+                  →
+                </button>
                 <button
                   type="button"
                   aria-label={`Spalte ${column.name} umbenennen`}
@@ -363,8 +385,11 @@ function Column({
             placeholder="Text, Emojis 🎉 oder GIF-URL…"
             className="input-field resize-y text-[13px]"
           />
-          <div className="flex gap-1.5">
-            <button type="button" onClick={submitCard} className="btn-primary px-3 py-1.5">Hinzufügen</button>
+          <div className="flex items-center gap-1.5">
+            <EmojiGifPicker
+              onInsert={(s) => setComposerText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))}
+            />
+            <button type="button" onClick={submitCard} className="btn-primary ml-auto px-3 py-1.5">Hinzufügen</button>
             <button
               type="button"
               onClick={() => {
@@ -399,6 +424,7 @@ export function RetroBoard({
   onAddColumn,
   onRenameColumn,
   onSetColumnColor,
+  onMoveColumn,
   onDeleteColumn,
 }: {
   state: RetroStateView;
@@ -414,6 +440,7 @@ export function RetroBoard({
   onAddColumn: (name: string, color: string) => void;
   onRenameColumn: (columnId: string, name: string) => void;
   onSetColumnColor: (columnId: string, color: string) => void;
+  onMoveColumn: (columnId: string, direction: "left" | "right") => void;
   onDeleteColumn: (columnId: string) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
@@ -494,6 +521,7 @@ export function RetroBoard({
             onAddCard={(text) => onAddCard(column.id, text)}
             onRename={(name) => onRenameColumn(column.id, name)}
             onSetColor={(color) => onSetColumnColor(column.id, color)}
+            onMove={(direction) => onMoveColumn(column.id, direction)}
             onDelete={() => onDeleteColumn(column.id)}
             cardHandlers={(card) => ({
               card,

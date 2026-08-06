@@ -38,7 +38,7 @@ const handlers = {
   onVote: noop, onUnvote: noop,
   onAddComment: noop, onDeleteComment: noop,
   onMerge: noop,
-  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onDeleteColumn: noop,
+  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onMoveColumn: noop, onDeleteColumn: noop,
 };
 
 describe("RetroBoard", () => {
@@ -163,6 +163,41 @@ describe("RetroBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Neue Spalte in #E5484D" }));
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
     expect(onAddColumn).toHaveBeenCalledWith("Aktionen", "#E5484D");
+  });
+
+  it("der Moderator verschiebt Spalten nach links und rechts", () => {
+    const onMoveColumn = vi.fn();
+    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    render(<RetroBoard state={admin} {...handlers} onMoveColumn={onMoveColumn} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 nach rechts" }));
+    expect(onMoveColumn).toHaveBeenCalledWith("c1", "right");
+    fireEvent.click(screen.getByRole("button", { name: "Spalte Geht besser 🤔 nach links" }));
+    expect(onMoveColumn).toHaveBeenCalledWith("c2", "left");
+    cleanup();
+
+    render(<RetroBoard state={baseState()} {...handlers} />);
+    expect(screen.queryByRole("button", { name: "Spalte Lief gut 👍 nach rechts" })).not.toBeInTheDocument();
+  });
+
+  it("fügt Emojis über die Auswahl in die Karte ein", () => {
+    const onAddCard = vi.fn();
+    render(<RetroBoard state={baseState()} {...handlers} onAddCard={onAddCard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    fireEvent.change(screen.getByLabelText("Neue Karte in Geht besser 🤔"), { target: { value: "Super Sprint" } });
+    fireEvent.click(screen.getByRole("button", { name: "Emoji auswählen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Emoji 🎉" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    expect(onAddCard).toHaveBeenCalledWith("c2", "Super Sprint🎉");
+  });
+
+  it("fügt ein GIF aus der Galerie in die Karte ein", () => {
+    const onAddCard = vi.fn();
+    render(<RetroBoard state={baseState()} {...handlers} onAddCard={onAddCard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "GIF auswählen" }));
+    fireEvent.click(screen.getByRole("button", { name: "GIF 1 einfügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    expect(onAddCard).toHaveBeenCalledWith("c2", expect.stringContaining("giphy.gif"));
   });
 
   it("rendert GIF-URLs in Karten als Bild", () => {

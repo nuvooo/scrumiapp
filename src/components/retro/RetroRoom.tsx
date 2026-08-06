@@ -11,6 +11,7 @@ import {
   addRetroColumn,
   renameRetroColumn,
   setRetroColumnColor,
+  moveRetroColumn,
   deleteRetroColumn,
   addRetroCard,
   updateRetroCard,
@@ -125,6 +126,26 @@ export function RetroRoom({ retroId }: { retroId: string }) {
     const result = await fn();
     if (!result.ok) setError(result.error ?? "Aktion fehlgeschlagen.");
     await refresh();
+  };
+
+  /** Eigene Stimme sofort anzeigen, ohne auf den Server zu warten. */
+  const applyLocalVote = (cardId: string, delta: 1 | -1) => {
+    actionSeqRef.current += 1;
+    setState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        votesLeft: prev.votesLeft - delta,
+        columns: prev.columns.map((c) => ({
+          ...c,
+          cards: c.cards.map((card) =>
+            card.id === cardId
+              ? { ...card, votes: card.votes + delta, myVotes: card.myVotes + delta }
+              : card,
+          ),
+        })),
+      };
+    });
   };
 
   const join = async () => {
@@ -258,14 +279,22 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onAddCard={(columnId, text) => run(() => addRetroCard(retroId, t, columnId, text))}
         onUpdateCard={(cardId, text) => run(() => updateRetroCard(retroId, t, cardId, text))}
         onDeleteCard={(cardId) => run(() => deleteRetroCard(retroId, t, cardId))}
-        onVote={(cardId) => run(() => voteRetroCard(retroId, t, cardId))}
-        onUnvote={(cardId) => run(() => unvoteRetroCard(retroId, t, cardId))}
+        onVote={(cardId) => {
+          if (state.votesLeft <= 0) return;
+          applyLocalVote(cardId, 1);
+          run(() => voteRetroCard(retroId, t, cardId));
+        }}
+        onUnvote={(cardId) => {
+          applyLocalVote(cardId, -1);
+          run(() => unvoteRetroCard(retroId, t, cardId));
+        }}
         onAddComment={(cardId, text) => run(() => addRetroComment(retroId, t, cardId, text))}
         onDeleteComment={(commentId) => run(() => deleteRetroComment(retroId, t, commentId))}
         onMerge={(sourceId, targetId) => run(() => mergeRetroCards(retroId, t, sourceId, targetId))}
         onAddColumn={(name, color) => run(() => addRetroColumn(retroId, t, name, color))}
         onRenameColumn={(columnId, name) => run(() => renameRetroColumn(retroId, t, columnId, name))}
         onSetColumnColor={(columnId, color) => run(() => setRetroColumnColor(retroId, t, columnId, color))}
+        onMoveColumn={(columnId, direction) => run(() => moveRetroColumn(retroId, t, columnId, direction))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
       />
     </div>
