@@ -131,26 +131,35 @@ function Seat({
             className={`flip-face ${
               voted
                 ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
-                : "border border-dashed border-edge bg-field text-[15px] opacity-80"
+                : "border border-dashed border-edge bg-field"
             }`}
-          >
-            {!voted && avatar}
-          </span>
+          />
           <span className="flip-face flip-face-up border border-accent bg-chip font-mono text-[15px] font-semibold text-fg">
             {faceUp ? cardLabel(revealedPoints ?? null) : ""}
           </span>
         </span>
       </button>
+      {/* Avatar als Kreis-Badge; ohne Avatar der Anfangsbuchstabe. */}
+      <span
+        className={`flex h-[32px] w-[32px] items-center justify-center rounded-full border text-[18px] leading-none ${
+          isYou ? "border-accent bg-chip shadow-btn" : "border-edge bg-field"
+        }`}
+      >
+        {avatar || (
+          <span className={`text-[13px] font-semibold ${isYou ? "text-accent" : "text-mid"}`}>
+            {name.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </span>
       <span
         className={`max-w-[64px] truncate text-[11.5px] ${isYou ? "font-semibold text-accent" : "text-mid"}`}
         title={isYou ? `${name} (du)` : name}
       >
-        {avatar && <>{avatar} </>}
         {name}
         {isYou && " (du)"}
       </span>
       {pickerOpen && (
-        <div className="absolute top-[56px] z-20 flex gap-1 rounded-[9px] border border-edge bg-field px-1.5 py-1 shadow-card">
+        <div className="absolute top-full z-20 mt-1 flex gap-1 rounded-[9px] border border-edge bg-field px-1.5 py-1 shadow-card">
           {THROW_EMOJIS.map((emoji) => (
             <button
               key={emoji}

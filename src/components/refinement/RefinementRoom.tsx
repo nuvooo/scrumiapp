@@ -376,7 +376,11 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-              {p.avatar && <span className="text-[13px]">{p.avatar}</span>}
+              {p.avatar && (
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border border-edge bg-raise text-[13px] leading-none">
+                  {p.avatar}
+                </span>
+              )}
               {p.name}
               {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
