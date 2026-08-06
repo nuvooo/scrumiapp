@@ -30,6 +30,7 @@ import {
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
 import { onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
+import { AmbientMusic } from "@/lib/ambientMusic";
 
 /** Pause vor dem nächsten Versuch, wenn der State-Abruf fehlschlägt. */
 const RETRY_MS = 2000;
@@ -45,6 +46,43 @@ const TIMER_PRESETS = [
 
 const formatTimer = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+/**
+ * Hintergrundmusik (generative Lofi-Fläche per WebAudio). Läuft lokal —
+ * Browser erlauben Ton ohnehin nur nach eigener Interaktion, daher schaltet
+ * jeder für sich ein und aus.
+ */
+function MusicToggle() {
+  const musicRef = useRef<AmbientMusic | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => () => musicRef.current?.stop(), []);
+
+  if (!AmbientMusic.supported()) return null;
+
+  const toggle = () => {
+    if (playing) {
+      musicRef.current?.stop();
+      musicRef.current = null;
+      setPlaying(false);
+    } else {
+      musicRef.current = new AmbientMusic();
+      musicRef.current.start();
+      setPlaying(true);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      title={playing ? "Hintergrundmusik ausschalten" : "Entspannte Hintergrundmusik einschalten (nur für dich)"}
+      onClick={toggle}
+      className={`px-3 py-[7px] ${playing ? "btn-primary" : "btn-secondary"}`}
+    >
+      {playing ? "🎵 Musik aus" : "🎵 Musik"}
+    </button>
+  );
+}
 
 /** Countdown im Kopf: Server liefert Restsekunden, der Client tickt lokal weiter. */
 function TimerChip({
@@ -104,10 +142,10 @@ function TimerChip({
     <span
       className={`flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[13px] ${
         expired
-          ? "border-[#3A1E24] bg-[#170F12] text-danger"
+          ? "timer-pulse-fast border-[#3A1E24] bg-[#170F12] text-danger"
           : secondsLeft <= 30
-            ? "border-[#3A2A1E] bg-[#171106] text-[#F59E4A]"
-            : "border-edge bg-field text-fg"
+            ? "timer-pulse-fast border-[#3A2A1E] bg-[#171106] text-[#F59E4A]"
+            : "timer-pulse border-edge bg-field text-fg"
       }`}
     >
       {expired ? "⏰ Zeit ist um!" : `⏱ ${formatTimer(secondsLeft)}`}
@@ -352,6 +390,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <MusicToggle />
           <TimerChip
             remaining={state.timerRemainingSec}
             isAdmin={isAdmin}
