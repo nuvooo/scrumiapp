@@ -1,0 +1,251 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db";
+import { bumpRefinement } from "@/lib/refinementVersion";
+import { RETRO_COLORS, RETRO_TEMPLATES } from "@/lib/view/retroState";
+
+export interface ActionResult<T = undefined> {
+  ok: boolean;
+  error?: string;
+  data?: T;
+}
+
+function fail<T>(error: string): ActionResult<T> {
+  return { ok: false, error };
+}
+
+/** Versionszähler + WebSocket-Push für den Retro-Raum (eigener Key-Namensraum). */
+function bumpRetro(retroId: string): void {
+  bumpRefinement(`retro:${retroId}`);
+}
+
+/** Teilnehmer über sein Geräte-Token auflösen; adminOnly schützt Moderations-Aktionen. */
+async function requireParticipant(retroId: string, token: string, adminOnly = false) {
+  const participant = await prisma.retroParticipant.findUnique({ where: { token } });
+  if (!participant || participant.retroId !== retroId) return null;
+  if (adminOnly && !participant.isAdmin) return null;
+  return participant;
+}
+
+export async function createRetro(
+  teamId: string,
+  name: string,
+  adminName: string,
+  templateKey: string,
+  votesPerUser: number,
+): Promise<ActionResult<{ retroId: string; token: string }>> {
+  const trimmedName = name.trim();
+  const trimmedAdmin = adminName.trim();
+  if (!teamId || !trimmedName || !trimmedAdmin) return fail("Name und eigener Name sind Pflicht.");
+  const template = RETRO_TEMPLATES.find((t) => t.key === templateKey);
+  if (!template) return fail("Unbekanntes Template.");
+  if (!Number.isInteger(votesPerUser) || votesPerUser < 1 || votesPerUser > 20) {
+    return fail("Stimmen pro Person: 1 bis 20.");
+  }
+
+  const retro = await prisma.retro.create({
+    data: {
+      teamId,
+      name: trimmedName,
+      votesPerUser,
+      participants: { create: { name: trimmedAdmin, isAdmin: true } },
+      columns: {
+        create: template.columns.map((c, i) => ({ name: c.name, color: c.color, position: i })),
+      },
+    },
+    include: { participants: true },
+  });
+  revalidatePath("/retro");
+  return { ok: true, data: { retroId: retro.id, token: retro.participants[0].token } };
+}
+
+export async function joinRetro(
+  retroId: string,
+  name: string,
+  asAdmin = false,
+): Promise<ActionResult<{ token: string }>> {
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Bitte einen Namen angeben.");
+  const retro = await prisma.retro.findUnique({ where: { id: retroId } });
+  if (!retro) return fail("Retro nicht gefunden.");
+
+  try {
+    const participant = await prisma.retroParticipant.create({
+      data: { retroId, name: trimmed, isAdmin: asAdmin },
+    });
+    bumpRetro(retroId);
+    return { ok: true, data: { token: participant.token } };
+  } catch {
+    return fail(`Der Name „${trimmed}" ist in diesem Board schon vergeben.`);
+  }
+}
+
+export async function deleteRetro(retroId: string, token: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retro.delete({ where: { id: retroId } });
+  revalidatePath("/retro");
+  return { ok: true };
+}
+
+/** Verdeckt-Modus umschalten: an = anonym schreiben, aus = alle lesen mit. */
+export async function setRetroHidden(retroId: string, token: string, hidden: boolean): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retro.update({ where: { id: retroId }, data: { hidden } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function addRetroColumn(retroId: string, token: string, name: string, color: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Der Spaltenname darf nicht leer sein.");
+  if (!(RETRO_COLORS as readonly string[]).includes(color)) return fail("Unbekannte Farbe.");
+  const count = await prisma.retroColumn.count({ where: { retroId } });
+  await prisma.retroColumn.create({ data: { retroId, name: trimmed, color, position: count } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function renameRetroColumn(retroId: string, token: string, columnId: string, name: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Der Spaltenname darf nicht leer sein.");
+  await prisma.retroColumn.updateMany({ where: { id: columnId, retroId }, data: { name: trimmed } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function setRetroColumnColor(retroId: string, token: string, columnId: string, color: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  if (!(RETRO_COLORS as readonly string[]).includes(color)) return fail("Unbekannte Farbe.");
+  await prisma.retroColumn.updateMany({ where: { id: columnId, retroId }, data: { color } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function deleteRetroColumn(retroId: string, token: string, columnId: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retroColumn.deleteMany({ where: { id: columnId, retroId } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function addRetroCard(retroId: string, token: string, columnId: string, text: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const trimmed = text.trim();
+  if (!trimmed) return fail("Die Karte darf nicht leer sein.");
+  const column = await prisma.retroColumn.findFirst({ where: { id: columnId, retroId } });
+  if (!column) return fail("Spalte nicht gefunden.");
+  await prisma.retroCard.create({ data: { columnId, authorId: participant.id, text: trimmed } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Karte bearbeiten — nur der Autor oder der Moderator. */
+export async function updateRetroCard(retroId: string, token: string, cardId: string, text: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const trimmed = text.trim();
+  if (!trimmed) return fail("Die Karte darf nicht leer sein.");
+  const card = await prisma.retroCard.findFirst({
+    where: { id: cardId, column: { retroId } },
+  });
+  if (!card) return fail("Karte nicht gefunden.");
+  if (card.authorId !== participant.id && !participant.isAdmin) return fail("Nur eigene Karten lassen sich bearbeiten.");
+  await prisma.retroCard.update({ where: { id: cardId }, data: { text: trimmed } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function deleteRetroCard(retroId: string, token: string, cardId: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const card = await prisma.retroCard.findFirst({ where: { id: cardId, column: { retroId } } });
+  if (!card) return fail("Karte nicht gefunden.");
+  if (card.authorId !== participant.id && !participant.isAdmin) return fail("Nur eigene Karten lassen sich löschen.");
+  await prisma.retroCard.delete({ where: { id: cardId } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function addRetroComment(retroId: string, token: string, cardId: string, text: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const trimmed = text.trim();
+  if (!trimmed) return fail("Der Kommentar darf nicht leer sein.");
+  const card = await prisma.retroCard.findFirst({ where: { id: cardId, column: { retroId } } });
+  if (!card) return fail("Karte nicht gefunden.");
+  await prisma.retroComment.create({ data: { cardId, authorId: participant.id, text: trimmed } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+export async function deleteRetroComment(retroId: string, token: string, commentId: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const comment = await prisma.retroComment.findFirst({
+    where: { id: commentId, card: { column: { retroId } } },
+  });
+  if (!comment) return fail("Kommentar nicht gefunden.");
+  if (comment.authorId !== participant.id && !participant.isAdmin) return fail("Nur eigene Kommentare lassen sich löschen.");
+  await prisma.retroComment.delete({ where: { id: commentId } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Eine Stimme auf eine Karte legen — solange das eigene Kontingent reicht. */
+export async function voteRetroCard(retroId: string, token: string, cardId: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const retro = await prisma.retro.findUnique({ where: { id: retroId } });
+  if (!retro) return fail("Retro nicht gefunden.");
+  const card = await prisma.retroCard.findFirst({ where: { id: cardId, column: { retroId } } });
+  if (!card) return fail("Karte nicht gefunden.");
+  const used = await prisma.retroVote.count({
+    where: { participantId: participant.id, card: { column: { retroId } } },
+  });
+  if (used >= retro.votesPerUser) return fail(`Alle ${retro.votesPerUser} Stimmen sind vergeben.`);
+  await prisma.retroVote.create({ data: { cardId, participantId: participant.id } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Eine eigene Stimme von einer Karte zurücknehmen. */
+export async function unvoteRetroCard(retroId: string, token: string, cardId: string): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const vote = await prisma.retroVote.findFirst({
+    where: { cardId, participantId: participant.id },
+  });
+  if (!vote) return fail("Keine eigene Stimme auf dieser Karte.");
+  await prisma.retroVote.delete({ where: { id: vote.id } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/**
+ * Zwei Karten zusammenführen (auch spaltenübergreifend): Text wird angehängt,
+ * Kommentare und Stimmen wandern mit, die Quellkarte verschwindet.
+ */
+export async function mergeRetroCards(retroId: string, token: string, sourceId: string, targetId: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf mergen.");
+  if (sourceId === targetId) return fail("Eine Karte lässt sich nicht mit sich selbst mergen.");
+  const [source, target] = await Promise.all([
+    prisma.retroCard.findFirst({ where: { id: sourceId, column: { retroId } } }),
+    prisma.retroCard.findFirst({ where: { id: targetId, column: { retroId } } }),
+  ]);
+  if (!source || !target) return fail("Karte nicht gefunden.");
+  await prisma.$transaction([
+    prisma.retroCard.update({
+      where: { id: targetId },
+      data: { text: `${target.text}\n⸻\n${source.text}` },
+    }),
+    prisma.retroComment.updateMany({ where: { cardId: sourceId }, data: { cardId: targetId } }),
+    prisma.retroVote.updateMany({ where: { cardId: sourceId }, data: { cardId: targetId } }),
+    prisma.retroCard.delete({ where: { id: sourceId } }),
+  ]);
+  bumpRetro(retroId);
+  return { ok: true };
+}

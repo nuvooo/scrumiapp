@@ -33,6 +33,7 @@ model Team {
   sprints             Sprint[]
   members             TeamMember[]
   refinements         Refinement[]
+  retros              Retro[]
 }
 
 model Sprint {
@@ -186,4 +187,78 @@ model RefinementVote {
   points        Float?
 
   @@unique([ticketId, participantId])
+}
+
+model Retro {
+  id           String             @id @default(cuid())
+  team         Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId       String
+  name         String
+  /// Verdeckt-Modus: fremde Karten sind unkenntlich, Schreiben ist anonym
+  hidden       Boolean            @default(true)
+  /// Stimmen pro Teilnehmer fürs Voting
+  votesPerUser Int                @default(3)
+  createdAt    DateTime           @default(now())
+  columns      RetroColumn[]
+  participants RetroParticipant[]
+}
+
+model RetroColumn {
+  id       String      @id @default(cuid())
+  retro    Retro       @relation(fields: [retroId], references: [id], onDelete: Cascade)
+  retroId  String
+  name     String
+  /// Akzentfarbe der Spalte (Hex)
+  color    String
+  position Int
+  cards    RetroCard[]
+}
+
+model RetroParticipant {
+  id         String         @id @default(cuid())
+  retro      Retro          @relation(fields: [retroId], references: [id], onDelete: Cascade)
+  retroId    String
+  name       String
+  avatar     String         @default("")
+  isAdmin    Boolean        @default(false)
+  /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
+  token      String         @unique @default(cuid())
+  /// Letzter Heartbeat (WebSocket/Poll) — bestimmt, wer als anwesend gilt
+  lastSeenAt DateTime?
+  cards      RetroCard[]
+  comments   RetroComment[]
+  votes      RetroVote[]
+
+  @@unique([retroId, name])
+}
+
+model RetroCard {
+  id        String           @id @default(cuid())
+  column    RetroColumn      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  columnId  String
+  author    RetroParticipant @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  /// Freitext; Bild-/GIF-URLs werden im Board inline gerendert
+  text      String
+  createdAt DateTime         @default(now())
+  comments  RetroComment[]
+  votes     RetroVote[]
+}
+
+model RetroComment {
+  id        String           @id @default(cuid())
+  card      RetroCard        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId    String
+  author    RetroParticipant @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  String
+  text      String
+  createdAt DateTime         @default(now())
+}
+
+model RetroVote {
+  id            String           @id @default(cuid())
+  card          RetroCard        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId        String
+  participant   RetroParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
 }

@@ -29,11 +29,15 @@ const app = next({ dev: !prod });
 const handle = app.getRequestHandler();
 const prisma = new PrismaClient();
 
-/** refinementId -> offene Sockets in diesem Raum */
+/**
+ * Raum-Key -> offene Sockets. Refinements nutzen die rohe ID als Key,
+ * Retro-Boards den Namensraum "retro:<id>" — bumpRefinement() aus dem
+ * Next-Code verwendet exakt dieselben Keys.
+ */
 const rooms = new Map();
 
-function broadcast(refinementId) {
-  const sockets = rooms.get(refinementId);
+function broadcast(roomKey) {
+  const sockets = rooms.get(roomKey);
   if (!sockets) return;
   for (const ws of sockets) {
     if (ws.readyState === ws.OPEN) ws.send("changed");
@@ -52,43 +56,48 @@ const upgrade = app.getUpgradeHandler();
 const wss = new WebSocketServer({ noServer: true });
 
 wss.on("connection", async (ws, req) => {
-  const { query } = parse(req.url ?? "", true);
-  const refinementId = String(query.id ?? "");
+  const { pathname, query } = parse(req.url ?? "", true);
+  const kind = pathname === "/ws/retro" ? "retro" : "refinement";
+  const roomId = String(query.id ?? "");
   const token = String(query.token ?? "");
-  if (!refinementId) return ws.close();
+  if (!roomId) return ws.close();
+  const roomKey = kind === "retro" ? `retro:${roomId}` : roomId;
+  // Teilnehmer-Tabelle je Raumtyp — gleiche Mechanik, andere Tabelle.
+  const table = kind === "retro" ? prisma.retroParticipant : prisma.refinementParticipant;
 
-  const sockets = rooms.get(refinementId) ?? new Set();
+  const sockets = rooms.get(roomKey) ?? new Set();
   sockets.add(ws);
-  rooms.set(refinementId, sockets);
+  rooms.set(roomKey, sockets);
 
   // Anwesenheit: Teilnehmer über sein Geräte-Token erkennen und regelmäßig
   // als „da" markieren, solange die Verbindung steht.
   let participant = null;
   try {
-    const found = token ? await prisma.refinementParticipant.findUnique({ where: { token } }) : null;
-    if (found && found.refinementId === refinementId) participant = found;
+    const found = token ? await table.findUnique({ where: { token } }) : null;
+    const belongs = found && (kind === "retro" ? found.retroId : found.refinementId) === roomId;
+    if (belongs) participant = found;
   } catch {
     // DB kurz nicht erreichbar — Verbindung trotzdem halten, nur ohne Heartbeat.
   }
 
   const beat = () =>
     participant &&
-    prisma.refinementParticipant
+    table
       .update({ where: { id: participant.id }, data: { lastSeenAt: new Date() } })
       .catch(() => {});
   await beat();
-  if (participant) broadcast(refinementId);
+  if (participant) broadcast(roomKey);
   const timer = setInterval(beat, HEARTBEAT_MS);
 
   ws.on("close", async () => {
     sockets.delete(ws);
     clearInterval(timer);
     if (participant) {
-      // Sofort als abwesend markieren — der Sitz räumt sich ohne Timeout.
-      await prisma.refinementParticipant
+      // Sofort als abwesend markieren — der Platz räumt sich ohne Timeout.
+      await table
         .update({ where: { id: participant.id }, data: { lastSeenAt: null } })
         .catch(() => {});
-      broadcast(refinementId);
+      broadcast(roomKey);
     }
   });
 });
@@ -97,7 +106,7 @@ const server = createServer((req, res) => handle(req, res, parse(req.url ?? "", 
 
 server.on("upgrade", (req, socket, head) => {
   const { pathname } = parse(req.url ?? "", true);
-  if (pathname === "/ws/refinement") {
+  if (pathname === "/ws/refinement" || pathname === "/ws/retro") {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   } else {
     // Nexts eigene Sockets (HMR im Dev-Modus) weiterreichen
