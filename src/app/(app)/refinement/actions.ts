@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { JiraCloudClient, jiraConfigFromEnv, type JiraSearchResult } from "@/lib/jira/jiraClient";
+import { addThrow } from "@/lib/refinementThrows";
+import { THROW_EMOJIS } from "@/lib/view/refinementState";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -304,6 +306,25 @@ export async function acceptEstimate(
     // Das Ticket kann in gesyncten Sprints liegen — Ansichten sofort aktuell halten.
     prisma.issue.updateMany({ where: { jiraKey: ticket.jiraKey }, data: { storyPoints: points } }),
   ]);
+  return { ok: true };
+}
+
+/** Jemanden mit einem Emoji bewerfen — reine Show, landet im flüchtigen Wurf-Store. */
+export async function throwEmoji(
+  refinementId: string,
+  token: string,
+  targetName: string,
+  emoji: string,
+): Promise<ActionResult> {
+  const participant = await requireParticipant(refinementId, token);
+  if (!participant) return fail("Nicht Teil dieser Session.");
+  if (!(THROW_EMOJIS as readonly string[]).includes(emoji)) return fail("Dieses Emoji gibt es nicht.");
+  if (targetName === participant.name) return fail("Sich selbst bewirft man nicht.");
+  const target = await prisma.refinementParticipant.findFirst({
+    where: { refinementId, name: targetName },
+  });
+  if (!target) return fail("Zielperson nicht gefunden.");
+  addThrow(refinementId, participant.name, targetName, emoji);
   return { ok: true };
 }
 

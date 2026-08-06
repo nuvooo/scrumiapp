@@ -1,23 +1,102 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import { formatPoints } from "@/lib/format";
-import type { RefinementStateView, RefinementParticipantView } from "@/lib/view/refinementState";
+import { isUnanimous } from "@/lib/metrics/refinementVotes";
+import {
+  THROW_EMOJIS,
+  type RefinementStateView,
+  type RefinementParticipantView,
+  type RefinementThrowView,
+} from "@/lib/view/refinementState";
 
 const POKER_CARDS = [1, 2, 3, 5, 8, 13, 20];
+const SCRUMI_COLORS = ["#A5BAFF", "#5E80EE", "#3EDBB6", "#F59E4A", "#FFFFFF"];
 
 function cardLabel(points: number | null): string {
   return points === null ? "?" : formatPoints(points);
+}
+
+/** Konfetti über die ganze Seite, wenn alle dieselbe Karte gelegt haben. */
+function playUnanimityConfetti() {
+  const sides = () => {
+    confetti({ particleCount: 110, angle: 60, spread: 70, origin: { x: 0, y: 0.9 }, startVelocity: 55, ticks: 220, colors: SCRUMI_COLORS });
+    confetti({ particleCount: 110, angle: 120, spread: 70, origin: { x: 1, y: 0.9 }, startVelocity: 55, ticks: 220, colors: SCRUMI_COLORS });
+  };
+  sides();
+  setTimeout(sides, 350);
+  setTimeout(
+    () => confetti({ particleCount: 160, spread: 360, origin: { x: 0.5, y: 0.4 }, startVelocity: 30, ticks: 200, colors: SCRUMI_COLORS }),
+    700,
+  );
+}
+
+const seatRect = (name: string): DOMRect | null =>
+  document.querySelector(`[data-seat="${CSS.escape(name)}"]`)?.getBoundingClientRect() ?? null;
+
+/**
+ * Lässt ein geworfenes Emoji im Bogen zum Ziel-Sitz fliegen. Löst auf, wenn
+ * das Emoji einschlägt (dann wackelt der Sitz). Ohne Ziel-Sitz oder ohne
+ * Web-Animations-API (jsdom) passiert einfach nichts.
+ */
+function launchThrow(t: RefinementThrowView): Promise<boolean> {
+  return new Promise((resolve) => {
+    const target = seatRect(t.to);
+    if (!target) return resolve(false);
+    // Der Moderator sitzt nicht am Tisch — sein Wurf kommt vom Seitenrand.
+    const source = seatRect(t.from);
+    const from = source
+      ? { x: source.left + source.width / 2, y: source.top + source.height / 2 }
+      : { x: -30, y: window.innerHeight * 0.25 };
+    const to = { x: target.left + target.width / 2 - 14, y: target.top + target.height / 2 - 14 };
+
+    const el = document.createElement("span");
+    el.textContent = t.emoji;
+    el.style.cssText = "position:fixed;left:0;top:0;z-index:60;font-size:28px;line-height:1;pointer-events:none;will-change:transform;";
+    document.body.appendChild(el);
+    if (typeof el.animate !== "function") {
+      el.remove();
+      return resolve(true);
+    }
+    const peakY = Math.min(from.y, to.y) - 80;
+    const anim = el.animate(
+      [
+        { transform: `translate(${from.x}px, ${from.y}px) scale(0.6) rotate(0deg)` },
+        { transform: `translate(${(from.x + to.x) / 2}px, ${peakY}px) scale(1.3) rotate(200deg)`, offset: 0.55 },
+        { transform: `translate(${to.x}px, ${to.y}px) scale(1) rotate(360deg)` },
+      ],
+      { duration: 650, easing: "ease-in-out" },
+    );
+    anim.onfinish = () => {
+      el.remove();
+      resolve(true);
+    };
+  });
 }
 
 /** Ein Sitzplatz am Tisch: Kartenplatz (leer / Rücken / offen) über dem Namen. */
 function Seat({
   participant,
   revealedPoints,
+  flipDelayMs,
+  canThrow,
+  pickerOpen,
+  onTogglePicker,
+  onThrow,
+  hitSeq,
 }: {
   participant: RefinementParticipantView;
   /** undefined = noch nicht aufgedeckt; sonst der offene Wert (null = „?"). */
   revealedPoints: number | null | undefined;
+  /** Staffelt den Flip beim Aufdecken: Sitz für Sitz statt alle gleichzeitig. */
+  flipDelayMs: number;
+  canThrow: boolean;
+  pickerOpen: boolean;
+  onTogglePicker: () => void;
+  onThrow: (emoji: string) => void;
+  /** Zählt Treffer — jede Erhöhung spielt das Wackeln neu ab. */
+  hitSeq: number;
 }) {
   const { name, voted } = participant;
   const faceUp = voted && revealedPoints !== undefined;
@@ -25,21 +104,51 @@ function Seat({
     <div
       data-testid={`participant-${name}`}
       data-voted={voted}
-      className="flex w-[64px] flex-col items-center gap-1.5"
+      className="relative flex w-[64px] flex-col items-center gap-1.5"
     >
-      <span
+      <button
+        type="button"
+        key={hitSeq}
+        data-seat={name}
         data-testid={`seat-card-${name}`}
-        className={`flex h-[52px] w-[38px] items-center justify-center rounded-[7px] font-mono text-[15px] font-semibold ${
-          faceUp
-            ? "border border-accent bg-chip text-fg"
-            : voted
-              ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
-              : "border border-dashed border-edge bg-field"
-        }`}
+        aria-label={canThrow ? `${name} bewerfen` : undefined}
+        title={canThrow ? "Mit einem Emoji bewerfen" : undefined}
+        onClick={canThrow ? onTogglePicker : undefined}
+        disabled={!canThrow}
+        className={`flip-scene block h-[52px] w-[38px] ${hitSeq > 0 ? "seat-hit" : ""} ${canThrow ? "cursor-pointer" : "cursor-default"}`}
       >
-        {faceUp ? cardLabel(revealedPoints ?? null) : ""}
-      </span>
+        <span
+          className={`flip-card ${faceUp ? "is-open" : ""}`}
+          style={{ transitionDelay: faceUp ? `${flipDelayMs}ms` : "0ms" }}
+        >
+          <span
+            className={`flip-face ${
+              voted
+                ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
+                : "border border-dashed border-edge bg-field"
+            }`}
+          />
+          <span className="flip-face flip-face-up border border-accent bg-chip font-mono text-[15px] font-semibold text-fg">
+            {faceUp ? cardLabel(revealedPoints ?? null) : ""}
+          </span>
+        </span>
+      </button>
       <span className="max-w-[64px] truncate text-[11.5px] text-mid">{name}</span>
+      {pickerOpen && (
+        <div className="absolute top-[56px] z-20 flex gap-1 rounded-[9px] border border-edge bg-field px-1.5 py-1 shadow-card">
+          {THROW_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              aria-label={`${emoji} auf ${name} werfen`}
+              onClick={() => onThrow(emoji)}
+              className="text-[16px] transition-transform hover:-translate-y-0.5"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -63,6 +172,7 @@ export function RefinementVoting({
   onReveal,
   onAccept,
   onFinish,
+  onThrow,
 }: {
   state: RefinementStateView;
   onVote: (points: number | null) => void;
@@ -72,6 +182,8 @@ export function RefinementVoting({
   onReveal: () => void;
   onAccept: (points: number) => void;
   onFinish: () => void;
+  /** Wirft ein Emoji auf eine andere Person am Tisch. */
+  onThrow: (targetName: string, emoji: string) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
   const active = state.activeTicket;
@@ -79,6 +191,13 @@ export function RefinementVoting({
   const revealed = active?.state === "REVEALED" || active?.state === "ESTIMATED";
   const accepted = active?.state === "ESTIMATED";
   const [finalText, setFinalText] = useState("");
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  /** Treffer-Zähler pro Name — löst das Wackeln am getroffenen Sitz aus. */
+  const [hits, setHits] = useState<Record<string, number>>({});
+  const celebratedRef = useRef<string | null>(null);
+  // null = erster Poll noch nicht da; dann alles Bisherige als gesehen markieren,
+  // damit beim (Wieder-)Beitritt keine alten Würfe nachgespielt werden.
+  const seenThrowsRef = useRef<Set<string> | null>(null);
 
   // Median als Vorschlag, sobald aufgedeckt wird (Admin kann überschreiben).
   useEffect(() => {
@@ -87,6 +206,38 @@ export function RefinementVoting({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, active?.id]);
+
+  const unanimous = revealed && !!active?.votes && isUnanimous(active.votes.map((v) => v.points));
+
+  // Konfetti genau einmal pro Aufdeck-Runde; „Neu abstimmen" setzt zurück.
+  useEffect(() => {
+    if (!active) return;
+    if (!revealed) {
+      if (celebratedRef.current === active.id) celebratedRef.current = null;
+      return;
+    }
+    if (unanimous && celebratedRef.current !== active.id) {
+      celebratedRef.current = active.id;
+      playUnanimityConfetti();
+    }
+  }, [active, revealed, unanimous]);
+
+  // Neue Wurf-Events aus dem Poll animieren; beim Einschlag wackelt der Sitz.
+  useEffect(() => {
+    const throws = state.throws ?? [];
+    if (seenThrowsRef.current === null) {
+      seenThrowsRef.current = new Set(throws.map((t) => t.id));
+      return;
+    }
+    const seen = seenThrowsRef.current;
+    for (const t of throws) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      launchThrow(t).then((landed) => {
+        if (landed) setHits((prev) => ({ ...prev, [t.to]: (prev[t.to] ?? 0) + 1 }));
+      });
+    }
+  }, [state.throws]);
 
   const accept = () => {
     const points = Number(finalText.replace(",", "."));
@@ -104,6 +255,23 @@ export function RefinementVoting({
   const votedCount = estimators.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
   const { top, bottom, left, right } = seats(estimators);
+
+  const seat = (p: RefinementParticipantView) => (
+    <Seat
+      key={p.name}
+      participant={p}
+      revealedPoints={revealedFor(p.name)}
+      flipDelayMs={Math.max(0, estimators.findIndex((e) => e.name === p.name)) * 90}
+      canThrow={!!state.you && p.name !== state.you.name}
+      pickerOpen={pickerFor === p.name}
+      onTogglePicker={() => setPickerFor((cur) => (cur === p.name ? null : p.name))}
+      onThrow={(emoji) => {
+        setPickerFor(null);
+        onThrow(p.name, emoji);
+      }}
+      hitSeq={hits[p.name] ?? 0}
+    />
+  );
 
   // Das nächste offene Ticket (noch nicht geschätzt, nicht das aktuelle).
   const nextTicket = state.tickets.find((t) => t.state !== "ESTIMATED" && t.id !== active?.id) ?? null;
@@ -159,13 +327,13 @@ export function RefinementVoting({
           <div className="mt-6 flex flex-col items-center gap-3">
             {top.length > 0 && (
               <div className="flex justify-center gap-4">
-                {top.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                {top.map(seat)}
               </div>
             )}
             <div className="flex w-full items-center justify-center gap-4">
               {left.length > 0 && (
                 <div className="flex flex-col gap-4">
-                  {left.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                  {left.map(seat)}
                 </div>
               )}
               <div className="flex min-h-[130px] w-full max-w-[440px] flex-col items-center justify-center gap-3 rounded-[22px] border border-line bg-[rgba(124,156,255,0.07)] px-6 py-5 text-center">
@@ -183,10 +351,22 @@ export function RefinementVoting({
                 )}
                 {revealed && (
                   <>
-                    <div className="font-mono text-[13px] text-fg">
-                      {active.stats?.average != null
-                        ? <>Ø {formatPoints(active.stats.average)} · Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen</>
-                        : "Keine numerischen Stimmen."}
+                    <div className="stats-pop flex flex-col items-center gap-1">
+                      {active.stats?.average != null ? (
+                        <>
+                          <div className="font-mono text-[34px] font-bold leading-none tracking-tight text-fg">
+                            Ø {formatPoints(active.stats.average)}
+                          </div>
+                          <div className="font-mono text-[12px] text-mid">
+                            Median {formatPoints(active.stats.median ?? 0)} · {active.stats.count} Stimmen
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[13px] text-mid">Keine numerischen Stimmen.</div>
+                      )}
+                      {unanimous && (
+                        <div className="text-[12.5px] font-semibold text-ok">Einstimmig! 🎉</div>
+                      )}
                     </div>
                     {accepted && activeFinal !== null && (
                       <div className="text-[13px] font-semibold text-ok">
@@ -235,13 +415,13 @@ export function RefinementVoting({
               </div>
               {right.length > 0 && (
                 <div className="flex flex-col gap-4">
-                  {right.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                  {right.map(seat)}
                 </div>
               )}
             </div>
             {bottom.length > 0 && (
               <div className="flex justify-center gap-4">
-                {bottom.map((p) => <Seat key={p.name} participant={p} revealedPoints={revealedFor(p.name)} />)}
+                {bottom.map(seat)}
               </div>
             )}
           </div>

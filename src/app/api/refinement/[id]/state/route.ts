@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { calcVoteStats } from "@/lib/metrics/refinementVotes";
+import { recentThrows } from "@/lib/refinementThrows";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       state: t.state,
       finalPoints: t.finalPoints,
     })),
+    throws: recentThrows(refinement.id),
     activeTicket: active
       ? {
           id: active.id,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcVoteStats } from "./refinementVotes";
+import { calcVoteStats, isUnanimous } from "./refinementVotes";
 
 describe("calcVoteStats", () => {
   it("berechnet Durchschnitt und Median", () => {
@@ -17,5 +17,26 @@ describe("calcVoteStats", () => {
   it("liefert null ohne numerische Votes", () => {
     expect(calcVoteStats([null, null])).toEqual({ average: null, median: null, count: 0 });
     expect(calcVoteStats([])).toEqual({ average: null, median: null, count: 0 });
+  });
+});
+
+describe("isUnanimous", () => {
+  it("erkennt Einstimmigkeit ab zwei gleichen Karten", () => {
+    expect(isUnanimous([5, 5])).toBe(true);
+    expect(isUnanimous([8, 8, 8])).toBe(true);
+  });
+
+  it("verschiedene Karten sind nicht einstimmig", () => {
+    expect(isUnanimous([5, 8])).toBe(false);
+  });
+
+  it("„?“-Votes (null) verhindern Einstimmigkeit", () => {
+    expect(isUnanimous([5, 5, null])).toBe(false);
+    expect(isUnanimous([null, null])).toBe(false);
+  });
+
+  it("eine einzelne Stimme ist kein Konsens", () => {
+    expect(isUnanimous([5])).toBe(false);
+    expect(isUnanimous([])).toBe(false);
   });
 });

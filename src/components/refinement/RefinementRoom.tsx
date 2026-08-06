@@ -18,6 +18,7 @@ import {
   retractVote,
   revealVotes,
   acceptEstimate,
+  throwEmoji,
   finishRefinement,
   renameRefinement,
   deleteRefinement,
@@ -270,6 +271,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           onAccept={(points) => {
             if (state.activeTicket) run(() => acceptEstimate(refinementId, t, state.activeTicket!.id, points));
           }}
+          onThrow={(targetName, emoji) => run(() => throwEmoji(refinementId, t, targetName, emoji))}
           onFinish={() => run(() => finishRefinement(refinementId, t))}
         />
       )}

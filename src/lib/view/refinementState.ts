@@ -34,6 +34,18 @@ export interface ActiveTicketView extends Omit<RefinementTicketView, "finalPoint
   stats: { average: number | null; median: number | null; count: number } | null;
 }
 
+/** Emojis, mit denen man andere anstupsen (bewerfen) darf. */
+export const THROW_EMOJIS = ["🍅", "🥚", "❤️", "👏", "😴"] as const;
+
+/** Flüchtiges Wurf-Event — lebt serverseitig nur wenige Sekunden. */
+export interface RefinementThrowView {
+  id: string;
+  from: string;
+  to: string;
+  emoji: string;
+  at: number;
+}
+
 export interface RefinementStateView {
   id: string;
   name: string;
@@ -42,4 +54,6 @@ export interface RefinementStateView {
   participants: RefinementParticipantView[];
   tickets: RefinementTicketView[];
   activeTicket: ActiveTicketView | null;
+  /** Kürzlich geworfene Emojis (Anstupsen) — Clients animieren neue Events. */
+  throws: RefinementThrowView[];
 }

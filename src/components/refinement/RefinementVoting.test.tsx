@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
+
+import confetti from "canvas-confetti";
 import { RefinementVoting } from "./RefinementVoting";
 import type { RefinementStateView } from "@/lib/view/refinementState";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.mocked(confetti).mockClear();
+});
 
 const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView => ({
   id: "r1",
@@ -23,6 +30,7 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
     id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
     state: "VOTING", myVoteGiven: false, votes: null, stats: null,
   },
+  throws: [],
   ...over,
 });
 
@@ -46,7 +54,7 @@ const revealedState = (): RefinementStateView =>
   });
 
 const noop = () => {};
-const handlers = { onVote: noop, onRetract: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
+const handlers = { onVote: noop, onRetract: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop, onThrow: noop };
 
 describe("RefinementVoting", () => {
   it("zeigt den Tisch: abgestimmt = Kartenrücken, Moderator ohne Sitzplatz", () => {
@@ -161,5 +169,59 @@ describe("RefinementVoting", () => {
     fireEvent.change(input, { target: { value: "13" } });
     fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
     expect(onAccept).toHaveBeenCalledWith(13);
+  });
+
+  it("aufgedeckte Karten liegen als Flip offen (is-open)", () => {
+    render(<RefinementVoting state={revealedState()} {...handlers} />);
+    expect(screen.getByTestId("seat-card-Ben").querySelector(".flip-card")).toHaveClass("is-open");
+    // Vor dem Aufdecken bleibt die Karte zu
+    cleanup();
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    expect(screen.getByTestId("seat-card-Zoe").querySelector(".flip-card")).not.toHaveClass("is-open");
+  });
+
+  it("Klick auf einen fremden Sitz öffnet den Emoji-Picker und wirft", () => {
+    const onThrow = vi.fn();
+    render(<RefinementVoting state={baseState()} {...handlers} onThrow={onThrow} />);
+    fireEvent.click(screen.getByRole("button", { name: "Zoe bewerfen" }));
+    fireEvent.click(screen.getByRole("button", { name: "🍅 auf Zoe werfen" }));
+    expect(onThrow).toHaveBeenCalledWith("Zoe", "🍅");
+    // Picker schließt nach dem Wurf
+    expect(screen.queryByRole("button", { name: "🍅 auf Zoe werfen" })).not.toBeInTheDocument();
+  });
+
+  it("den eigenen Sitz kann man nicht bewerfen", () => {
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    expect(screen.queryByRole("button", { name: "Ben bewerfen" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("seat-card-Ben")).toBeDisabled();
+  });
+
+  it("feiert Einstimmigkeit mit Konfetti — aber nur einmal pro Aufdecken", () => {
+    const unanimousState = (): RefinementStateView =>
+      baseState({
+        activeTicket: {
+          id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
+          state: "REVEALED", myVoteGiven: true, myVote: 8,
+          votes: [
+            { name: "Ben", points: 8 },
+            { name: "Zoe", points: 8 },
+          ],
+          stats: { average: 8, median: 8, count: 2 },
+        },
+      });
+    const { rerender } = render(<RefinementVoting state={unanimousState()} {...handlers} />);
+    expect(confetti).toHaveBeenCalled();
+    expect(screen.getByText(/Einstimmig!/)).toBeInTheDocument();
+
+    // Ein weiterer Poll mit gleichem Stand feiert nicht erneut
+    vi.mocked(confetti).mockClear();
+    rerender(<RefinementVoting state={unanimousState()} {...handlers} />);
+    expect(confetti).not.toHaveBeenCalled();
+  });
+
+  it("kein Konfetti bei unterschiedlichen Karten oder „?“", () => {
+    render(<RefinementVoting state={revealedState()} {...handlers} />);
+    expect(confetti).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Einstimmig!/)).not.toBeInTheDocument();
   });
 });
