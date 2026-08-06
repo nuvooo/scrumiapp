@@ -134,6 +134,12 @@ select option {
   }
 }
 
+/* Seiten mit data-full-width (z. B. Retro-Board) heben die 1320-px-Grenze
+   des Hauptbereichs auf und nutzen die volle Breite. */
+main:has([data-full-width]) {
+  max-width: none;
+}
+
 /* Refinement-Tisch: 3D-Flip beim Aufdecken der Karten */
 .flip-scene {
   perspective: 700px;
@@ -178,6 +184,20 @@ select option {
 
 .seat-hit {
   animation: seat-hit 0.55s ease;
+}
+
+/* Laufender Retro-Timer pulsiert sanft — unter 30 s schneller. */
+@keyframes timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.timer-pulse {
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+
+.timer-pulse-fast {
+  animation: timer-pulse 0.7s ease-in-out infinite;
 }
 
 /* Der Schnitt ploppt auf, sobald die Karten fertig gedreht sind. */

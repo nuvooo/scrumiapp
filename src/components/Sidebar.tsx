@@ -60,6 +60,10 @@ export function Sidebar({ jiraHost }: { jiraHost: string | null }) {
         </div>
         {jiraHost && <div className="mt-1 font-mono text-[11px] text-faint">{jiraHost}</div>}
       </div>
+
+      {/* Andock-Platz fürs Profil (ProfileDock rendert hier per Portal hinein,
+          sobald man in einem Refinement/Retro angemeldet ist). */}
+      <div id="profile-dock-slot" />
     </aside>
   );
 }

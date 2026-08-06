@@ -40,16 +40,18 @@ export async function createRefinement(
   teamId: string,
   name: string,
   adminName: string,
+  adminAvatar = "",
 ): Promise<ActionResult<{ refinementId: string; token: string }>> {
   const trimmedName = name.trim();
   const trimmedAdmin = adminName.trim();
   if (!teamId || !trimmedName || !trimmedAdmin) return fail("Name und eigener Name sind Pflicht.");
+  const avatar = (AVATAR_EMOJIS as readonly string[]).includes(adminAvatar) ? adminAvatar : "";
 
   const refinement = await prisma.refinement.create({
     data: {
       teamId,
       name: trimmedName,
-      participants: { create: { name: trimmedAdmin, isAdmin: true } },
+      participants: { create: { name: trimmedAdmin, avatar, isAdmin: true } },
     },
     include: { participants: true },
   });

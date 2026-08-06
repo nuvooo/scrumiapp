@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
-import { AVATAR_EMOJIS, type RefinementRole, type RefinementStateView } from "@/lib/view/refinementState";
+import { type RefinementRole, type RefinementStateView } from "@/lib/view/refinementState";
+import { REFINEMENT_ROLES, onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
@@ -35,12 +36,6 @@ const RETRY_MS = 2000;
 const tokenKey = (id: string) => `scrumi.refinement.${id}.token`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ROLES: { value: RefinementRole; label: string; hint: string }[] = [
-  { value: "estimator", label: "Schätzer", hint: "sitzt am Tisch und stimmt ab" },
-  { value: "moderator", label: "Moderator", hint: "deckt auf und übernimmt Schätzungen" },
-  { value: "visitor", label: "Besucher", hint: "schaut nur zu" },
-];
-
 const roleOf = (you: { isAdmin: boolean; isVisitor: boolean }): RefinementRole =>
   you.isAdmin ? "moderator" : you.isVisitor ? "visitor" : "estimator";
 
@@ -53,10 +48,6 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const [joinRole, setJoinRole] = useState<RefinementRole>("estimator");
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
-  const [editingProfile, setEditingProfile] = useState(false);
-  const [profileName, setProfileName] = useState("");
-  const [profileAvatar, setProfileAvatar] = useState("");
-  const [profileRole, setProfileRole] = useState<RefinementRole>("estimator");
   const [error, setError] = useState<string | null>(null);
   // Zählt lokale Aktionen: Poll-Antworten, die vor einer Aktion gestartet
   // sind, werden verworfen — sonst überschreibt veralteter Server-Stand die
@@ -67,6 +58,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
 
   useEffect(() => {
     setToken(window.localStorage.getItem(tokenKey(refinementId)));
+    const profile = storedProfile();
+    setJoinName((current) => current || profile.name);
+    setJoinRole(profile.refinementRole as RefinementRole);
     setTokenLoaded(true);
   }, [refinementId]);
 
@@ -83,6 +77,25 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       setState(data);
     }
   }, [refinementId, token]);
+
+  const joined = !!state?.you;
+
+  // Zentrales Profil (Dock unten links) gespeichert → in diese Session übernehmen.
+  useEffect(() => {
+    if (!joined || !token) return;
+    return onProfileSaved(async (p) => {
+      await updateProfile(refinementId, token, p.name, p.avatar, p.refinementRole as RefinementRole);
+      refresh();
+    });
+  }, [joined, token, refinementId, refresh]);
+
+  // Erstbefüllung: ohne gespeichertes Profil den Session-Namen/-Avatar übernehmen.
+  useEffect(() => {
+    if (!state?.you) return;
+    if (storedProfile().name === "") {
+      writeProfile({ name: state.you.name, avatar: state.you.avatar, refinementRole: roleOf(state.you) }, false);
+    }
+  }, [state?.you]);
 
   // Echter Push statt Polling: Der WebSocket (server.mjs) meldet "changed",
   // sobald sich im Raum etwas tut — dann wird der Zustand einmal abgerufen.
@@ -212,13 +225,13 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           </button>
         </div>
         <div className="mt-3 flex flex-col gap-1.5">
-          {ROLES.map((r) => (
+          {REFINEMENT_ROLES.map((r) => (
             <label key={r.value} className="flex cursor-pointer items-center gap-2 text-[13px] text-mid">
               <input
                 type="radio"
                 name="join-role"
                 checked={joinRole === r.value}
-                onChange={() => setJoinRole(r.value)}
+                onChange={() => setJoinRole(r.value as RefinementRole)}
                 className="h-4 w-4 accent-[#6e8ff6]"
               />
               <span className="font-medium text-fg">{r.label}</span>
@@ -238,19 +251,6 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const saveName = async () => {
     await run(() => renameRefinement(refinementId, t, nameText));
     setRenaming(false);
-  };
-
-  const openProfile = () => {
-    if (!state.you) return;
-    setProfileName(state.you.name);
-    setProfileAvatar(state.you.avatar);
-    setProfileRole(roleOf(state.you));
-    setEditingProfile(true);
-  };
-
-  const saveProfile = async () => {
-    await run(() => updateProfile(refinementId, t, profileName, profileAvatar, profileRole));
-    setEditingProfile(false);
   };
 
   /** Vom Refinement abmelden: Teilnehmer löschen, Token vergessen, zurück zur Übersicht. */
@@ -308,15 +308,10 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             {state.you && (
               <>
                 {" · du bist "}
-                <button
-                  type="button"
-                  onClick={openProfile}
-                  title="Name und Avatar ändern"
-                  className="cursor-pointer font-medium text-link hover:text-linkhi hover:underline"
-                >
+                <span className="font-medium text-fg">
                   {state.you.avatar && <>{state.you.avatar} </>}
-                  {state.you.name} ✎
-                </button>
+                  {state.you.name}
+                </span>
                 {isAdmin ? " (Moderator)" : state.you.isVisitor ? " (Besucher)" : ""}
               </>
             )}
@@ -364,70 +359,6 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       </div>
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}
 
-      {editingProfile && state.you && (
-        <div className="card mt-4 max-w-[460px] p-[18px]">
-          <div className="text-sm font-semibold">Dein Profil</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <input
-              aria-label="Dein Name"
-              value={profileName}
-              onChange={(e) => setProfileName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && saveProfile()}
-              className="input-field min-w-0 flex-1"
-            />
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              aria-label="Kein Avatar"
-              title="Kein Avatar"
-              onClick={() => setProfileAvatar("")}
-              className={`flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border text-[12px] text-mid ${
-                profileAvatar === "" ? "border-accent bg-chip" : "border-edge bg-field"
-              }`}
-            >
-              –
-            </button>
-            {AVATAR_EMOJIS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                aria-label={`Avatar ${a}`}
-                onClick={() => setProfileAvatar(a)}
-                className={`flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border text-[17px] ${
-                  profileAvatar === a ? "border-accent bg-chip" : "border-edge bg-field hover:border-tipline"
-                }`}
-              >
-                {a}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3.5 flex flex-col gap-1.5 border-t border-line pt-3">
-            <div className="text-[12px] font-medium text-mid">Rolle</div>
-            {ROLES.map((r) => (
-              <label key={r.value} className="flex cursor-pointer items-center gap-2 text-[13px] text-mid">
-                <input
-                  type="radio"
-                  name="profile-role"
-                  checked={profileRole === r.value}
-                  onChange={() => setProfileRole(r.value)}
-                  className="h-4 w-4 accent-[#6e8ff6]"
-                />
-                <span className="font-medium text-fg">{r.label}</span>
-                <span className="text-[12px] text-dim">— {r.hint}</span>
-              </label>
-            ))}
-          </div>
-          <div className="mt-3.5 flex gap-2">
-            <button type="button" onClick={saveProfile} className="btn-primary px-4 py-2">
-              Speichern
-            </button>
-            <button type="button" onClick={() => setEditingProfile(false)} className="btn-secondary px-3.5 py-2">
-              Abbrechen
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Wer ist da? Nur wer gerade anwesend ist (Heartbeat) wird angezeigt. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -518,6 +449,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           ))}
         </div>
       )}
+
     </div>
   );
 }
