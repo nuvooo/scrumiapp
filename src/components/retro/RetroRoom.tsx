@@ -225,7 +225,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
   };
 
   return (
-    <div>
+    <div data-full-width>
       <Link href="/retro" className="inline-block text-[12.5px] text-muted hover:text-fg hover:underline">
         ← Zur Übersicht
       </Link>

@@ -134,6 +134,12 @@ select option {
   }
 }
 
+/* Seiten mit data-full-width (z. B. Retro-Board) heben die 1320-px-Grenze
+   des Hauptbereichs auf und nutzen die volle Breite. */
+main:has([data-full-width]) {
+  max-width: none;
+}
+
 /* Refinement-Tisch: 3D-Flip beim Aufdecken der Karten */
 .flip-scene {
   perspective: 700px;
