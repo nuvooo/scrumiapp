@@ -44,8 +44,21 @@ export interface ActiveTicketView extends Omit<RefinementTicketView, "finalPoint
 /** Emojis, mit denen man andere anstupsen (bewerfen) darf. */
 export const THROW_EMOJIS = ["🍅", "🥚", "❤️", "👏", "😴"] as const;
 
-/** Auswahl an Emoji-Avataren fürs eigene Profil. */
-export const AVATAR_EMOJIS = ["🦊", "🐼", "🐸", "🦄", "🐙", "🐝", "🦖", "🐳", "🦉", "🐱", "🐰", "🦁"] as const;
+/** Auswahl an Emoji-Avataren fürs eigene Profil — kuratierte Tier-Sammlung. */
+export const AVATAR_EMOJIS = [
+  // Klassiker
+  "🦊", "🐼", "🐸", "🦄", "🐙", "🐝", "🦖", "🐳", "🦉", "🐱", "🐰", "🦁",
+  // Hunde, Wild- und Waldtiere
+  "🐶", "🐺", "🦝", "🐻", "🐨", "🐯", "🦔", "🐿️", "🦫", "🦇",
+  // Hof und Savanne
+  "🐮", "🐷", "🐵", "🐴", "🦓", "🦒", "🐘", "🦏", "🐪", "🦙", "🐐",
+  // Vögel
+  "🐧", "🦅", "🦜", "🦢", "🦩", "🦚", "🐔",
+  // Wasser und Kaltblüter
+  "🦈", "🐬", "🦭", "🐠", "🐡", "🦀", "🦑", "🐢", "🐍", "🦎",
+  // Krabbeltiere und Fabelwesen
+  "🦋", "🐞", "🐌", "🐉",
+] as const;
 
 /** Flüchtiges Wurf-Event — lebt serverseitig nur wenige Sekunden. */
 export interface RefinementThrowView {
