@@ -27,6 +27,8 @@ import {
   updateRetroProfile,
   setRetroVotingOpen,
   setRetroTimer,
+  setRetroMusic,
+  setRetroSortMode,
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
 import { onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
@@ -47,40 +49,104 @@ const TIMER_PRESETS = [
 const formatTimer = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+const VOLUME_KEY = "scrumi.musicVolume";
+
 /**
- * Hintergrundmusik (generative Lofi-Fläche per WebAudio). Läuft lokal —
- * Browser erlauben Ton ohnehin nur nach eigener Interaktion, daher schaltet
- * jeder für sich ein und aus.
+ * Hintergrundmusik (generative Lofi-Fläche per WebAudio): Der Moderator
+ * schaltet sie für alle ein/aus, jede Person regelt ihre Lautstärke selbst.
+ * Blockt der Browser den Ton (Autoplay-Schutz), erscheint ein
+ * „Ton aktivieren"-Knopf.
  */
-function MusicToggle() {
+function MusicPanel({
+  musicOn,
+  isAdmin,
+  onToggle,
+}: {
+  musicOn: boolean;
+  isAdmin: boolean;
+  onToggle: () => void;
+}) {
   const musicRef = useRef<AmbientMusic | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.7);
+  const [needsGesture, setNeedsGesture] = useState(false);
+
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem(VOLUME_KEY));
+    if (Number.isFinite(stored) && stored >= 0 && stored <= 1) setVolume(stored);
+  }, []);
+
+  // Musik folgt dem Board-Status: an für alle, aus für alle.
+  useEffect(() => {
+    if (!AmbientMusic.supported()) return;
+    if (musicOn) {
+      if (!musicRef.current) {
+        musicRef.current = new AmbientMusic();
+        musicRef.current.start(volume);
+      }
+      setNeedsGesture(musicRef.current.suspended);
+    } else {
+      musicRef.current?.stop();
+      musicRef.current = null;
+      setNeedsGesture(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [musicOn]);
 
   useEffect(() => () => musicRef.current?.stop(), []);
 
   if (!AmbientMusic.supported()) return null;
 
-  const toggle = () => {
-    if (playing) {
-      musicRef.current?.stop();
-      musicRef.current = null;
-      setPlaying(false);
-    } else {
-      musicRef.current = new AmbientMusic();
-      musicRef.current.start();
-      setPlaying(true);
+  const changeVolume = (v: number) => {
+    setVolume(v);
+    try {
+      window.localStorage.setItem(VOLUME_KEY, String(v));
+    } catch {
+      // egal — dann eben ohne Merken
     }
+    musicRef.current?.setVolume(v);
   };
 
   return (
-    <button
-      type="button"
-      title={playing ? "Hintergrundmusik ausschalten" : "Entspannte Hintergrundmusik einschalten (nur für dich)"}
-      onClick={toggle}
-      className={`px-3 py-[7px] ${playing ? "btn-primary" : "btn-secondary"}`}
-    >
-      {playing ? "🎵 Musik aus" : "🎵 Musik"}
-    </button>
+    <span className="flex items-center gap-1.5">
+      {isAdmin ? (
+        <button
+          type="button"
+          title={musicOn ? "Hintergrundmusik für alle ausschalten" : "Hintergrundmusik für alle einschalten"}
+          onClick={onToggle}
+          className={`px-3 py-[7px] ${musicOn ? "btn-primary" : "btn-secondary"}`}
+        >
+          {musicOn ? "🎵 Musik aus" : "🎵 Musik an"}
+        </button>
+      ) : (
+        musicOn && (
+          <span className="rounded-full border border-edge bg-field px-2.5 py-1 text-[12px] text-mid">🎵</span>
+        )
+      )}
+      {musicOn && needsGesture && (
+        <button
+          type="button"
+          title="Der Browser braucht einen Klick, bevor er Ton abspielen darf"
+          onClick={() => {
+            musicRef.current?.resume().then(() => setNeedsGesture(false));
+          }}
+          className="btn-primary px-2.5 py-[7px] text-[12px]"
+        >
+          🔊 Ton aktivieren
+        </button>
+      )}
+      {musicOn && !needsGesture && (
+        <input
+          type="range"
+          aria-label="Musik-Lautstärke"
+          title="Deine Lautstärke (nur für dich)"
+          min={0}
+          max={100}
+          value={Math.round(volume * 100)}
+          onChange={(e) => changeVolume(Number(e.target.value) / 100)}
+          className="w-[84px] accent-[#6e8ff6]"
+        />
+      )}
+    </span>
   );
 }
 
@@ -390,7 +456,11 @@ export function RetroRoom({ retroId }: { retroId: string }) {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <MusicToggle />
+          <MusicPanel
+            musicOn={state.musicOn}
+            isAdmin={isAdmin}
+            onToggle={() => run(() => setRetroMusic(retroId, t, !state.musicOn))}
+          />
           <TimerChip
             remaining={state.timerRemainingSec}
             isAdmin={isAdmin}
@@ -489,6 +559,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onSetColumnColor={(columnId, color) => run(() => setRetroColumnColor(retroId, t, columnId, color))}
         onReorderColumn={(columnId, targetColumnId) => run(() => reorderRetroColumn(retroId, t, columnId, targetColumnId))}
         onSetColumnCollapsed={(columnId, collapsed) => run(() => setRetroColumnCollapsed(retroId, t, columnId, collapsed))}
+        onSetSortMode={(mode) => run(() => setRetroSortMode(retroId, t, mode))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
         onSearchGifs={searchGifs}
         onTyping={(columnId) => {

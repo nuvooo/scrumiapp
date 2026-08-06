@@ -13,6 +13,13 @@ import {
 const CARD_DRAG_TYPE = "application/x-retro-card";
 const COLUMN_DRAG_TYPE = "application/x-retro-column";
 
+const SORT_LABELS: Record<RetroStateView["sortMode"], string> = {
+  default: "Chronologisch",
+  votes: "Nach Stimmen",
+  author: "Nach Ersteller (A–Z)",
+  shuffle: "Ersteller-Pakete (zufällig)",
+};
+
 /** Kartentext in Freitext und angehängte Bild-URLs zerlegen (fürs Bearbeiten). */
 function splitCardText(text: string): { text: string; gifs: string[] } {
   const segments = cardSegments(text);
@@ -591,6 +598,7 @@ export function RetroBoard({
   onSetColumnColor,
   onReorderColumn,
   onSetColumnCollapsed,
+  onSetSortMode,
   onDeleteColumn,
   onSearchGifs,
   onTyping,
@@ -610,6 +618,8 @@ export function RetroBoard({
   onSetColumnColor: (columnId: string, color: string) => void;
   onReorderColumn: (columnId: string, targetColumnId: string) => void;
   onSetColumnCollapsed: (columnId: string, collapsed: boolean) => void;
+  /** Sortierung fürs ganze Board (Moderator) — shuffle erneut = neu mischen. */
+  onSetSortMode: (mode: RetroStateView["sortMode"]) => void;
   onDeleteColumn: (columnId: string) => void;
   /** GIF-Suche (Giphy-Proxy) für die Karten-Eingabe. */
   onSearchGifs: GifSearch;
@@ -617,9 +627,6 @@ export function RetroBoard({
   onTyping: (columnId: string | null) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
-  const [sortMode, setSortMode] = useState<"default" | "votes" | "author" | "shuffle">("default");
-  /** Zufällige Reihenfolge der Ersteller — einmal beim Aktivieren gemischt. */
-  const [shuffleOrder, setShuffleOrder] = useState<string[]>([]);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState<string>(RETRO_COLORS[0]);
@@ -628,22 +635,15 @@ export function RetroBoard({
 
   const findCard = (id: string) => state.columns.flatMap((c) => c.cards).find((k) => k.id === id);
 
-  const activateSortMode = (mode: typeof sortMode) => {
-    setSortMode(mode);
-    if (mode === "shuffle") {
-      const authors = [...new Set(state.columns.flatMap((c) => c.cards.map((k) => k.author)).filter(Boolean))];
-      setShuffleOrder(authors.sort(() => Math.random() - 0.5));
-    }
-  };
-
+  // Sortierung kommt vom Server (der Moderator legt sie für alle fest).
   const sortCards = (cards: RetroCardView[]): RetroCardView[] => {
-    if (sortMode === "votes") return [...cards].sort((a, b) => b.votes - a.votes);
-    if (sortMode === "author")
+    if (state.sortMode === "votes") return [...cards].sort((a, b) => b.votes - a.votes);
+    if (state.sortMode === "author")
       return [...cards].sort((a, b) => (a.author || "￿").localeCompare(b.author || "￿", "de"));
-    if (sortMode === "shuffle") {
+    if (state.sortMode === "shuffle") {
       const rank = (card: RetroCardView) => {
-        const index = shuffleOrder.indexOf(card.author);
-        return index === -1 ? shuffleOrder.length : index;
+        const index = state.sortOrder.indexOf(card.author);
+        return index === -1 ? state.sortOrder.length : index;
       };
       return [...cards].sort((a, b) => rank(a) - rank(b));
     }
@@ -667,25 +667,31 @@ export function RetroBoard({
         ) : (
           <span className="font-mono text-[12px] text-dim">🗳️ Voting noch nicht freigegeben</span>
         )}
-        <label className="flex items-center gap-1.5 text-[12.5px] text-mid">
-          Sortierung
-          <select
-            aria-label="Sortierung"
-            value={sortMode}
-            onChange={(e) => activateSortMode(e.target.value as typeof sortMode)}
-            className="input-field w-auto px-2 py-1 text-[12.5px]"
-          >
-            <option value="default">Chronologisch</option>
-            <option value="votes">Nach Stimmen</option>
-            <option value="author">Nach Ersteller (A–Z)</option>
-            <option value="shuffle">Ersteller-Pakete (zufällig)</option>
-          </select>
-        </label>
-        {sortMode === "shuffle" && (
+        {isAdmin ? (
+          <label className="flex items-center gap-1.5 text-[12.5px] text-mid">
+            Sortierung (für alle)
+            <select
+              aria-label="Sortierung"
+              value={state.sortMode}
+              onChange={(e) => onSetSortMode(e.target.value as RetroStateView["sortMode"])}
+              className="input-field w-auto px-2 py-1 text-[12.5px]"
+            >
+              <option value="default">Chronologisch</option>
+              <option value="votes">Nach Stimmen</option>
+              <option value="author">Nach Ersteller (A–Z)</option>
+              <option value="shuffle">Ersteller-Pakete (zufällig)</option>
+            </select>
+          </label>
+        ) : (
+          <span className="text-[12.5px] text-dim">
+            Sortierung: {SORT_LABELS[state.sortMode]}
+          </span>
+        )}
+        {isAdmin && state.sortMode === "shuffle" && (
           <button
             type="button"
-            title="Ersteller-Reihenfolge neu mischen"
-            onClick={() => activateSortMode("shuffle")}
+            title="Ersteller-Reihenfolge neu mischen (für alle)"
+            onClick={() => onSetSortMode("shuffle")}
             className="btn-secondary px-2.5 py-1 text-[12px]"
           >
             🎲 Neu mischen

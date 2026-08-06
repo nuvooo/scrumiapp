@@ -182,6 +182,46 @@ export async function setRetroTimer(
   return { ok: true };
 }
 
+export type RetroSortMode = "default" | "votes" | "author" | "shuffle";
+
+/**
+ * Sortierung fürs ganze Board festlegen — gilt für alle. Bei "shuffle" wird
+ * die Ersteller-Reihenfolge serverseitig gemischt und geteilt; erneutes
+ * Setzen von "shuffle" mischt neu.
+ */
+export async function setRetroSortMode(
+  retroId: string,
+  token: string,
+  mode: RetroSortMode,
+): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  if (!["default", "votes", "author", "shuffle"].includes(mode)) return fail("Unbekannte Sortierung.");
+  let sortOrder = "[]";
+  if (mode === "shuffle") {
+    const cards = await prisma.retroCard.findMany({
+      where: { column: { retroId } },
+      include: { author: { select: { name: true } } },
+    });
+    const authors = [...new Set(cards.map((c) => c.author.name))];
+    for (let i = authors.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [authors[i], authors[j]] = [authors[j], authors[i]];
+    }
+    sortOrder = JSON.stringify(authors);
+  }
+  await prisma.retro.update({ where: { id: retroId }, data: { sortMode: mode, sortOrder } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Hintergrundmusik für alle ein-/ausschalten — nur der Moderator. */
+export async function setRetroMusic(retroId: string, token: string, on: boolean): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retro.update({ where: { id: retroId }, data: { musicOn: on } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
 /** Verdeckt-Modus umschalten: an = anonym schreiben, aus = alle lesen mit. */
 export async function setRetroHidden(retroId: string, token: string, hidden: boolean): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");

@@ -111,6 +111,12 @@ export interface RetroStateView {
   votingOpen: boolean;
   /** Restsekunden des Timers (0 = abgelaufen, null = kein Timer). Clients zählen lokal weiter. */
   timerRemainingSec: number | null;
+  /** Vom Moderator festgelegte Sortierung — gilt für alle. */
+  sortMode: "default" | "votes" | "author" | "shuffle";
+  /** Bei shuffle: die geteilte, gemischte Ersteller-Reihenfolge. */
+  sortOrder: string[];
+  /** Hintergrundmusik vom Moderator für alle eingeschaltet. */
+  musicOn: boolean;
   you: { name: string; avatar: string; isAdmin: boolean } | null;
   participants: { name: string; avatar: string; isAdmin: boolean; online: boolean }[];
   columns: RetroColumnView[];

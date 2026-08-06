@@ -29,11 +29,11 @@ export class AmbientMusic {
     return typeof window !== "undefined" && "AudioContext" in window;
   }
 
-  start(): void {
+  start(volume = 0.7): void {
     if (this.ctx || !AmbientMusic.supported()) return;
     const ctx = new AudioContext();
     const master = ctx.createGain();
-    master.gain.value = 0.14;
+    master.gain.value = 0.2 * volume;
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = 2400;
@@ -59,6 +59,20 @@ export class AmbientMusic {
 
   get playing(): boolean {
     return this.ctx !== null;
+  }
+
+  /** Autoplay geblockt? Dann braucht es einen Klick zum Aktivieren. */
+  get suspended(): boolean {
+    return this.ctx?.state === "suspended";
+  }
+
+  resume(): Promise<void> {
+    return this.ctx?.resume() ?? Promise.resolve();
+  }
+
+  /** Lautstärke 0..1 — jede Person regelt sie für sich. */
+  setVolume(volume: number): void {
+    if (this.master) this.master.gain.value = 0.2 * Math.min(1, Math.max(0, volume));
   }
 
   /** Weiche Akkordfläche: langsamer Attack, langes Ausklingen. */

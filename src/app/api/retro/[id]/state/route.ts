@@ -85,6 +85,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     timerRemainingSec: retro.timerEndsAt
       ? Math.max(0, Math.round((retro.timerEndsAt.getTime() - Date.now()) / 1000))
       : null,
+    musicOn: retro.musicOn,
+    sortMode: retro.sortMode,
+    sortOrder: (() => {
+      try {
+        return JSON.parse(retro.sortOrder) as string[];
+      } catch {
+        return [];
+      }
+    })(),
     you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin } : null,
     participants: retro.participants.map((p) => ({
       name: p.name,

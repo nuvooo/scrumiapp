@@ -13,6 +13,9 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
   votesLeft: 2,
   votingOpen: true,
   timerRemainingSec: null,
+  sortMode: "default",
+  sortOrder: [],
+  musicOn: false,
   you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
     { name: "Anna", avatar: "", isAdmin: true, online: true },
@@ -44,7 +47,7 @@ const handlers = {
   onAddComment: noop, onDeleteComment: noop,
   onMerge: noop,
   onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop,
-  onSetColumnCollapsed: noop, onDeleteColumn: noop,
+  onSetColumnCollapsed: noop, onSetSortMode: noop, onDeleteColumn: noop,
   // Ohne API-Key fällt der GIF-Dialog auf die kuratierte Galerie zurück.
   onSearchGifs: async () => ({ ok: false, error: "Kein GIPHY_API_KEY konfiguriert." }),
   onTyping: noop,
@@ -144,16 +147,27 @@ describe("RetroBoard", () => {
     expect(onAddComment).toHaveBeenCalledWith("k1", "Sehe ich auch so");
   });
 
-  it("sortiert Karten auf Wunsch nach Stimmen", () => {
-    render(<RetroBoard state={baseState()} {...handlers} />);
-    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "votes" } });
+  it("sortiert nach Stimmen, wenn der Moderator das festgelegt hat", () => {
+    render(<RetroBoard state={baseState({ sortMode: "votes" })} {...handlers} />);
     const column = screen.getByTestId("column-Lief gut 👍");
     const cards = within(column).getAllByTestId(/^card-/);
     expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // 5 Stimmen vor 2
+    // Teilnehmer sehen die Sortierung nur als Text, ohne Auswahl
+    expect(screen.getByText(/Sortierung: Nach Stimmen/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Sortierung")).not.toBeInTheDocument();
   });
 
-  it("sortiert Karten nach Ersteller (A–Z)", () => {
+  it("der Moderator ändert die Sortierung für alle", () => {
+    const onSetSortMode = vi.fn();
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    render(<RetroBoard state={admin} {...handlers} onSetSortMode={onSetSortMode} />);
+    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "author" } });
+    expect(onSetSortMode).toHaveBeenCalledWith("author");
+  });
+
+  it("sortiert nach Ersteller (A–Z)", () => {
     const withAuthors = baseState({
+      sortMode: "author",
       columns: [
         {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
@@ -165,13 +179,15 @@ describe("RetroBoard", () => {
       ],
     });
     render(<RetroBoard state={withAuthors} {...handlers} />);
-    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "author" } });
     const cards = within(screen.getByTestId("column-Lief gut 👍")).getAllByTestId(/^card-/);
     expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // Anna vor Zoe
   });
 
-  it("Ersteller-Pakete: Karten desselben Erstellers stehen zusammen", () => {
+  it("Ersteller-Pakete folgen der geteilten Server-Reihenfolge", () => {
     const mixed = baseState({
+      sortMode: "shuffle",
+      sortOrder: ["Zoe", "Anna"],
+      you: { name: "Anna", avatar: "", isAdmin: true },
       columns: [
         {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
@@ -183,15 +199,15 @@ describe("RetroBoard", () => {
         },
       ],
     });
-    render(<RetroBoard state={mixed} {...handlers} />);
-    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "shuffle" } });
+    const onSetSortMode = vi.fn();
+    render(<RetroBoard state={mixed} {...handlers} onSetSortMode={onSetSortMode} />);
     const order = within(screen.getByTestId("column-Lief gut 👍"))
       .getAllByTestId(/^card-/)
       .map((c) => c.getAttribute("data-testid"));
-    // Zoes Karten (k1, k3) hängen zusammen — egal in welcher Paket-Reihenfolge
-    const zoeIndices = [order.indexOf("card-k1"), order.indexOf("card-k3")].sort((a, b) => a - b);
-    expect(zoeIndices[1] - zoeIndices[0]).toBe(1);
-    expect(screen.getByRole("button", { name: "🎲 Neu mischen" })).toBeInTheDocument();
+    expect(order).toEqual(["card-k1", "card-k3", "card-k2"]); // Zoe-Paket vor Anna
+    // Neu mischen setzt shuffle erneut (Server mischt neu, für alle)
+    fireEvent.click(screen.getByRole("button", { name: "🎲 Neu mischen" }));
+    expect(onSetSortMode).toHaveBeenCalledWith("shuffle");
   });
 
   it("der Moderator blendet Spalten aus und wieder ein", () => {

@@ -202,6 +202,12 @@ model Retro {
   votingOpen   Boolean            @default(false)
   /// Laufender Timer (null = keiner); Clients zählen lokal herunter
   timerEndsAt  DateTime?
+  /// Sortierung des Boards (default | votes | author | shuffle) — gilt für alle
+  sortMode     String             @default("default")
+  /// Bei shuffle: gemischte Ersteller-Reihenfolge als JSON-Array
+  sortOrder    String             @default("[]")
+  /// Hintergrundmusik vom Moderator für alle eingeschaltet
+  musicOn      Boolean            @default(false)
   createdAt    DateTime           @default(now())
   columns      RetroColumn[]
   participants RetroParticipant[]
