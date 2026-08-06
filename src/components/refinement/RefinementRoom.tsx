@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
-import { AVATAR_EMOJIS, type RefinementStateView } from "@/lib/view/refinementState";
+import { AVATAR_EMOJIS, type RefinementRole, type RefinementStateView } from "@/lib/view/refinementState";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
@@ -24,6 +24,7 @@ import {
   deleteRefinement,
   backToDraft,
   updateProfile,
+  leaveRefinement,
 } from "@/app/(app)/refinement/actions";
 import { RefinementDraft } from "./RefinementDraft";
 import { RefinementVoting } from "./RefinementVoting";
@@ -33,18 +34,28 @@ const RETRY_MS = 2000;
 const tokenKey = (id: string) => `scrumi.refinement.${id}.token`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const ROLES: { value: RefinementRole; label: string; hint: string }[] = [
+  { value: "estimator", label: "Schätzer", hint: "sitzt am Tisch und stimmt ab" },
+  { value: "moderator", label: "Moderator", hint: "deckt auf und übernimmt Schätzungen" },
+  { value: "visitor", label: "Besucher", hint: "schaut nur zu" },
+];
+
+const roleOf = (you: { isAdmin: boolean; isVisitor: boolean }): RefinementRole =>
+  you.isAdmin ? "moderator" : you.isVisitor ? "visitor" : "estimator";
+
 export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoaded, setTokenLoaded] = useState(false);
   const [state, setState] = useState<RefinementStateView | null>(null);
   const [joinName, setJoinName] = useState("");
-  const [joinAsAdmin, setJoinAsAdmin] = useState(false);
+  const [joinRole, setJoinRole] = useState<RefinementRole>("estimator");
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileAvatar, setProfileAvatar] = useState("");
+  const [profileRole, setProfileRole] = useState<RefinementRole>("estimator");
   const [error, setError] = useState<string | null>(null);
   // Zählt lokale Aktionen: Poll-Antworten, die vor einer Aktion gestartet
   // sind, werden verworfen — sonst überschreibt veralteter Server-Stand die
@@ -163,7 +174,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
 
   const join = async () => {
     setError(null);
-    const result = await joinRefinement(refinementId, joinName, joinAsAdmin);
+    const result = await joinRefinement(refinementId, joinName, joinRole);
     if (!result.ok || !result.data) {
       setError(result.error ?? "Beitritt fehlgeschlagen.");
       return;
@@ -195,15 +206,21 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             Beitreten
           </button>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] text-mid">
-          <input
-            type="checkbox"
-            checked={joinAsAdmin}
-            onChange={(e) => setJoinAsAdmin(e.target.checked)}
-            className="h-4 w-4 accent-[#6e8ff6]"
-          />
-          Als Moderator beitreten (Draufsicht, deckt auf und übernimmt Schätzungen)
-        </label>
+        <div className="mt-3 flex flex-col gap-1.5">
+          {ROLES.map((r) => (
+            <label key={r.value} className="flex cursor-pointer items-center gap-2 text-[13px] text-mid">
+              <input
+                type="radio"
+                name="join-role"
+                checked={joinRole === r.value}
+                onChange={() => setJoinRole(r.value)}
+                className="h-4 w-4 accent-[#6e8ff6]"
+              />
+              <span className="font-medium text-fg">{r.label}</span>
+              <span className="text-[12px] text-dim">— {r.hint}</span>
+            </label>
+          ))}
+        </div>
         {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
       </div>
     );
@@ -221,12 +238,25 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
     if (!state.you) return;
     setProfileName(state.you.name);
     setProfileAvatar(state.you.avatar);
+    setProfileRole(roleOf(state.you));
     setEditingProfile(true);
   };
 
   const saveProfile = async () => {
-    await run(() => updateProfile(refinementId, t, profileName, profileAvatar));
+    await run(() => updateProfile(refinementId, t, profileName, profileAvatar, profileRole));
     setEditingProfile(false);
+  };
+
+  /** Session verlassen: Teilnehmer löschen, Token vergessen, zurück zur Übersicht. */
+  const leave = async () => {
+    if (!window.confirm("Dieses Refinement wirklich verlassen?")) return;
+    const result = await leaveRefinement(refinementId, t);
+    if (!result.ok) {
+      setError(result.error ?? "Verlassen fehlgeschlagen.");
+      return;
+    }
+    window.localStorage.removeItem(tokenKey(refinementId));
+    router.push("/refinement");
   };
 
   const remove = async () => {
@@ -278,35 +308,47 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
                   {state.you.avatar && <>{state.you.avatar} </>}
                   {state.you.name} ✎
                 </button>
-                {isAdmin ? " (Moderator)" : ""}
+                {isAdmin ? " (Moderator)" : state.you.isVisitor ? " (Besucher)" : ""}
               </>
             )}
           </div>
         </div>
-        {isAdmin && !renaming && (
+        {!renaming && state.you && (
           <div className="ml-auto flex flex-wrap gap-2">
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameText(state.name);
+                    setRenaming(true);
+                  }}
+                  className="btn-secondary px-3.5 py-[7px]"
+                >
+                  Umbenennen
+                </button>
+                {state.state === "RUNNING" && (
+                  <button
+                    type="button"
+                    title="Zurück in die Vorbereitung, um Tickets zu bearbeiten"
+                    onClick={() => run(() => backToDraft(refinementId, t))}
+                    className="btn-secondary px-3.5 py-[7px]"
+                  >
+                    Tickets bearbeiten
+                  </button>
+                )}
+                <button type="button" onClick={remove} className="btn-danger px-3.5 py-[7px]">
+                  Löschen
+                </button>
+              </>
+            )}
             <button
               type="button"
-              onClick={() => {
-                setNameText(state.name);
-                setRenaming(true);
-              }}
+              title="Session verlassen — Wiederbeitritt jederzeit möglich"
+              onClick={leave}
               className="btn-secondary px-3.5 py-[7px]"
             >
-              Umbenennen
-            </button>
-            {state.state === "RUNNING" && (
-              <button
-                type="button"
-                title="Zurück in die Vorbereitung, um Tickets zu bearbeiten"
-                onClick={() => run(() => backToDraft(refinementId, t))}
-                className="btn-secondary px-3.5 py-[7px]"
-              >
-                Tickets bearbeiten
-              </button>
-            )}
-            <button type="button" onClick={remove} className="btn-danger px-3.5 py-[7px]">
-              Löschen
+              Verlassen
             </button>
           </div>
         )}
@@ -351,6 +393,22 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
               </button>
             ))}
           </div>
+          <div className="mt-3.5 flex flex-col gap-1.5 border-t border-line pt-3">
+            <div className="text-[12px] font-medium text-mid">Rolle</div>
+            {ROLES.map((r) => (
+              <label key={r.value} className="flex cursor-pointer items-center gap-2 text-[13px] text-mid">
+                <input
+                  type="radio"
+                  name="profile-role"
+                  checked={profileRole === r.value}
+                  onChange={() => setProfileRole(r.value)}
+                  className="h-4 w-4 accent-[#6e8ff6]"
+                />
+                <span className="font-medium text-fg">{r.label}</span>
+                <span className="text-[12px] text-dim">— {r.hint}</span>
+              </label>
+            ))}
+          </div>
           <div className="mt-3.5 flex gap-2">
             <button type="button" onClick={saveProfile} className="btn-primary px-4 py-2">
               Speichern
@@ -384,6 +442,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
               {p.name}
               {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
+              {p.isVisitor && <span className="font-mono text-[10px] uppercase text-faint">Gast</span>}
             </span>
           ))}
         {state.participants.filter((p) => p.online).length === 0 && (
@@ -425,6 +484,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             if (state.activeTicket) run(() => acceptEstimate(refinementId, t, state.activeTicket!.id, points));
           }}
           onThrow={(targetName, emoji) => run(() => throwEmoji(refinementId, t, targetName, emoji))}
+          onLoadBacklog={() => loadBacklogSuggestions(refinementId, t)}
+          onAddTicket={(r: JiraSearchResult) => run(() => addTicket(refinementId, t, r))}
+          onAddTickets={(rs: JiraSearchResult[]) => run(() => addTickets(refinementId, t, rs))}
           onFinish={() => run(() => finishRefinement(refinementId, t))}
         />
       )}

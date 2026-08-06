@@ -165,6 +165,8 @@ model RefinementParticipant {
   /// Emoji-Avatar ("" = keiner gewählt)
   avatar       String           @default("")
   isAdmin      Boolean          @default(false)
+  /// Besucher schauen nur zu: kein Sitzplatz, keine Stimme
+  isVisitor    Boolean          @default(false)
   /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
   token        String           @unique @default(cuid())
   /// Letzter Heartbeat (State-Poll) — bestimmt, wer als anwesend gilt

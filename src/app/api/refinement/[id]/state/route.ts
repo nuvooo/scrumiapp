@@ -68,11 +68,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     id: refinement.id,
     name: refinement.name,
     state: refinement.state,
-    you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin } : null,
+    you: you
+      ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin, isVisitor: you.isVisitor }
+      : null,
     participants: refinement.participants.map((p) => ({
       name: p.name,
       avatar: p.avatar,
       isAdmin: p.isAdmin,
+      isVisitor: p.isVisitor,
       online: isOnline(p),
       voted: active ? active.votes.some((v) => v.participantId === p.id) : false,
     })),

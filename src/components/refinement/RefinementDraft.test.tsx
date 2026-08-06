@@ -122,6 +122,16 @@ describe("RefinementDraft", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
+  it("verlinkt ausgewählte Tickets mit URL nach Jira", () => {
+    const withUrl: RefinementTicketView[] = [
+      { ...tickets[0], url: "https://x.atlassian.net/browse/AB-1" },
+    ];
+    render(<RefinementDraft tickets={withUrl} isAdmin={false} {...handlers} />);
+    const link = screen.getByRole("link", { name: /AB-1/ });
+    expect(link).toHaveAttribute("href", "https://x.atlassian.net/browse/AB-1");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
   it("Teilnehmer sehen nur die Warteliste ohne Bedienelemente", () => {
     render(<RefinementDraft tickets={tickets} isAdmin={false} {...handlers} />);
     expect(screen.getByText("AB-1")).toBeInTheDocument();
