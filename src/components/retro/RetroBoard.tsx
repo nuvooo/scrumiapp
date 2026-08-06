@@ -13,6 +13,44 @@ import {
 const CARD_DRAG_TYPE = "application/x-retro-card";
 const COLUMN_DRAG_TYPE = "application/x-retro-column";
 
+/** Kartentext in Freitext und angehängte Bild-URLs zerlegen (fürs Bearbeiten). */
+function splitCardText(text: string): { text: string; gifs: string[] } {
+  const segments = cardSegments(text);
+  return {
+    text: segments.filter((s) => s.kind === "text").map((s) => (s.kind === "text" ? s.value : "")).join("\n"),
+    gifs: segments.filter((s) => s.kind === "image").map((s) => (s.kind === "image" ? s.url : "")),
+  };
+}
+
+/** Freitext + angehängte GIFs wieder zu einem Kartentext zusammensetzen. */
+function joinCardText(text: string, gifs: string[]): string {
+  return [text.trim(), ...gifs].filter(Boolean).join("\n");
+}
+
+/** Vorschau der angehängten GIFs unter dem Eingabefeld, einzeln entfernbar. */
+function GifAttachments({ gifs, onRemove }: { gifs: string[]; onRemove: (index: number) => void }) {
+  if (gifs.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {gifs.map((url, i) => (
+        <span key={`${url}-${i}`} className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={`Angehängtes GIF ${i + 1}`} className="h-[64px] rounded-[7px] border border-edge object-cover" />
+          <button
+            type="button"
+            aria-label={`Angehängtes GIF ${i + 1} entfernen`}
+            title="GIF entfernen"
+            onClick={() => onRemove(i)}
+            className="absolute -right-1.5 -top-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border border-edge bg-field text-[10px] leading-none text-fg hover:text-danger"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Kartentext mit Inline-Bildern (GIFs) rendern. */
 function CardText({ text }: { text: string }) {
   return (
@@ -60,6 +98,7 @@ function Card({
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  const [editGifs, setEditGifs] = useState<string[]>([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -67,7 +106,9 @@ function Card({
   const canEdit = card.mine || isAdmin;
 
   const saveEdit = () => {
-    onUpdate(editText);
+    const combined = joinCardText(editText, editGifs);
+    if (!combined) return;
+    onUpdate(combined);
     setEditing(false);
   };
 
@@ -118,10 +159,13 @@ function Card({
             rows={3}
             className="input-field resize-y text-[13px]"
           />
+          <GifAttachments gifs={editGifs} onRemove={(i) => setEditGifs((g) => g.filter((_, j) => j !== i))} />
           <div className="flex items-center gap-1.5">
             <EmojiGifPicker
               searchGifs={searchGifs}
-              onInsert={(s) => setEditText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))}
+              onInsert={(s) =>
+                s.startsWith("http") ? setEditGifs((g) => [...g, s]) : setEditText((t) => t + s)
+              }
             />
             <button type="button" onClick={saveEdit} className="btn-primary ml-auto px-3 py-1.5">Speichern</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-secondary px-3 py-1.5">Abbrechen</button>
@@ -174,7 +218,9 @@ function Card({
                   aria-label="Karte bearbeiten"
                   title="Bearbeiten"
                   onClick={() => {
-                    setEditText(card.text);
+                    const parts = splitCardText(card.text);
+                    setEditText(parts.text);
+                    setEditGifs(parts.gifs);
                     setEditing(true);
                   }}
                   className="text-[12px] text-dim hover:text-fg"
@@ -260,6 +306,7 @@ function Column({
 }) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerText, setComposerText] = useState("");
+  const [composerGifs, setComposerGifs] = useState<string[]>([]);
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
   const [colorOpen, setColorOpen] = useState(false);
@@ -268,9 +315,11 @@ function Column({
   const cards = sortByVotes ? [...column.cards].sort((a, b) => b.votes - a.votes) : column.cards;
 
   const submitCard = () => {
-    if (!composerText.trim()) return;
-    onAddCard(composerText);
+    const combined = joinCardText(composerText, composerGifs);
+    if (!combined) return;
+    onAddCard(combined);
     setComposerText("");
+    setComposerGifs([]);
     setComposerOpen(false);
   };
 
@@ -406,10 +455,13 @@ function Column({
             placeholder="Text, Emojis 🎉 oder GIF-URL…"
             className="input-field resize-y text-[13px]"
           />
+          <GifAttachments gifs={composerGifs} onRemove={(i) => setComposerGifs((g) => g.filter((_, j) => j !== i))} />
           <div className="flex items-center gap-1.5">
             <EmojiGifPicker
               searchGifs={searchGifs}
-              onInsert={(s) => setComposerText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))}
+              onInsert={(s) =>
+                s.startsWith("http") ? setComposerGifs((g) => [...g, s]) : setComposerText((t) => t + s)
+              }
             />
             <button type="button" onClick={submitCard} className="btn-primary ml-auto px-3 py-1.5">Hinzufügen</button>
             <button
@@ -417,6 +469,7 @@ function Column({
               onClick={() => {
                 setComposerOpen(false);
                 setComposerText("");
+                setComposerGifs([]);
               }}
               className="btn-secondary px-3 py-1.5"
             >

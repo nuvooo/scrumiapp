@@ -213,8 +213,25 @@ describe("RetroBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
     fireEvent.click(screen.getByRole("button", { name: "GIF auswählen" }));
     fireEvent.click(await screen.findByRole("button", { name: "GIF 1 einfügen" }));
+    // Das GIF erscheint als Vorschau, nicht als URL im Textfeld
+    const textarea = screen.getByLabelText("Neue Karte in Geht besser 🤔") as HTMLTextAreaElement;
+    expect(textarea.value).not.toContain("http");
+    expect(screen.getByAltText("Angehängtes GIF 1")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     expect(onAddCard).toHaveBeenCalledWith("c2", expect.stringContaining("giphy.gif"));
+  });
+
+  it("angehängte GIFs lassen sich vor dem Absenden wieder entfernen", async () => {
+    const onAddCard = vi.fn();
+    render(<RetroBoard state={baseState()} {...handlers} onAddCard={onAddCard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "GIF auswählen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "GIF 1 einfügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Angehängtes GIF 1 entfernen" }));
+    expect(screen.queryByAltText("Angehängtes GIF 1")).not.toBeInTheDocument();
+    // Ohne Text und ohne GIF wird nichts abgeschickt
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    expect(onAddCard).not.toHaveBeenCalled();
   });
 
   it("mit API-Key zeigt der GIF-Dialog die Giphy-Suche", async () => {
