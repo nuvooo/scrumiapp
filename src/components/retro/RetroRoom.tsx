@@ -11,7 +11,7 @@ import {
   addRetroColumn,
   renameRetroColumn,
   setRetroColumnColor,
-  moveRetroColumn,
+  reorderRetroColumn,
   deleteRetroColumn,
   addRetroCard,
   updateRetroCard,
@@ -294,7 +294,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onAddColumn={(name, color) => run(() => addRetroColumn(retroId, t, name, color))}
         onRenameColumn={(columnId, name) => run(() => renameRetroColumn(retroId, t, columnId, name))}
         onSetColumnColor={(columnId, color) => run(() => setRetroColumnColor(retroId, t, columnId, color))}
-        onMoveColumn={(columnId, direction) => run(() => moveRetroColumn(retroId, t, columnId, direction))}
+        onReorderColumn={(columnId, targetColumnId) => run(() => reorderRetroColumn(retroId, t, columnId, targetColumnId))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
       />
     </div>

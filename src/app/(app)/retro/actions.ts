@@ -124,25 +124,31 @@ export async function setRetroColumnColor(retroId: string, token: string, column
   return { ok: true };
 }
 
-/** Spalte nach links/rechts verschieben (Positionen tauschen). */
-export async function moveRetroColumn(
+/** Spalte per Drag & Drop umsortieren: an die Position der Zielspalte schieben. */
+export async function reorderRetroColumn(
   retroId: string,
   token: string,
   columnId: string,
-  direction: "left" | "right",
+  targetColumnId: string,
 ): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  if (columnId === targetColumnId) return { ok: true };
   const columns = await prisma.retroColumn.findMany({
     where: { retroId },
     orderBy: { position: "asc" },
   });
-  const index = columns.findIndex((c) => c.id === columnId);
-  const other = direction === "left" ? index - 1 : index + 1;
-  if (index < 0 || other < 0 || other >= columns.length) return { ok: true };
-  await prisma.$transaction([
-    prisma.retroColumn.update({ where: { id: columns[index].id }, data: { position: other } }),
-    prisma.retroColumn.update({ where: { id: columns[other].id }, data: { position: index } }),
-  ]);
+  const from = columns.findIndex((c) => c.id === columnId);
+  const to = columns.findIndex((c) => c.id === targetColumnId);
+  if (from < 0 || to < 0) return fail("Spalte nicht gefunden.");
+  const order = [...columns];
+  const [moved] = order.splice(from, 1);
+  order.splice(to, 0, moved);
+  await prisma.$transaction(
+    order
+      .map((c, i) => ({ c, i }))
+      .filter(({ c, i }) => c.position !== i)
+      .map(({ c, i }) => prisma.retroColumn.update({ where: { id: c.id }, data: { position: i } })),
+  );
   bumpRetro(retroId);
   return { ok: true };
 }

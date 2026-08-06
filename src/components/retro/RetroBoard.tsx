@@ -11,6 +11,7 @@ import {
 } from "@/lib/view/retroState";
 
 const CARD_DRAG_TYPE = "application/x-retro-card";
+const COLUMN_DRAG_TYPE = "application/x-retro-column";
 
 /** Kartentext mit Inline-Bildern (GIFs) rendern. */
 function CardText({ text }: { text: string }) {
@@ -94,6 +95,7 @@ function Card({
         const sourceId = e.dataTransfer.getData(CARD_DRAG_TYPE);
         if (!sourceId || sourceId === card.id) return;
         e.preventDefault();
+        e.stopPropagation();
         onMerge(sourceId);
       }}
       className={`rounded-[10px] border border-edge bg-field p-2.5 text-[13px] text-fg ${
@@ -228,7 +230,7 @@ function Column({
   onAddCard,
   onRename,
   onSetColor,
-  onMove,
+  onReorder,
   onDelete,
   cardHandlers,
 }: {
@@ -239,7 +241,8 @@ function Column({
   onAddCard: (text: string) => void;
   onRename: (name: string) => void;
   onSetColor: (color: string) => void;
-  onMove: (direction: "left" | "right") => void;
+  /** Eine andere Spalte wurde auf diese gezogen — an diese Position schieben. */
+  onReorder: (sourceColumnId: string) => void;
   onDelete: () => void;
   cardHandlers: (card: RetroCardView) => Parameters<typeof Card>[0];
 }) {
@@ -248,6 +251,7 @@ function Column({
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
   const [colorOpen, setColorOpen] = useState(false);
+  const [columnDragOver, setColumnDragOver] = useState(false);
 
   const cards = sortByVotes ? [...column.cards].sort((a, b) => b.votes - a.votes) : column.cards;
 
@@ -264,9 +268,32 @@ function Column({
   };
 
   return (
-    <div data-testid={`column-${column.name}`} className="flex w-[300px] flex-none flex-col gap-2">
+    <div
+      data-testid={`column-${column.name}`}
+      onDragOver={(e) => {
+        if (!isAdmin || !e.dataTransfer.types.includes(COLUMN_DRAG_TYPE)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setColumnDragOver(true);
+      }}
+      onDragLeave={() => setColumnDragOver(false)}
+      onDrop={(e) => {
+        setColumnDragOver(false);
+        const sourceId = e.dataTransfer.getData(COLUMN_DRAG_TYPE);
+        if (!sourceId || sourceId === column.id) return;
+        e.preventDefault();
+        onReorder(sourceId);
+      }}
+      className={`flex w-[300px] flex-none flex-col gap-2 rounded-[12px] ${columnDragOver ? "ring-2 ring-[#6e8ff6]" : ""}`}
+    >
       <div
-        className="flex items-center gap-2 rounded-[10px] border border-line bg-field px-3 py-2"
+        draggable={isAdmin}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(COLUMN_DRAG_TYPE, column.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        title={isAdmin ? "Spalte per Drag & Drop verschieben" : undefined}
+        className={`flex items-center gap-2 rounded-[10px] border border-line bg-field px-3 py-2 ${isAdmin ? "cursor-grab" : ""}`}
         style={{ borderTop: `3px solid ${column.color}` }}
       >
         {renaming ? (
@@ -287,24 +314,6 @@ function Column({
             <span className="flex-none font-mono text-[11px] text-faint">{column.cards.length}</span>
             {isAdmin && (
               <span className="relative flex flex-none items-center gap-1">
-                <button
-                  type="button"
-                  aria-label={`Spalte ${column.name} nach links`}
-                  title="Nach links verschieben"
-                  onClick={() => onMove("left")}
-                  className="text-[12px] text-dim hover:text-fg"
-                >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Spalte ${column.name} nach rechts`}
-                  title="Nach rechts verschieben"
-                  onClick={() => onMove("right")}
-                  className="text-[12px] text-dim hover:text-fg"
-                >
-                  →
-                </button>
                 <button
                   type="button"
                   aria-label={`Spalte ${column.name} umbenennen`}
@@ -424,7 +433,7 @@ export function RetroBoard({
   onAddColumn,
   onRenameColumn,
   onSetColumnColor,
-  onMoveColumn,
+  onReorderColumn,
   onDeleteColumn,
 }: {
   state: RetroStateView;
@@ -440,7 +449,7 @@ export function RetroBoard({
   onAddColumn: (name: string, color: string) => void;
   onRenameColumn: (columnId: string, name: string) => void;
   onSetColumnColor: (columnId: string, color: string) => void;
-  onMoveColumn: (columnId: string, direction: "left" | "right") => void;
+  onReorderColumn: (columnId: string, targetColumnId: string) => void;
   onDeleteColumn: (columnId: string) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
@@ -448,6 +457,10 @@ export function RetroBoard({
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState<string>(RETRO_COLORS[0]);
+  /** Merge erst nach Bestätigung — der Drop merkt sich nur die Absicht. */
+  const [mergeIntent, setMergeIntent] = useState<{ sourceId: string; targetId: string } | null>(null);
+
+  const findCard = (id: string) => state.columns.flatMap((c) => c.cards).find((k) => k.id === id);
 
   const submitColumn = () => {
     if (!newColumnName.trim()) return;
@@ -521,7 +534,7 @@ export function RetroBoard({
             onAddCard={(text) => onAddCard(column.id, text)}
             onRename={(name) => onRenameColumn(column.id, name)}
             onSetColor={(color) => onSetColumnColor(column.id, color)}
-            onMove={(direction) => onMoveColumn(column.id, direction)}
+            onReorder={(sourceColumnId) => onReorderColumn(sourceColumnId, column.id)}
             onDelete={() => onDeleteColumn(column.id)}
             cardHandlers={(card) => ({
               card,
@@ -535,7 +548,7 @@ export function RetroBoard({
               onUnvote: () => onUnvote(card.id),
               onAddComment: (text: string) => onAddComment(card.id, text),
               onDeleteComment,
-              onMerge: (sourceId: string) => onMerge(sourceId, card.id),
+              onMerge: (sourceId: string) => setMergeIntent({ sourceId, targetId: card.id }),
             })}
           />
         ))}
@@ -543,6 +556,44 @@ export function RetroBoard({
           <div className="text-[13px] text-muted">Noch keine Spalten — der Moderator legt sie an.</div>
         )}
       </div>
+
+      {mergeIntent && (
+        <div
+          role="dialog"
+          aria-label="Karten zusammenführen"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setMergeIntent(null)}
+        >
+          <div className="card w-full max-w-[440px] p-[20px]" onClick={(e) => e.stopPropagation()}>
+            <div className="text-sm font-semibold">Karten wirklich zusammenführen?</div>
+            <div className="mt-3 flex flex-col gap-2 text-[12.5px]">
+              <div className="rounded-[8px] border border-edge bg-field px-3 py-2 text-mid">
+                {findCard(mergeIntent.sourceId)?.text || "(verdeckte Karte)"}
+              </div>
+              <div className="text-center text-[13px] text-dim">⤵ wird angehängt an</div>
+              <div className="rounded-[8px] border border-edge bg-field px-3 py-2 text-mid">
+                {findCard(mergeIntent.targetId)?.text || "(verdeckte Karte)"}
+              </div>
+            </div>
+            <div className="mt-2.5 text-[12px] text-muted">Kommentare und Stimmen wandern mit auf die Zielkarte.</div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onMerge(mergeIntent.sourceId, mergeIntent.targetId);
+                  setMergeIntent(null);
+                }}
+                className="btn-primary px-4 py-2"
+              >
+                Zusammenführen
+              </button>
+              <button type="button" onClick={() => setMergeIntent(null)} className="btn-secondary px-3.5 py-2">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -38,7 +38,7 @@ const handlers = {
   onVote: noop, onUnvote: noop,
   onAddComment: noop, onDeleteComment: noop,
   onMerge: noop,
-  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onMoveColumn: noop, onDeleteColumn: noop,
+  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop, onDeleteColumn: noop,
 };
 
 describe("RetroBoard", () => {
@@ -126,17 +126,43 @@ describe("RetroBoard", () => {
     expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // 5 Stimmen vor 2
   });
 
-  it("der Moderator merged Karten per Drag & Drop", () => {
+  it("Mergen fragt per Dialog nach, bevor es passiert", () => {
     const onMerge = vi.fn();
     const admin = baseState({ you: { name: "Anna", isAdmin: true } });
     render(<RetroBoard state={admin} {...handlers} onMerge={onMerge} />);
-    fireEvent.drop(screen.getByTestId("card-k2"), {
+    const drop = () =>
+      fireEvent.drop(screen.getByTestId("card-k2"), {
+        dataTransfer: {
+          types: ["application/x-retro-card"],
+          getData: (type: string) => (type === "application/x-retro-card" ? "k1" : ""),
+        },
+      });
+
+    // Abbrechen: kein Merge
+    drop();
+    const dialog = screen.getByRole("dialog", { name: "Karten zusammenführen" });
+    expect(within(dialog).getByText("Gutes Pairing")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    expect(onMerge).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Bestätigen: Merge läuft
+    drop();
+    fireEvent.click(screen.getByRole("button", { name: "Zusammenführen" }));
+    expect(onMerge).toHaveBeenCalledWith("k1", "k2");
+  });
+
+  it("der Moderator sortiert Spalten per Drag & Drop um", () => {
+    const onReorderColumn = vi.fn();
+    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    render(<RetroBoard state={admin} {...handlers} onReorderColumn={onReorderColumn} />);
+    fireEvent.drop(screen.getByTestId("column-Geht besser 🤔"), {
       dataTransfer: {
-        types: ["application/x-retro-card"],
-        getData: (type: string) => (type === "application/x-retro-card" ? "k1" : ""),
+        types: ["application/x-retro-column"],
+        getData: (type: string) => (type === "application/x-retro-column" ? "c1" : ""),
       },
     });
-    expect(onMerge).toHaveBeenCalledWith("k1", "k2");
+    expect(onReorderColumn).toHaveBeenCalledWith("c1", "c2");
   });
 
   it("Spalten-Werkzeuge nur für den Moderator", () => {
@@ -163,20 +189,6 @@ describe("RetroBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Neue Spalte in #E5484D" }));
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
     expect(onAddColumn).toHaveBeenCalledWith("Aktionen", "#E5484D");
-  });
-
-  it("der Moderator verschiebt Spalten nach links und rechts", () => {
-    const onMoveColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
-    render(<RetroBoard state={admin} {...handlers} onMoveColumn={onMoveColumn} />);
-    fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 nach rechts" }));
-    expect(onMoveColumn).toHaveBeenCalledWith("c1", "right");
-    fireEvent.click(screen.getByRole("button", { name: "Spalte Geht besser 🤔 nach links" }));
-    expect(onMoveColumn).toHaveBeenCalledWith("c2", "left");
-    cleanup();
-
-    render(<RetroBoard state={baseState()} {...handlers} />);
-    expect(screen.queryByRole("button", { name: "Spalte Lief gut 👍 nach rechts" })).not.toBeInTheDocument();
   });
 
   it("fügt Emojis über die Auswahl in die Karte ein", () => {
