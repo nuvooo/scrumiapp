@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
 import { type RefinementRole, type RefinementStateView } from "@/lib/view/refinementState";
-import { ProfileDock, storedProfile } from "@/components/ProfileDock";
+import { REFINEMENT_ROLES, onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
@@ -36,12 +36,6 @@ const RETRY_MS = 2000;
 const tokenKey = (id: string) => `scrumi.refinement.${id}.token`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ROLES: { value: RefinementRole; label: string; hint: string }[] = [
-  { value: "estimator", label: "Schätzer", hint: "sitzt am Tisch und stimmt ab" },
-  { value: "moderator", label: "Moderator", hint: "deckt auf und übernimmt Schätzungen" },
-  { value: "visitor", label: "Besucher", hint: "schaut nur zu" },
-];
-
 const roleOf = (you: { isAdmin: boolean; isVisitor: boolean }): RefinementRole =>
   you.isAdmin ? "moderator" : you.isVisitor ? "visitor" : "estimator";
 
@@ -64,7 +58,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
 
   useEffect(() => {
     setToken(window.localStorage.getItem(tokenKey(refinementId)));
-    setJoinName((current) => current || storedProfile().name);
+    const profile = storedProfile();
+    setJoinName((current) => current || profile.name);
+    setJoinRole(profile.refinementRole as RefinementRole);
     setTokenLoaded(true);
   }, [refinementId]);
 
@@ -81,6 +77,25 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       setState(data);
     }
   }, [refinementId, token]);
+
+  const joined = !!state?.you;
+
+  // Zentrales Profil (Dock unten links) gespeichert → in diese Session übernehmen.
+  useEffect(() => {
+    if (!joined || !token) return;
+    return onProfileSaved(async (p) => {
+      await updateProfile(refinementId, token, p.name, p.avatar, p.refinementRole as RefinementRole);
+      refresh();
+    });
+  }, [joined, token, refinementId, refresh]);
+
+  // Erstbefüllung: ohne gespeichertes Profil den Session-Namen/-Avatar übernehmen.
+  useEffect(() => {
+    if (!state?.you) return;
+    if (storedProfile().name === "") {
+      writeProfile({ name: state.you.name, avatar: state.you.avatar, refinementRole: roleOf(state.you) }, false);
+    }
+  }, [state?.you]);
 
   // Echter Push statt Polling: Der WebSocket (server.mjs) meldet "changed",
   // sobald sich im Raum etwas tut — dann wird der Zustand einmal abgerufen.
@@ -210,13 +225,13 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           </button>
         </div>
         <div className="mt-3 flex flex-col gap-1.5">
-          {ROLES.map((r) => (
+          {REFINEMENT_ROLES.map((r) => (
             <label key={r.value} className="flex cursor-pointer items-center gap-2 text-[13px] text-mid">
               <input
                 type="radio"
                 name="join-role"
                 checked={joinRole === r.value}
-                onChange={() => setJoinRole(r.value)}
+                onChange={() => setJoinRole(r.value as RefinementRole)}
                 className="h-4 w-4 accent-[#6e8ff6]"
               />
               <span className="font-medium text-fg">{r.label}</span>
@@ -435,19 +450,6 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
         </div>
       )}
 
-      {/* Zentrales Profil unten links: Name, Avatar und Rolle ändern */}
-      {state.you && (
-        <ProfileDock
-          name={state.you.name}
-          avatar={state.you.avatar}
-          role={roleOf(state.you)}
-          roles={ROLES}
-          roleTitle="Rolle in diesem Refinement"
-          onSave={(name, avatar, role) =>
-            run(() => updateProfile(refinementId, t, name, avatar, role as RefinementRole))
-          }
-        />
-      )}
     </div>
   );
 }

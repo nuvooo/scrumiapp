@@ -73,6 +73,7 @@ export async function createRetro(
   adminName: string,
   templateKey: string,
   votesPerUser: number,
+  adminAvatar = "",
 ): Promise<ActionResult<{ retroId: string; token: string }>> {
   const trimmedName = name.trim();
   const trimmedAdmin = adminName.trim();
@@ -82,13 +83,14 @@ export async function createRetro(
   if (!Number.isInteger(votesPerUser) || votesPerUser < 1 || votesPerUser > 20) {
     return fail("Stimmen pro Person: 1 bis 20.");
   }
+  const avatar = (AVATAR_EMOJIS as readonly string[]).includes(adminAvatar) ? adminAvatar : "";
 
   const retro = await prisma.retro.create({
     data: {
       teamId,
       name: trimmedName,
       votesPerUser,
-      participants: { create: { name: trimmedAdmin, isAdmin: true } },
+      participants: { create: { name: trimmedAdmin, avatar, isAdmin: true } },
       columns: {
         create: template.columns.map((c, i) => ({ name: c.name, color: c.color, position: i })),
       },

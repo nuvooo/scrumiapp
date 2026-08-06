@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
+import { ProfileDock } from "@/components/ProfileDock";
 import { TeamSprintSelector } from "@/components/TeamSprintSelector";
 import { SyncButton } from "@/components/SyncButton";
 import { loadTeams, loadSprints } from "@/lib/view/loaders";
@@ -56,6 +57,8 @@ export default async function AppLayout({
         </header>
         <main className="max-w-[1320px] flex-1 px-4 pb-10 pt-5 lg:px-[34px] lg:pb-[60px] lg:pt-[34px]">{children}</main>
       </div>
+      {/* Profil immer unten links sichtbar (dockt in der Sidebar an) */}
+      <ProfileDock />
     </div>
   );
 }

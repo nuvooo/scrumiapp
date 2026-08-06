@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRetro } from "@/app/(app)/retro/actions";
 import { RETRO_TEMPLATES } from "@/lib/view/retroState";
+import { storedProfile } from "@/components/ProfileDock";
 
 export function CreateRetro({ teamId }: { teamId: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [adminName, setAdminName] = useState("");
+  const [profileName, setProfileName] = useState<string | null>(null);
   const [templateKey, setTemplateKey] = useState(RETRO_TEMPLATES[0].key);
   const [votesText, setVotesText] = useState("3");
   const [pending, setPending] = useState(false);
@@ -16,12 +17,22 @@ export function CreateRetro({ teamId }: { teamId: string }) {
 
   const template = RETRO_TEMPLATES.find((t) => t.key === templateKey) ?? RETRO_TEMPLATES[0];
 
+  // Der Ersteller ist automatisch Moderator — Name und Avatar kommen aus dem Profil unten links.
+  useEffect(() => {
+    setProfileName(storedProfile().name);
+  }, []);
+
   const create = async () => {
     if (pending) return;
+    const profile = storedProfile();
+    if (!profile.name) {
+      setError("Lege zuerst unten links dein Profil an — der Ersteller wird automatisch Moderator.");
+      return;
+    }
     setPending(true);
     setError(null);
     const votes = Number(votesText);
-    const result = await createRetro(teamId, name, adminName, templateKey, votes);
+    const result = await createRetro(teamId, name, profile.name, templateKey, votes, profile.avatar);
     setPending(false);
     if (!result.ok || !result.data) {
       setError(result.error ?? "Anlegen fehlgeschlagen.");
@@ -34,7 +45,7 @@ export function CreateRetro({ teamId }: { teamId: string }) {
   return (
     <div className="card p-[18px]">
       <div className="text-sm font-semibold">Neue Retro</div>
-      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-[1.3fr,1fr,1.2fr,72px,auto]">
+      <div className="mt-3 grid grid-cols-1 items-end gap-3 md:grid-cols-[1.4fr,1.2fr,72px,auto]">
         <div>
           <label htmlFor="retro-name" className="mono-label mb-[7px] block">Name</label>
           <input
@@ -42,16 +53,6 @@ export function CreateRetro({ teamId }: { teamId: string }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="z. B. Retro Sprint 42"
-            className="input-field"
-          />
-        </div>
-        <div>
-          <label htmlFor="retro-admin" className="mono-label mb-[7px] block">Dein Name (Moderator)</label>
-          <input
-            id="retro-admin"
-            value={adminName}
-            onChange={(e) => setAdminName(e.target.value)}
-            placeholder="z. B. Sebastian"
             className="input-field"
           />
         </div>
@@ -94,6 +95,11 @@ export function CreateRetro({ teamId }: { teamId: string }) {
           </span>
         ))}
         <span className="text-[11.5px] text-dim">— Spalten lassen sich im Board jederzeit anpassen</span>
+      </div>
+      <div className="mt-2 text-[12px] text-dim">
+        {profileName
+          ? `Du wirst als ${profileName} Moderator dieses Boards.`
+          : "Der Ersteller wird automatisch Moderator — Name kommt aus deinem Profil unten links."}
       </div>
       {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
     </div>
