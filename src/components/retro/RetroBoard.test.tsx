@@ -139,6 +139,20 @@ describe("RetroBoard", () => {
     expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // 5 Stimmen vor 2
   });
 
+  it("das Plus steht unter dem letzten Post, der Composer öffnet dort", () => {
+    render(<RetroBoard state={baseState()} {...handlers} />);
+    const column = screen.getByTestId("column-Lief gut 👍");
+    const plus = within(column).getByRole("button", { name: "Karte in Lief gut 👍 anlegen" });
+    const lastCard = within(column).getAllByTestId(/^card-/).at(-1)!;
+    // Plus kommt im DOM nach der letzten Karte
+    expect(lastCard.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Composer ersetzt das Plus an gleicher Stelle
+    fireEvent.click(plus);
+    expect(within(column).queryByRole("button", { name: "Karte in Lief gut 👍 anlegen" })).not.toBeInTheDocument();
+    const textarea = within(column).getByLabelText("Neue Karte in Lief gut 👍");
+    expect(lastCard.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("Mergen fragt per Dialog nach, bevor es passiert", () => {
     const onMerge = vi.fn();
     const admin = baseState({ you: { name: "Anna", isAdmin: true } });

@@ -451,14 +451,32 @@ function Column({
         )}
       </div>
 
-      <button
-        type="button"
-        aria-label={`Karte in ${column.name} anlegen`}
-        onClick={() => setComposerOpen(true)}
-        className="btn-secondary w-full rounded-[10px] border-dashed py-1.5 text-[13px] text-mid"
-      >
-        +
-      </button>
+      {/* Geister-Karten: hier schreibt gerade jemand */}
+      {typing.map((t, i) => (
+        <div
+          key={`typing-${i}`}
+          data-testid={`typing-${column.id}-${i}`}
+          className="animate-pulse rounded-[10px] border border-dashed border-edge bg-field p-2.5 text-[12.5px] text-dim"
+        >
+          ✍️ {t.name ? `${t.name} schreibt…` : "Jemand schreibt…"}
+        </div>
+      ))}
+
+      {cards.map((card) => (
+        <Card key={card.id} {...cardHandlers(card)} />
+      ))}
+
+      {/* Neue Karte entsteht unter dem letzten Post */}
+      {!composerOpen && (
+        <button
+          type="button"
+          aria-label={`Karte in ${column.name} anlegen`}
+          onClick={() => setComposerOpen(true)}
+          className="btn-secondary w-full rounded-[10px] border-dashed py-1.5 text-[13px] text-mid"
+        >
+          +
+        </button>
+      )}
 
       {composerOpen && (
         <div className="flex flex-col gap-2 rounded-[10px] border border-edge bg-field p-2.5">
@@ -500,21 +518,6 @@ function Column({
           </div>
         </div>
       )}
-
-      {/* Geister-Karten: hier schreibt gerade jemand */}
-      {typing.map((t, i) => (
-        <div
-          key={`typing-${i}`}
-          data-testid={`typing-${column.id}-${i}`}
-          className="animate-pulse rounded-[10px] border border-dashed border-edge bg-field p-2.5 text-[12.5px] text-dim"
-        >
-          ✍️ {t.name ? `${t.name} schreibt…` : "Jemand schreibt…"}
-        </div>
-      ))}
-
-      {cards.map((card) => (
-        <Card key={card.id} {...cardHandlers(card)} />
-      ))}
     </div>
   );
 }
