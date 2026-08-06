@@ -25,7 +25,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: "postgresql://scrumi:scrumi@postgres:5432/scrumi?schema=public"
+      DATABASE_URL: "postgresql://scrumi:scrumi@postgres:5432/scrumi"
       JIRA_BASE_URL: "${JIRA_BASE_URL:-}"
       JIRA_EMAIL: "${JIRA_EMAIL:-}"
       JIRA_API_TOKEN: "${JIRA_API_TOKEN:-}"
