@@ -418,9 +418,10 @@ export async function unvoteRetroCard(retroId: string, token: string, cardId: st
 /**
  * Zwei Karten zusammenführen (auch spaltenübergreifend): Text wird angehängt,
  * Kommentare und Stimmen wandern mit, die Quellkarte verschwindet.
+ * Darf jeder Teilnehmer — der Bestätigungs-Dialog schützt vor Versehen.
  */
 export async function mergeRetroCards(retroId: string, token: string, sourceId: string, targetId: string): Promise<ActionResult> {
-  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf mergen.");
+  if (!(await requireParticipant(retroId, token))) return fail("Nicht Teil dieses Boards.");
   if (sourceId === targetId) return fail("Eine Karte lässt sich nicht mit sich selbst mergen.");
   const [source, target] = await Promise.all([
     prisma.retroCard.findFirst({ where: { id: sourceId, column: { retroId } } }),

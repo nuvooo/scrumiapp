@@ -78,6 +78,7 @@ function Card({
   card,
   color,
   isAdmin,
+  canMerge,
   youName,
   authorAvatar,
   votesLeft,
@@ -94,6 +95,8 @@ function Card({
   card: RetroCardView;
   color: string;
   isAdmin: boolean;
+  /** Angemeldete Teilnehmer dürfen Karten per Drag & Drop zusammenlegen. */
+  canMerge: boolean;
   youName: string;
   /** Avatar des Karten-Autors (aus der Teilnehmerliste, "" = keiner). */
   authorAvatar: string;
@@ -134,13 +137,13 @@ function Card({
   return (
     <div
       data-testid={`card-${card.id}`}
-      draggable={isAdmin && !card.covered}
+      draggable={canMerge && !card.covered}
       onDragStart={(e) => {
         e.dataTransfer.setData(CARD_DRAG_TYPE, card.id);
         e.dataTransfer.effectAllowed = "move";
       }}
       onDragOver={(e) => {
-        if (!isAdmin || !e.dataTransfer.types.includes(CARD_DRAG_TYPE)) return;
+        if (!canMerge || !e.dataTransfer.types.includes(CARD_DRAG_TYPE)) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         setDragOver(true);
@@ -156,7 +159,7 @@ function Card({
       }}
       className={`rounded-[10px] border border-edge bg-field p-2.5 text-[13px] text-fg ${
         dragOver ? "ring-2 ring-[#6e8ff6]" : ""
-      } ${isAdmin && !card.covered ? "cursor-grab" : ""}`}
+      } ${canMerge && !card.covered ? "cursor-grab" : ""}`}
       style={{ borderLeft: `3px solid ${color}` }}
     >
       {card.covered ? (
@@ -757,6 +760,7 @@ export function RetroBoard({
               card,
               color: column.color,
               isAdmin,
+              canMerge: state.you !== null,
               youName: state.you?.name ?? "",
               authorAvatar: state.participants.find((p) => p.name === card.author)?.avatar ?? "",
               votesLeft: state.votesLeft,

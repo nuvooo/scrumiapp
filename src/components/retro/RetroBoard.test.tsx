@@ -259,10 +259,10 @@ describe("RetroBoard", () => {
     expect(lastCard.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("Mergen fragt per Dialog nach, bevor es passiert", () => {
+  it("Mergen darf jeder Teilnehmer — mit Bestätigungs-Dialog", () => {
     const onMerge = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
-    render(<RetroBoard state={admin} {...handlers} onMerge={onMerge} />);
+    // Ben ist normaler Teilnehmer, kein Moderator
+    render(<RetroBoard state={baseState()} {...handlers} onMerge={onMerge} />);
     const drop = () =>
       fireEvent.drop(screen.getByTestId("card-k2"), {
         dataTransfer: {
