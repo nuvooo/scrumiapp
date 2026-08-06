@@ -534,31 +534,40 @@ export function RefinementVoting({
             </button>
           )}
         </div>
-        {state.tickets.map((t) =>
-          isAdmin ? (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onSelect(t.id)}
-              aria-label={`${t.jiraKey} besprechen`}
-              aria-current={t.id === active?.id ? "true" : undefined}
-              className={`flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b border-row px-[14px] py-2.5 text-left text-[13px] last:border-b-0 hover:bg-raise ${
-                t.id === active?.id ? "border-l-2 border-l-accent bg-[rgba(124,156,255,0.13)]" : "border-l-2 border-l-transparent"
-              }`}
-            >
-              {ticketRow(t)}
-            </button>
-          ) : (
-            <div
-              key={t.id}
-              className={`flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-row px-[14px] py-2.5 text-[13px] last:border-b-0 ${
-                t.id === active?.id ? "border-l-2 border-l-accent bg-[rgba(124,156,255,0.13)]" : "border-l-2 border-l-transparent"
-              }`}
-            >
-              {ticketRow(t)}
-            </div>
-          ),
-        )}
+        {state.tickets.map((t) => (
+          <div
+            key={t.id}
+            className={`flex items-center border-b border-row py-2.5 pl-[14px] pr-[10px] text-[13px] last:border-b-0 ${
+              t.id === active?.id ? "border-l-2 border-l-accent bg-[rgba(124,156,255,0.13)]" : "border-l-2 border-l-transparent"
+            } ${isAdmin ? "hover:bg-raise" : ""}`}
+          >
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => onSelect(t.id)}
+                aria-label={`${t.jiraKey} besprechen`}
+                aria-current={t.id === active?.id ? "true" : undefined}
+                className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left"
+              >
+                {ticketRow(t)}
+              </button>
+            ) : (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">{ticketRow(t)}</div>
+            )}
+            {t.url && (
+              <a
+                href={t.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${t.jiraKey} in Jira öffnen`}
+                title="In Jira öffnen"
+                className="ml-2 flex h-[24px] w-[24px] flex-none items-center justify-center rounded-[6px] border border-edge bg-field font-mono text-[12px] text-link hover:border-tipline hover:text-linkhi"
+              >
+                ↗
+              </a>
+            )}
+          </div>
+        ))}
         {isAdmin && (
           <div className="px-[18px] py-3">
             <button type="button" onClick={onFinish} className="btn-secondary w-full px-3.5 py-[7px]">

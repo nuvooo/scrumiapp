@@ -258,6 +258,19 @@ describe("RefinementVoting", () => {
     expect(screen.queryByRole("button", { name: "Tickets hinzufügen" })).not.toBeInTheDocument();
   });
 
+  it("die Ticket-Seitenleiste verlinkt jedes Ticket nach Jira", () => {
+    const withUrls = baseState({
+      tickets: [
+        { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: "https://x.atlassian.net/browse/AB-1", previousPoints: null, state: "VOTING", finalPoints: null },
+        { id: "t2", jiraKey: "AB-2", summary: "Suche", issueType: "Story", description: "", url: "https://x.atlassian.net/browse/AB-2", previousPoints: 5, state: "PENDING", finalPoints: null },
+      ],
+    });
+    render(<RefinementVoting state={withUrls} {...handlers} />);
+    const link = screen.getByRole("link", { name: "AB-2 in Jira öffnen" });
+    expect(link).toHaveAttribute("href", "https://x.atlassian.net/browse/AB-2");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
   it("markiert den eigenen Sitz und zeigt Avatare", () => {
     render(<RefinementVoting state={baseState()} {...handlers} />);
     // Ben (du) ist deutlich hervorgehoben
