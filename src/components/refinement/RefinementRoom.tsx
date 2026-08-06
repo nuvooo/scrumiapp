@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
 import { AVATAR_EMOJIS, type RefinementRole, type RefinementStateView } from "@/lib/view/refinementState";
@@ -190,7 +191,11 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   // Ohne gültiges Token (oder Token einer anderen Session): Beitritt per Name.
   if (!state.you && state.state !== "DONE") {
     return (
-      <div className="card mt-6 max-w-[460px] p-[22px]">
+      <div>
+        <Link href="/refinement" className="inline-block text-[12.5px] text-muted hover:text-fg hover:underline">
+          ← Zur Übersicht
+        </Link>
+        <div className="card mt-4 max-w-[460px] p-[22px]">
         <div className="text-sm font-semibold">„{state.name}" beitreten</div>
         <div className="mt-1.5 text-[13px] text-muted">Gib deinen Namen an — kein Login nötig.</div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -221,7 +226,8 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             </label>
           ))}
         </div>
-        {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
+          {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
+        </div>
       </div>
     );
   }
@@ -247,9 +253,9 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
     setEditingProfile(false);
   };
 
-  /** Session verlassen: Teilnehmer löschen, Token vergessen, zurück zur Übersicht. */
+  /** Vom Refinement abmelden: Teilnehmer löschen, Token vergessen, zurück zur Übersicht. */
   const leave = async () => {
-    if (!window.confirm("Dieses Refinement wirklich verlassen?")) return;
+    if (!window.confirm("Wirklich von diesem Refinement abmelden? Deine Stimmen werden entfernt.")) return;
     const result = await leaveRefinement(refinementId, t);
     if (!result.ok) {
       setError(result.error ?? "Verlassen fehlgeschlagen.");
@@ -271,7 +277,10 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3">
+      <Link href="/refinement" className="inline-block text-[12.5px] text-muted hover:text-fg hover:underline">
+        ← Zur Übersicht
+      </Link>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <div className="min-w-0">
           {renaming ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -344,11 +353,11 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             )}
             <button
               type="button"
-              title="Session verlassen — Wiederbeitritt jederzeit möglich"
+              title="Vom Refinement abmelden — erneut anmelden ist jederzeit möglich"
               onClick={leave}
               className="btn-secondary px-3.5 py-[7px]"
             >
-              Verlassen
+              Abmelden
             </button>
           </div>
         )}
