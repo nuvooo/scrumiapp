@@ -80,6 +80,7 @@ function Seat({
   participant,
   revealedPoints,
   flipDelayMs,
+  isYou,
   canThrow,
   pickerOpen,
   onTogglePicker,
@@ -91,6 +92,8 @@ function Seat({
   revealedPoints: number | null | undefined;
   /** Staffelt den Flip beim Aufdecken: Sitz für Sitz statt alle gleichzeitig. */
   flipDelayMs: number;
+  /** Der eigene Platz — deutlich markiert, damit man sich sofort findet. */
+  isYou: boolean;
   canThrow: boolean;
   pickerOpen: boolean;
   onTogglePicker: () => void;
@@ -98,12 +101,13 @@ function Seat({
   /** Zählt Treffer — jede Erhöhung spielt das Wackeln neu ab. */
   hitSeq: number;
 }) {
-  const { name, voted } = participant;
+  const { name, avatar, voted } = participant;
   const faceUp = voted && revealedPoints !== undefined;
   return (
     <div
       data-testid={`participant-${name}`}
       data-voted={voted}
+      data-you={isYou || undefined}
       className="relative flex w-[64px] flex-col items-center gap-1.5"
     >
       <button
@@ -115,7 +119,9 @@ function Seat({
         title={canThrow ? "Mit einem Emoji bewerfen" : undefined}
         onClick={canThrow ? onTogglePicker : undefined}
         disabled={!canThrow}
-        className={`flip-scene block h-[52px] w-[38px] ${hitSeq > 0 ? "seat-hit" : ""} ${canThrow ? "cursor-pointer" : "cursor-default"}`}
+        className={`flip-scene block h-[52px] w-[38px] rounded-[7px] ${hitSeq > 0 ? "seat-hit" : ""} ${
+          canThrow ? "cursor-pointer" : "cursor-default"
+        } ${isYou ? "ring-2 ring-[#6e8ff6] ring-offset-2 ring-offset-[#0d111a]" : ""}`}
       >
         <span
           className={`flip-card ${faceUp ? "is-open" : ""}`}
@@ -125,15 +131,24 @@ function Seat({
             className={`flip-face ${
               voted
                 ? "border border-accent bg-gradient-to-b from-[#93aeff] to-[#6e8ff6] shadow-btn"
-                : "border border-dashed border-edge bg-field"
+                : "border border-dashed border-edge bg-field text-[15px] opacity-80"
             }`}
-          />
+          >
+            {!voted && avatar}
+          </span>
           <span className="flip-face flip-face-up border border-accent bg-chip font-mono text-[15px] font-semibold text-fg">
             {faceUp ? cardLabel(revealedPoints ?? null) : ""}
           </span>
         </span>
       </button>
-      <span className="max-w-[64px] truncate text-[11.5px] text-mid">{name}</span>
+      <span
+        className={`max-w-[64px] truncate text-[11.5px] ${isYou ? "font-semibold text-accent" : "text-mid"}`}
+        title={isYou ? `${name} (du)` : name}
+      >
+        {avatar && <>{avatar} </>}
+        {name}
+        {isYou && " (du)"}
+      </span>
       {pickerOpen && (
         <div className="absolute top-[56px] z-20 flex gap-1 rounded-[9px] border border-edge bg-field px-1.5 py-1 shadow-card">
           {THROW_EMOJIS.map((emoji) => (
@@ -262,6 +277,7 @@ export function RefinementVoting({
       participant={p}
       revealedPoints={revealedFor(p.name)}
       flipDelayMs={Math.max(0, estimators.findIndex((e) => e.name === p.name)) * 90}
+      isYou={state.you?.name === p.name}
       canThrow={!!state.you && p.name !== state.you.name}
       pickerOpen={pickerFor === p.name}
       onTogglePicker={() => setPickerFor((cur) => (cur === p.name ? null : p.name))}

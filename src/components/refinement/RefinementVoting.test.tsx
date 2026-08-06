@@ -16,11 +16,11 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
   id: "r1",
   name: "Refinement KW 31",
   state: "RUNNING",
-  you: { name: "Ben", isAdmin: false },
+  you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
-    { name: "Anna", isAdmin: true, online: true, voted: false },
-    { name: "Ben", isAdmin: false, online: true, voted: false },
-    { name: "Zoe", isAdmin: false, online: true, voted: true },
+    { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+    { name: "Ben", avatar: "", isAdmin: false, online: true, voted: false },
+    { name: "Zoe", avatar: "🦊", isAdmin: false, online: true, voted: true },
   ],
   tickets: [
     { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null, state: "VOTING", finalPoints: null },
@@ -31,16 +31,17 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
     state: "VOTING", myVoteGiven: false, votes: null, stats: null,
   },
   throws: [],
+  version: 0,
   ...over,
 });
 
 const revealedState = (): RefinementStateView =>
   baseState({
-    you: { name: "Anna", isAdmin: true },
+    you: { name: "Anna", avatar: "", isAdmin: true },
     participants: [
-      { name: "Anna", isAdmin: true, online: true, voted: false },
-      { name: "Ben", isAdmin: false, online: true, voted: true },
-      { name: "Zoe", isAdmin: false, online: true, voted: true },
+      { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+      { name: "Ben", avatar: "", isAdmin: false, online: true, voted: true },
+      { name: "Zoe", avatar: "", isAdmin: false, online: true, voted: true },
     ],
     activeTicket: {
       id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
@@ -99,7 +100,7 @@ describe("RefinementVoting", () => {
 
   it("der Moderator schätzt nicht mit: keine Kartenhand, aber Aufdecken und Ticketwahl", () => {
     const onReveal = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     const { unmount } = render(<RefinementVoting state={admin} {...handlers} onReveal={onReveal} />);
     expect(screen.queryByRole("button", { name: "5 Punkte" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unklar" })).not.toBeInTheDocument();
@@ -122,9 +123,9 @@ describe("RefinementVoting", () => {
   it("abwesende Teilnehmer sitzen nicht am Tisch und zählen nicht", () => {
     const withOffline = baseState({
       participants: [
-        { name: "Anna", isAdmin: true, online: true, voted: false },
-        { name: "Ben", isAdmin: false, online: true, voted: false },
-        { name: "Zoe", isAdmin: false, online: false, voted: true }, // Tab zu
+        { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+        { name: "Ben", avatar: "", isAdmin: false, online: true, voted: false },
+        { name: "Zoe", avatar: "", isAdmin: false, online: false, voted: true }, // Tab zu
       ],
     });
     render(<RefinementVoting state={withOffline} {...handlers} />);
@@ -133,7 +134,7 @@ describe("RefinementVoting", () => {
   });
 
   it("markiert das ausgewählte Ticket in der Seitenliste", () => {
-    render(<RefinementVoting state={baseState({ you: { name: "Anna", isAdmin: true } })} {...handlers} />);
+    render(<RefinementVoting state={baseState({ you: { name: "Anna", avatar: "", isAdmin: true } })} {...handlers} />);
     expect(screen.getByRole("button", { name: "AB-1 besprechen" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("button", { name: "AB-2 besprechen" })).not.toHaveAttribute("aria-current");
   });
@@ -147,7 +148,7 @@ describe("RefinementVoting", () => {
     unmount();
 
     // Kein aktives Ticket: Button erscheint im Platzhalter
-    const idle = baseState({ you: { name: "Anna", isAdmin: true }, activeTicket: null });
+    const idle = baseState({ you: { name: "Anna", avatar: "", isAdmin: true }, activeTicket: null });
     onSelect.mockClear();
     render(<RefinementVoting state={idle} {...handlers} onSelect={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Nächstes Ticket →" }));
@@ -223,5 +224,15 @@ describe("RefinementVoting", () => {
     render(<RefinementVoting state={revealedState()} {...handlers} />);
     expect(confetti).not.toHaveBeenCalled();
     expect(screen.queryByText(/Einstimmig!/)).not.toBeInTheDocument();
+  });
+
+  it("markiert den eigenen Sitz und zeigt Avatare", () => {
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    // Ben (du) ist deutlich hervorgehoben
+    expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-you");
+    expect(screen.getByText(/Ben \(du\)/)).toBeInTheDocument();
+    expect(screen.getByTestId("participant-Zoe")).not.toHaveAttribute("data-you");
+    // Zoes Fuchs-Avatar erscheint am Sitz
+    expect(screen.getByTestId("participant-Zoe")).toHaveTextContent("🦊");
   });
 });
