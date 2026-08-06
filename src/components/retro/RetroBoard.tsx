@@ -147,8 +147,12 @@ function Card({
       style={{ borderLeft: `3px solid ${color}` }}
     >
       {card.covered ? (
-        <div className="select-none py-1 text-center text-[13px] tracking-[0.3em] text-dim" title="Noch verdeckt">
-          🙈 ▪▪▪▪▪
+        <div className="relative" title="Noch verdeckt">
+          {/* Geblurte Vorschau: Länge und GIFs schimmern durch, lesbar ist nichts. */}
+          <div data-testid={`covered-${card.id}`} aria-hidden="true" className="pointer-events-none select-none opacity-75 blur-[7px]">
+            <CardText text={card.text} />
+          </div>
+          <span className="absolute -right-1 -top-1 text-[13px]">🙈</span>
         </div>
       ) : editing ? (
         <div className="flex flex-col gap-2">

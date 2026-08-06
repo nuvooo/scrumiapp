@@ -15,8 +15,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * WebSocket pusht "changed", der Client holt hier den Stand; ohne Socket
  * hält ?v= die Antwort bis zur nächsten Änderung offen (max. 8 s).
  *
- * Karten sind grundsätzlich anonym (kein Autor im JSON). Im Verdeckt-Modus
- * gehen fremde Karteninhalte und Kommentare gar nicht erst raus.
+ * Im Verdeckt-Modus bleiben Autor und Kommentare fremder Karten zurück —
+ * der Text geht mit raus und wird im Client als geblurte Vorschau gezeigt.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -100,7 +100,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           covered,
           // Verdeckt = anonym; erst nach dem Aufdecken steht der Name dran.
           author: covered ? "" : card.author.name,
-          text: covered ? "" : card.text,
+          // Text auch verdeckt mitschicken — der Client blurred ihn als Vorschau.
+          text: card.text,
           votes: card.votes.length,
           myVotes: you ? card.votes.filter((v) => v.participantId === you.id).length : 0,
           comments: covered

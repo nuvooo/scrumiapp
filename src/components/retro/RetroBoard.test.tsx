@@ -83,7 +83,7 @@ describe("RetroBoard", () => {
     expect(within(screen.getByTestId("card-k2")).getByRole("button", { name: "Stimme geben" })).toBeDisabled();
   });
 
-  it("verdeckte fremde Karten zeigen nur den Platzhalter", () => {
+  it("verdeckte fremde Karten zeigen eine geblurte Vorschau ohne Autor", () => {
     const covered = baseState({
       hidden: true,
       columns: [
@@ -91,16 +91,22 @@ describe("RetroBoard", () => {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A",
           cards: [
             { id: "k1", mine: true, covered: false, author: "Ben", text: "Meine Karte", votes: 0, myVotes: 0, comments: [] },
-            { id: "k2", mine: false, covered: true, author: "", text: "", votes: 0, myVotes: 0, comments: [] },
+            { id: "k2", mine: false, covered: true, author: "", text: "Geheimer Text 🤫", votes: 0, myVotes: 0, comments: [] },
           ],
         },
       ],
     });
     render(<RetroBoard state={covered} {...handlers} />);
     expect(screen.getByText("Meine Karte")).toBeInTheDocument();
+    // Inhalt steckt in der geblurten, nicht interagierbaren Vorschau
+    const preview = within(screen.getByTestId("card-k2")).getByTestId("covered-k2");
+    expect(preview).toHaveTextContent("Geheimer Text 🤫");
+    expect(preview).toHaveClass("blur-[7px]");
+    expect(preview).toHaveAttribute("aria-hidden", "true");
     expect(within(screen.getByTestId("card-k2")).getByText(/🙈/)).toBeInTheDocument();
-    // Verdeckt = anonym: kein Autor an der fremden Karte
+    // Verdeckt = anonym: kein Autor, keine Bearbeiten-/Vote-Knöpfe
     expect(within(screen.getByTestId("card-k2")).queryByText(/✍️/)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("card-k2")).queryByRole("button", { name: "Stimme geben" })).not.toBeInTheDocument();
   });
 
   it("nur eigene Karten (oder Moderator) lassen sich bearbeiten", () => {

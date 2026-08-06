@@ -79,7 +79,7 @@ export interface RetroCardView {
   id: string;
   /** Eigene Karte — darf bearbeitet und gelöscht werden. */
   mine: boolean;
-  /** Verdeckt-Modus: fremde Karten kommen ohne Inhalt ("" ) und ohne Kommentare. */
+  /** Verdeckt-Modus: Karte nur als geblurte Vorschau zeigen (ohne Autor/Kommentare). */
   covered: boolean;
   /** Wer die Karte geschrieben hat — leer, solange sie verdeckt ist (anonym). */
   author: string;
