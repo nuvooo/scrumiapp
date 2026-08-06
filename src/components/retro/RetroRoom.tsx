@@ -21,6 +21,7 @@ import {
   voteRetroCard,
   unvoteRetroCard,
   mergeRetroCards,
+  searchGifs,
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
 
@@ -296,6 +297,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onSetColumnColor={(columnId, color) => run(() => setRetroColumnColor(retroId, t, columnId, color))}
         onReorderColumn={(columnId, targetColumnId) => run(() => reorderRetroColumn(retroId, t, columnId, targetColumnId))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
+        onSearchGifs={searchGifs}
       />
     </div>
   );

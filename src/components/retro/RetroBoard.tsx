@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cardSegments } from "@/lib/retroCardText";
-import { EmojiGifPicker } from "./EmojiGifPicker";
+import { EmojiGifPicker, type GifSearch } from "./EmojiGifPicker";
 import {
   RETRO_COLORS,
   type RetroCardView,
@@ -35,6 +35,7 @@ function Card({
   isAdmin,
   youName,
   votesLeft,
+  searchGifs,
   onUpdate,
   onDelete,
   onVote,
@@ -48,6 +49,7 @@ function Card({
   isAdmin: boolean;
   youName: string;
   votesLeft: number;
+  searchGifs: GifSearch;
   onUpdate: (text: string) => void;
   onDelete: () => void;
   onVote: () => void;
@@ -117,7 +119,10 @@ function Card({
             className="input-field resize-y text-[13px]"
           />
           <div className="flex items-center gap-1.5">
-            <EmojiGifPicker onInsert={(s) => setEditText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))} />
+            <EmojiGifPicker
+              searchGifs={searchGifs}
+              onInsert={(s) => setEditText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))}
+            />
             <button type="button" onClick={saveEdit} className="btn-primary ml-auto px-3 py-1.5">Speichern</button>
             <button type="button" onClick={() => setEditing(false)} className="btn-secondary px-3 py-1.5">Abbrechen</button>
           </div>
@@ -232,6 +237,7 @@ function Column({
   isAdmin,
   votesLeft,
   sortByVotes,
+  searchGifs,
   onAddCard,
   onRename,
   onSetColor,
@@ -243,6 +249,7 @@ function Column({
   isAdmin: boolean;
   votesLeft: number;
   sortByVotes: boolean;
+  searchGifs: GifSearch;
   onAddCard: (text: string) => void;
   onRename: (name: string) => void;
   onSetColor: (color: string) => void;
@@ -401,6 +408,7 @@ function Column({
           />
           <div className="flex items-center gap-1.5">
             <EmojiGifPicker
+              searchGifs={searchGifs}
               onInsert={(s) => setComposerText((t) => (t ? `${t}${s.startsWith("http") ? "\n" : ""}${s}` : s))}
             />
             <button type="button" onClick={submitCard} className="btn-primary ml-auto px-3 py-1.5">Hinzufügen</button>
@@ -440,6 +448,7 @@ export function RetroBoard({
   onSetColumnColor,
   onReorderColumn,
   onDeleteColumn,
+  onSearchGifs,
 }: {
   state: RetroStateView;
   onAddCard: (columnId: string, text: string) => void;
@@ -456,6 +465,8 @@ export function RetroBoard({
   onSetColumnColor: (columnId: string, color: string) => void;
   onReorderColumn: (columnId: string, targetColumnId: string) => void;
   onDeleteColumn: (columnId: string) => void;
+  /** GIF-Suche (Giphy-Proxy) für die Karten-Eingabe. */
+  onSearchGifs: GifSearch;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
   const [sortByVotes, setSortByVotes] = useState(false);
@@ -536,6 +547,7 @@ export function RetroBoard({
             isAdmin={isAdmin}
             votesLeft={state.votesLeft}
             sortByVotes={sortByVotes}
+            searchGifs={onSearchGifs}
             onAddCard={(text) => onAddCard(column.id, text)}
             onRename={(name) => onRenameColumn(column.id, name)}
             onSetColor={(color) => onSetColumnColor(column.id, color)}
@@ -547,6 +559,7 @@ export function RetroBoard({
               isAdmin,
               youName: state.you?.name ?? "",
               votesLeft: state.votesLeft,
+              searchGifs: onSearchGifs,
               onUpdate: (text: string) => onUpdateCard(card.id, text),
               onDelete: () => onDeleteCard(card.id),
               onVote: () => onVote(card.id),

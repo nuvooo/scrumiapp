@@ -28,6 +28,43 @@ async function requireParticipant(retroId: string, token: string, adminOnly = fa
   return participant;
 }
 
+export interface GifResult {
+  /** URL fürs Einfügen in die Karte (fixed_height, endet auf .gif). */
+  url: string;
+  /** Kleines Vorschaubild fürs Auswahlraster. */
+  preview: string;
+}
+
+/**
+ * GIF-Suche über die Giphy-API — als Server-Proxy, damit der API-Key
+ * (GIPHY_API_KEY in .env) nie im Browser landet. Ohne Suchbegriff kommen
+ * die aktuellen Trending-GIFs.
+ */
+export async function searchGifs(query: string): Promise<ActionResult<GifResult[]>> {
+  const key = (process.env.GIPHY_API_KEY ?? "").trim();
+  if (!key) return fail("Kein GIPHY_API_KEY konfiguriert.");
+  const q = query.trim();
+  const endpoint = q
+    ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(q)}&limit=24&rating=g&lang=de`
+    : `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=24&rating=g`;
+  try {
+    const res = await fetch(endpoint, { cache: "no-store" });
+    if (!res.ok) return fail(`Giphy antwortet nicht (HTTP ${res.status}).`);
+    const payload = (await res.json()) as {
+      data: { images: { fixed_height: { url: string }; fixed_height_small: { url: string } } }[];
+    };
+    return {
+      ok: true,
+      data: payload.data.map((g) => ({
+        url: g.images.fixed_height.url,
+        preview: g.images.fixed_height_small.url,
+      })),
+    };
+  } catch {
+    return fail("Giphy ist nicht erreichbar.");
+  }
+}
+
 export async function createRetro(
   teamId: string,
   name: string,

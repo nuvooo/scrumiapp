@@ -39,6 +39,8 @@ const handlers = {
   onAddComment: noop, onDeleteComment: noop,
   onMerge: noop,
   onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop, onDeleteColumn: noop,
+  // Ohne API-Key fällt der GIF-Dialog auf die kuratierte Galerie zurück.
+  onSearchGifs: async () => ({ ok: false, error: "Kein GIPHY_API_KEY konfiguriert." }),
 };
 
 describe("RetroBoard", () => {
@@ -205,14 +207,30 @@ describe("RetroBoard", () => {
     expect(onAddCard).toHaveBeenCalledWith("c2", "Super Sprint🎉");
   });
 
-  it("fügt ein GIF aus der Galerie in die Karte ein", () => {
+  it("fügt ein GIF aus der Fallback-Galerie in die Karte ein (ohne API-Key)", async () => {
     const onAddCard = vi.fn();
     render(<RetroBoard state={baseState()} {...handlers} onAddCard={onAddCard} />);
     fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
     fireEvent.click(screen.getByRole("button", { name: "GIF auswählen" }));
-    fireEvent.click(screen.getByRole("button", { name: "GIF 1 einfügen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "GIF 1 einfügen" }));
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     expect(onAddCard).toHaveBeenCalledWith("c2", expect.stringContaining("giphy.gif"));
+  });
+
+  it("mit API-Key zeigt der GIF-Dialog die Giphy-Suche", async () => {
+    const onAddCard = vi.fn();
+    const onSearchGifs = vi.fn(async () => ({
+      ok: true,
+      data: [{ url: "https://media0.giphy.com/media/abc/200.gif?cid=1", preview: "https://media0.giphy.com/media/abc/200_s.gif" }],
+    }));
+    render(<RetroBoard state={baseState()} {...handlers} onSearchGifs={onSearchGifs} onAddCard={onAddCard} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "GIF auswählen" }));
+    expect(await screen.findByLabelText("GIFs durchsuchen")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "GIF 1 einfügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    expect(onSearchGifs).toHaveBeenCalledWith("");
+    expect(onAddCard).toHaveBeenCalledWith("c2", "https://media0.giphy.com/media/abc/200.gif?cid=1");
   });
 
   it("rendert GIF-URLs in Karten als Bild", () => {
