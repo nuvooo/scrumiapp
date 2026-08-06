@@ -271,10 +271,11 @@ describe("RetroBoard", () => {
         },
       });
 
-    // Abbrechen: kein Merge
+    // Abbrechen: kein Merge — der Dialog fragt nur, ohne Karteninhalte zu zeigen
     drop();
     const dialog = screen.getByRole("dialog", { name: "Karten zusammenführen" });
-    expect(within(dialog).getByText("Gutes Pairing")).toBeInTheDocument();
+    expect(within(dialog).getByText("Karten wirklich zusammenführen?")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Gutes Pairing")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
     expect(onMerge).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

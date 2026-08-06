@@ -636,8 +636,6 @@ export function RetroBoard({
   /** Merge erst nach Bestätigung — der Drop merkt sich nur die Absicht. */
   const [mergeIntent, setMergeIntent] = useState<{ sourceId: string; targetId: string } | null>(null);
 
-  const findCard = (id: string) => state.columns.flatMap((c) => c.cards).find((k) => k.id === id);
-
   // Sortierung kommt vom Server (der Moderator legt sie für alle fest).
   const sortCards = (cards: RetroCardView[]): RetroCardView[] => {
     if (state.sortMode === "votes") return [...cards].sort((a, b) => b.votes - a.votes);
@@ -788,18 +786,11 @@ export function RetroBoard({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={() => setMergeIntent(null)}
         >
-          <div className="card w-full max-w-[440px] p-[20px]" onClick={(e) => e.stopPropagation()}>
+          <div className="card w-full max-w-[400px] p-[20px]" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-semibold">Karten wirklich zusammenführen?</div>
-            <div className="mt-3 flex flex-col gap-2 text-[12.5px]">
-              <div className="rounded-[8px] border border-edge bg-field px-3 py-2 text-mid">
-                {findCard(mergeIntent.sourceId)?.text || "(verdeckte Karte)"}
-              </div>
-              <div className="text-center text-[13px] text-dim">⤵ wird angehängt an</div>
-              <div className="rounded-[8px] border border-edge bg-field px-3 py-2 text-mid">
-                {findCard(mergeIntent.targetId)?.text || "(verdeckte Karte)"}
-              </div>
+            <div className="mt-2 text-[12.5px] text-muted">
+              Die gezogene Karte wird an die Zielkarte angehängt — Kommentare und Stimmen wandern mit.
             </div>
-            <div className="mt-2.5 text-[12px] text-muted">Kommentare und Stimmen wandern mit auf die Zielkarte.</div>
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
