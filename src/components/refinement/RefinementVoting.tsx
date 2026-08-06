@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import { formatPoints } from "@/lib/format";
 import { isUnanimous } from "@/lib/metrics/refinementVotes";
+import { AddTicketsModal } from "./AddTicketsModal";
+import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   THROW_EMOJIS,
   type RefinementStateView,
@@ -197,6 +199,9 @@ export function RefinementVoting({
   onAccept,
   onFinish,
   onThrow,
+  onLoadBacklog,
+  onAddTicket,
+  onAddTickets,
 }: {
   state: RefinementStateView;
   onVote: (points: number | null) => void;
@@ -208,14 +213,20 @@ export function RefinementVoting({
   onFinish: () => void;
   /** Wirft ein Emoji auf eine andere Person am Tisch. */
   onThrow: (targetName: string, emoji: string) => void;
+  /** Backlog fürs Nachlegen von Tickets mitten im Refinement (nur Moderator). */
+  onLoadBacklog: () => Promise<{ ok: boolean; error?: string; data?: JiraSearchResult[] }>;
+  onAddTicket: (result: JiraSearchResult) => void;
+  onAddTickets: (results: JiraSearchResult[]) => void | Promise<void>;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
+  const isVisitor = state.you?.isVisitor ?? false;
   const active = state.activeTicket;
   // Nach dem Übernehmen (ESTIMATED) bleiben die Karten offen auf dem Tisch.
   const revealed = active?.state === "REVEALED" || active?.state === "ESTIMATED";
   const accepted = active?.state === "ESTIMATED";
   const [finalText, setFinalText] = useState("");
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   /** Treffer-Zähler pro Name — löst das Wackeln am getroffenen Sitz aus. */
   const [hits, setHits] = useState<Record<string, number>>({});
   const celebratedRef = useRef<string | null>(null);
@@ -273,9 +284,9 @@ export function RefinementVoting({
   const revealedFor = (name: string) =>
     revealed && pointsByName.has(name) ? pointsByName.get(name) : undefined;
 
-  // Am Tisch sitzen nur anwesende Schätzende — Moderatoren nie, und wer
-  // nicht mehr pollt (Tab zu), verschwindet nach dem Heartbeat-Timeout.
-  const estimators = state.participants.filter((p) => !p.isAdmin && p.online);
+  // Am Tisch sitzen nur anwesende Schätzende — Moderatoren und Besucher nie,
+  // und wer nicht mehr da ist (Verbindung weg), verschwindet vom Tisch.
+  const estimators = state.participants.filter((p) => !p.isAdmin && !p.isVisitor && p.online);
   const votedCount = estimators.filter((p) => p.voted).length;
   const estimated = state.tickets.filter((t) => t.state === "ESTIMATED").length;
   const { top, bottom, left, right } = seats(estimators);
@@ -451,8 +462,8 @@ export function RefinementVoting({
             )}
           </div>
 
-          {/* Die eigene Hand — nur Schätzende, nicht der Moderator */}
-          {!revealed && !isAdmin && (
+          {/* Die eigene Hand — nur Schätzende, nicht Moderator oder Besucher */}
+          {!revealed && !isAdmin && !isVisitor && (
             <div className="mt-7 flex flex-col items-center gap-3">
               <div className="text-[13px] text-muted">
                 {active.myVoteGiven
@@ -511,6 +522,17 @@ export function RefinementVoting({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-[18px] py-3">
           <div className="text-sm font-semibold">Tickets</div>
           <span className="font-mono text-[11px] text-faint">{estimated} von {state.tickets.length} geschätzt</span>
+          {isAdmin && (
+            <button
+              type="button"
+              aria-label="Tickets hinzufügen"
+              title="Tickets aus dem Backlog nachlegen"
+              onClick={() => setAddOpen(true)}
+              className="btn-secondary ml-auto h-[26px] w-[26px] rounded-[7px] text-[15px] leading-none"
+            >
+              +
+            </button>
+          )}
         </div>
         {state.tickets.map((t) =>
           isAdmin ? (
@@ -545,6 +567,16 @@ export function RefinementVoting({
           </div>
         )}
       </div>
+
+      {addOpen && (
+        <AddTicketsModal
+          addedKeys={new Set(state.tickets.map((t) => t.jiraKey))}
+          onLoadBacklog={onLoadBacklog}
+          onAdd={onAddTicket}
+          onAddMany={onAddTickets}
+          onClose={() => setAddOpen(false)}
+        />
+      )}
     </div>
   );
 }

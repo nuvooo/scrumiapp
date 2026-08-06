@@ -5,7 +5,12 @@ import { prisma } from "@/lib/db";
 import { JiraCloudClient, jiraConfigFromEnv, type JiraSearchResult } from "@/lib/jira/jiraClient";
 import { addThrow } from "@/lib/refinementThrows";
 import { bumpRefinement } from "@/lib/refinementVersion";
-import { AVATAR_EMOJIS, THROW_EMOJIS } from "@/lib/view/refinementState";
+import { AVATAR_EMOJIS, THROW_EMOJIS, type RefinementRole } from "@/lib/view/refinementState";
+
+/** Rolle auf die beiden Teilnehmer-Flags abbilden. */
+function roleFlags(role: RefinementRole): { isAdmin: boolean; isVisitor: boolean } {
+  return { isAdmin: role === "moderator", isVisitor: role === "visitor" };
+}
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -55,7 +60,7 @@ export async function createRefinement(
 export async function joinRefinement(
   refinementId: string,
   name: string,
-  asAdmin = false,
+  role: RefinementRole = "estimator",
 ): Promise<ActionResult<{ token: string }>> {
   const trimmed = name.trim();
   if (!trimmed) return fail("Bitte einen Namen angeben.");
@@ -65,7 +70,7 @@ export async function joinRefinement(
 
   try {
     const participant = await prisma.refinementParticipant.create({
-      data: { refinementId, name: trimmed, isAdmin: asAdmin },
+      data: { refinementId, name: trimmed, ...roleFlags(role) },
     });
     bumpRefinement(refinementId);
     return { ok: true, data: { token: participant.token } };
@@ -74,12 +79,22 @@ export async function joinRefinement(
   }
 }
 
-/** Eigenen Namen und Avatar ändern — jederzeit, auch mitten in der Abstimmung. */
+/** Session verlassen: Teilnehmer samt Stimmen entfernen; Wiederbeitritt jederzeit möglich. */
+export async function leaveRefinement(refinementId: string, token: string): Promise<ActionResult> {
+  const participant = await requireParticipant(refinementId, token);
+  if (!participant) return fail("Nicht Teil dieser Session.");
+  await prisma.refinementParticipant.delete({ where: { id: participant.id } });
+  bumpRefinement(refinementId);
+  return { ok: true };
+}
+
+/** Eigenen Namen, Avatar und Rolle ändern — jederzeit, auch mitten in der Abstimmung. */
 export async function updateProfile(
   refinementId: string,
   token: string,
   name: string,
   avatar: string,
+  role: RefinementRole,
 ): Promise<ActionResult> {
   const participant = await requireParticipant(refinementId, token);
   if (!participant) return fail("Nicht Teil dieser Session.");
@@ -88,13 +103,28 @@ export async function updateProfile(
   if (avatar !== "" && !(AVATAR_EMOJIS as readonly string[]).includes(avatar)) {
     return fail("Diesen Avatar gibt es nicht.");
   }
+  const flags = roleFlags(role);
   try {
     await prisma.refinementParticipant.update({
       where: { id: participant.id },
-      data: { name: trimmed, avatar },
+      data: { name: trimmed, avatar, ...flags },
     });
   } catch {
     return fail(`Der Name „${trimmed}" ist in dieser Session schon vergeben.`);
+  }
+  // Wer den Tisch verlässt (Moderator/Besucher), nimmt seine offene Stimme mit.
+  const wasEstimator = !participant.isAdmin && !participant.isVisitor;
+  if (wasEstimator && role !== "estimator") {
+    const refinement = await prisma.refinement.findUnique({ where: { id: refinementId } });
+    if (refinement?.activeTicketId) {
+      await prisma.refinementVote.deleteMany({
+        where: {
+          ticketId: refinement.activeTicketId,
+          participantId: participant.id,
+          ticket: { state: "VOTING" },
+        },
+      });
+    }
   }
   bumpRefinement(refinementId);
   return { ok: true };
@@ -279,6 +309,7 @@ export async function vote(
   const participant = await requireParticipant(refinementId, token);
   if (!participant) return fail("Nicht Teil dieser Session.");
   if (participant.isAdmin) return fail("Der Moderator schätzt nicht mit.");
+  if (participant.isVisitor) return fail("Besucher schätzen nicht mit.");
   const ticket = await prisma.refinementTicket.findFirst({ where: { id: ticketId, refinementId } });
   if (!ticket || ticket.state !== "VOTING") return fail("Gerade keine Abstimmung offen.");
   await prisma.refinementVote.upsert({

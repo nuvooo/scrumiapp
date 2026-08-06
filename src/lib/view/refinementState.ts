@@ -17,11 +17,16 @@ export interface RefinementTicketView {
   finalPoints: number | null;
 }
 
+/** Rolle in der Session: Schätzer sitzen am Tisch, Besucher schauen nur zu. */
+export type RefinementRole = "estimator" | "moderator" | "visitor";
+
 export interface RefinementParticipantView {
   name: string;
   /** Emoji-Avatar ("" = keiner gewählt). */
   avatar: string;
   isAdmin: boolean;
+  /** Besucher: kein Sitzplatz, keine Stimme — nur zuschauen. */
+  isVisitor: boolean;
   /** Anwesend = hat innerhalb der letzten ~12 s gepollt (Heartbeat). */
   online: boolean;
   voted: boolean;
@@ -55,7 +60,7 @@ export interface RefinementStateView {
   id: string;
   name: string;
   state: RefinementPhase;
-  you: { name: string; avatar: string; isAdmin: boolean } | null;
+  you: { name: string; avatar: string; isAdmin: boolean; isVisitor: boolean } | null;
   participants: RefinementParticipantView[];
   tickets: RefinementTicketView[];
   activeTicket: ActiveTicketView | null;

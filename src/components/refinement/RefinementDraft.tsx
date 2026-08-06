@@ -96,7 +96,19 @@ export function RefinementDraft({
         >
           {isAdmin && <DragHandle />}
           <span className="w-5 flex-none font-mono text-[11px] text-faint">{i + 1}.</span>
-          <span className="flex-none font-mono text-[11.5px] text-link">{t.jiraKey}</span>
+          {t.url ? (
+            <a
+              href={t.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="In Jira öffnen"
+              className="flex-none font-mono text-[11.5px] text-link hover:text-linkhi hover:underline"
+            >
+              {t.jiraKey} ↗
+            </a>
+          ) : (
+            <span className="flex-none font-mono text-[11.5px] text-link">{t.jiraKey}</span>
+          )}
           <span className="min-w-0 flex-1 truncate" title={t.summary}>{t.summary}</span>
           <span className="flex-none font-mono text-[11px] text-dim">
             {t.previousPoints !== null ? `${formatPoints(t.previousPoints)} SP` : "ohne Schätzung"}
