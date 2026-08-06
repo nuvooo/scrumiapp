@@ -125,6 +125,11 @@ function Card({
       ) : (
         <>
           <CardText text={card.text} />
+          {card.author && (
+            <div className="mt-1.5 text-[11px] font-medium text-dim" title="Autor der Karte">
+              ✍️ {card.author}
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-1.5">
             {/* Stimmen */}
             <span className={`font-mono text-[11.5px] ${card.votes > 0 ? "text-fg" : "text-dim"}`}>👍 {card.votes}</span>

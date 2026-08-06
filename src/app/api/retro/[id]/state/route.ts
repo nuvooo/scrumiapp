@@ -52,6 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             orderBy: { createdAt: "asc" },
             include: {
               votes: true,
+              author: { select: { name: true } },
               comments: { orderBy: { createdAt: "asc" }, include: { author: { select: { name: true } } } },
             },
           },
@@ -96,6 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           id: card.id,
           mine,
           covered,
+          // Verdeckt = anonym; erst nach dem Aufdecken steht der Name dran.
+          author: covered ? "" : card.author.name,
           text: covered ? "" : card.text,
           votes: card.votes.length,
           myVotes: you ? card.votes.filter((v) => v.participantId === you.id).length : 0,

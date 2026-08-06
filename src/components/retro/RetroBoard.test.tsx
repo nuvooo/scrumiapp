@@ -22,8 +22,8 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
       name: "Lief gut 👍",
       color: "#4CC38A",
       cards: [
-        { id: "k1", mine: true, covered: false, text: "Gutes Pairing", votes: 2, myVotes: 1, comments: [{ id: "m1", author: "Zoe", text: "stimmt!" }] },
-        { id: "k2", mine: false, covered: false, text: "Deploy lief rund", votes: 5, myVotes: 0, comments: [] },
+        { id: "k1", mine: true, covered: false, author: "Ben", text: "Gutes Pairing", votes: 2, myVotes: 1, comments: [{ id: "m1", author: "Zoe", text: "stimmt!" }] },
+        { id: "k2", mine: false, covered: false, author: "Zoe", text: "Deploy lief rund", votes: 5, myVotes: 0, comments: [] },
       ],
     },
     { id: "c2", name: "Geht besser 🤔", color: "#E5484D", cards: [] },
@@ -42,12 +42,13 @@ const handlers = {
 };
 
 describe("RetroBoard", () => {
-  it("zeigt Spalten mit Karten und Stimmen", () => {
+  it("zeigt Spalten mit Karten, Autor und Stimmen", () => {
     render(<RetroBoard state={baseState()} {...handlers} />);
     expect(screen.getByTestId("column-Lief gut 👍")).toBeInTheDocument();
     expect(screen.getByTestId("column-Geht besser 🤔")).toBeInTheDocument();
     expect(screen.getByText("Gutes Pairing")).toBeInTheDocument();
     expect(within(screen.getByTestId("card-k2")).getByText("👍 5")).toBeInTheDocument();
+    expect(within(screen.getByTestId("card-k2")).getByText(/✍️ Zoe/)).toBeInTheDocument();
     expect(screen.getByText(/Noch 2 von 3 Stimmen/)).toBeInTheDocument();
   });
 
@@ -85,8 +86,8 @@ describe("RetroBoard", () => {
         {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A",
           cards: [
-            { id: "k1", mine: true, covered: false, text: "Meine Karte", votes: 0, myVotes: 0, comments: [] },
-            { id: "k2", mine: false, covered: true, text: "", votes: 0, myVotes: 0, comments: [] },
+            { id: "k1", mine: true, covered: false, author: "Ben", text: "Meine Karte", votes: 0, myVotes: 0, comments: [] },
+            { id: "k2", mine: false, covered: true, author: "", text: "", votes: 0, myVotes: 0, comments: [] },
           ],
         },
       ],
@@ -94,6 +95,8 @@ describe("RetroBoard", () => {
     render(<RetroBoard state={covered} {...handlers} />);
     expect(screen.getByText("Meine Karte")).toBeInTheDocument();
     expect(within(screen.getByTestId("card-k2")).getByText(/🙈/)).toBeInTheDocument();
+    // Verdeckt = anonym: kein Autor an der fremden Karte
+    expect(within(screen.getByTestId("card-k2")).queryByText(/✍️/)).not.toBeInTheDocument();
   });
 
   it("nur eigene Karten (oder Moderator) lassen sich bearbeiten", () => {
@@ -217,7 +220,7 @@ describe("RetroBoard", () => {
       columns: [
         {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A",
-          cards: [{ id: "k1", mine: true, covered: false, text: "https://media.giphy.com/x/giphy.gif", votes: 0, myVotes: 0, comments: [] }],
+          cards: [{ id: "k1", mine: true, covered: false, author: "Ben", text: "https://media.giphy.com/x/giphy.gif", votes: 0, myVotes: 0, comments: [] }],
         },
       ],
     });

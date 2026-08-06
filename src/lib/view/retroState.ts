@@ -81,6 +81,8 @@ export interface RetroCardView {
   mine: boolean;
   /** Verdeckt-Modus: fremde Karten kommen ohne Inhalt ("" ) und ohne Kommentare. */
   covered: boolean;
+  /** Wer die Karte geschrieben hat — leer, solange sie verdeckt ist (anonym). */
+  author: string;
   text: string;
   votes: number;
   /** Eigene Stimmen auf dieser Karte (fürs Zurücknehmen). */
