@@ -218,6 +218,19 @@ export async function setRetroColumnColor(retroId: string, token: string, column
   return { ok: true };
 }
 
+/** Spalte ein-/ausklappen — lenkt den Fokus der Retro auf die übrigen Spalten. */
+export async function setRetroColumnCollapsed(
+  retroId: string,
+  token: string,
+  columnId: string,
+  collapsed: boolean,
+): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retroColumn.updateMany({ where: { id: columnId, retroId }, data: { collapsed } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
 /** Spalte per Drag & Drop umsortieren: an die Position der Zielspalte schieben. */
 export async function reorderRetroColumn(
   retroId: string,

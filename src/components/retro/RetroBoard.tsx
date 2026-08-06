@@ -299,13 +299,14 @@ function Column({
   column,
   isAdmin,
   votesLeft,
-  sortByVotes,
+  sortCards,
   searchGifs,
   typing,
   onAddCard,
   onRename,
   onSetColor,
   onReorder,
+  onSetCollapsed,
   onDelete,
   onTyping,
   cardHandlers,
@@ -313,7 +314,8 @@ function Column({
   column: RetroColumnView;
   isAdmin: boolean;
   votesLeft: number;
-  sortByVotes: boolean;
+  /** Sortiert die Karten gemäß der gewählten Board-Sortierung. */
+  sortCards: (cards: RetroCardView[]) => RetroCardView[];
   searchGifs: GifSearch;
   /** Andere, die gerade in dieser Spalte schreiben (name leer = anonym). */
   typing: { name: string }[];
@@ -322,6 +324,8 @@ function Column({
   onSetColor: (color: string) => void;
   /** Eine andere Spalte wurde auf diese gezogen — an diese Position schieben. */
   onReorder: (sourceColumnId: string) => void;
+  /** Spalte ein-/ausklappen (Fokus lenken) — nur Moderator. */
+  onSetCollapsed: (collapsed: boolean) => void;
   onDelete: () => void;
   /** Meldet, dass hier gerade eine Karte geschrieben wird (bzw. nicht mehr). */
   onTyping: (active: boolean) => void;
@@ -335,7 +339,7 @@ function Column({
   const [colorOpen, setColorOpen] = useState(false);
   const [columnDragOver, setColumnDragOver] = useState(false);
 
-  const cards = sortByVotes ? [...column.cards].sort((a, b) => b.votes - a.votes) : column.cards;
+  const cards = sortCards(column.cards);
 
   // Solange der Composer offen ist, regelmäßig „schreibt gerade" melden.
   useEffect(() => {
@@ -362,6 +366,34 @@ function Column({
     onRename(nameText);
     setRenaming(false);
   };
+
+  // Eingeklappt: nur eine schmale Leiste — lenkt den Blick auf die offenen Spalten.
+  if (column.collapsed) {
+    return (
+      <div data-testid={`column-${column.name}`} className="flex w-[46px] flex-none flex-col">
+        <div
+          className="flex flex-col items-center gap-2.5 rounded-[10px] border border-line bg-field px-1.5 py-3"
+          style={{ borderTop: `3px solid ${column.color}` }}
+        >
+          {isAdmin && (
+            <button
+              type="button"
+              aria-label={`Spalte ${column.name} einblenden`}
+              title="Spalte wieder einblenden"
+              onClick={() => onSetCollapsed(false)}
+              className="text-[13px] text-dim hover:text-fg"
+            >
+              👁
+            </button>
+          )}
+          <span className="max-h-[220px] truncate text-[12px] font-semibold text-mid [writing-mode:vertical-rl]">
+            {column.name}
+          </span>
+          <span className="font-mono text-[10.5px] text-faint">{column.cards.length}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -410,6 +442,15 @@ function Column({
             <span className="flex-none font-mono text-[11px] text-faint">{column.cards.length}</span>
             {isAdmin && (
               <span className="relative flex flex-none items-center gap-1">
+                <button
+                  type="button"
+                  aria-label={`Spalte ${column.name} ausblenden`}
+                  title="Spalte ausblenden (Fokus auf die anderen lenken)"
+                  onClick={() => onSetCollapsed(true)}
+                  className="text-[12px] text-dim hover:text-fg"
+                >
+                  🙈
+                </button>
                 <button
                   type="button"
                   aria-label={`Spalte ${column.name} umbenennen`}
@@ -549,6 +590,7 @@ export function RetroBoard({
   onRenameColumn,
   onSetColumnColor,
   onReorderColumn,
+  onSetColumnCollapsed,
   onDeleteColumn,
   onSearchGifs,
   onTyping,
@@ -567,6 +609,7 @@ export function RetroBoard({
   onRenameColumn: (columnId: string, name: string) => void;
   onSetColumnColor: (columnId: string, color: string) => void;
   onReorderColumn: (columnId: string, targetColumnId: string) => void;
+  onSetColumnCollapsed: (columnId: string, collapsed: boolean) => void;
   onDeleteColumn: (columnId: string) => void;
   /** GIF-Suche (Giphy-Proxy) für die Karten-Eingabe. */
   onSearchGifs: GifSearch;
@@ -574,7 +617,9 @@ export function RetroBoard({
   onTyping: (columnId: string | null) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
-  const [sortByVotes, setSortByVotes] = useState(false);
+  const [sortMode, setSortMode] = useState<"default" | "votes" | "author" | "shuffle">("default");
+  /** Zufällige Reihenfolge der Ersteller — einmal beim Aktivieren gemischt. */
+  const [shuffleOrder, setShuffleOrder] = useState<string[]>([]);
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
   const [newColumnColor, setNewColumnColor] = useState<string>(RETRO_COLORS[0]);
@@ -582,6 +627,28 @@ export function RetroBoard({
   const [mergeIntent, setMergeIntent] = useState<{ sourceId: string; targetId: string } | null>(null);
 
   const findCard = (id: string) => state.columns.flatMap((c) => c.cards).find((k) => k.id === id);
+
+  const activateSortMode = (mode: typeof sortMode) => {
+    setSortMode(mode);
+    if (mode === "shuffle") {
+      const authors = [...new Set(state.columns.flatMap((c) => c.cards.map((k) => k.author)).filter(Boolean))];
+      setShuffleOrder(authors.sort(() => Math.random() - 0.5));
+    }
+  };
+
+  const sortCards = (cards: RetroCardView[]): RetroCardView[] => {
+    if (sortMode === "votes") return [...cards].sort((a, b) => b.votes - a.votes);
+    if (sortMode === "author")
+      return [...cards].sort((a, b) => (a.author || "￿").localeCompare(b.author || "￿", "de"));
+    if (sortMode === "shuffle") {
+      const rank = (card: RetroCardView) => {
+        const index = shuffleOrder.indexOf(card.author);
+        return index === -1 ? shuffleOrder.length : index;
+      };
+      return [...cards].sort((a, b) => rank(a) - rank(b));
+    }
+    return cards;
+  };
 
   const submitColumn = () => {
     if (!newColumnName.trim()) return;
@@ -600,15 +667,30 @@ export function RetroBoard({
         ) : (
           <span className="font-mono text-[12px] text-dim">🗳️ Voting noch nicht freigegeben</span>
         )}
-        <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-mid">
-          <input
-            type="checkbox"
-            checked={sortByVotes}
-            onChange={(e) => setSortByVotes(e.target.checked)}
-            className="h-3.5 w-3.5 accent-[#6e8ff6]"
-          />
-          Nach Stimmen sortiert
+        <label className="flex items-center gap-1.5 text-[12.5px] text-mid">
+          Sortierung
+          <select
+            aria-label="Sortierung"
+            value={sortMode}
+            onChange={(e) => activateSortMode(e.target.value as typeof sortMode)}
+            className="input-field w-auto px-2 py-1 text-[12.5px]"
+          >
+            <option value="default">Chronologisch</option>
+            <option value="votes">Nach Stimmen</option>
+            <option value="author">Nach Ersteller (A–Z)</option>
+            <option value="shuffle">Ersteller-Pakete (zufällig)</option>
+          </select>
         </label>
+        {sortMode === "shuffle" && (
+          <button
+            type="button"
+            title="Ersteller-Reihenfolge neu mischen"
+            onClick={() => activateSortMode("shuffle")}
+            className="btn-secondary px-2.5 py-1 text-[12px]"
+          >
+            🎲 Neu mischen
+          </button>
+        )}
         {isAdmin && (
           <button
             type="button"
@@ -655,13 +737,14 @@ export function RetroBoard({
             column={column}
             isAdmin={isAdmin}
             votesLeft={state.votesLeft}
-            sortByVotes={sortByVotes}
+            sortCards={sortCards}
             searchGifs={onSearchGifs}
             typing={state.typing.filter((t) => t.columnId === column.id && !t.mine)}
             onAddCard={(text) => onAddCard(column.id, text)}
             onRename={(name) => onRenameColumn(column.id, name)}
             onSetColor={(color) => onSetColumnColor(column.id, color)}
             onReorder={(sourceColumnId) => onReorderColumn(sourceColumnId, column.id)}
+            onSetCollapsed={(collapsed) => onSetColumnCollapsed(column.id, collapsed)}
             onDelete={() => onDeleteColumn(column.id)}
             onTyping={(active) => onTyping(active ? column.id : null)}
             cardHandlers={(card) => ({

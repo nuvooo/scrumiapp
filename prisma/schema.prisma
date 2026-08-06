@@ -208,14 +208,16 @@ model Retro {
 }
 
 model RetroColumn {
-  id       String      @id @default(cuid())
-  retro    Retro       @relation(fields: [retroId], references: [id], onDelete: Cascade)
-  retroId  String
-  name     String
+  id        String      @id @default(cuid())
+  retro     Retro       @relation(fields: [retroId], references: [id], onDelete: Cascade)
+  retroId   String
+  name      String
   /// Akzentfarbe der Spalte (Hex)
-  color    String
-  position Int
-  cards    RetroCard[]
+  color     String
+  position  Int
+  /// Vom Moderator eingeklappt — lenkt den Fokus auf die anderen Spalten
+  collapsed Boolean     @default(false)
+  cards     RetroCard[]
 }
 
 model RetroParticipant {

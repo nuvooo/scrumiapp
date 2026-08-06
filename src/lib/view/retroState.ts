@@ -94,6 +94,8 @@ export interface RetroColumnView {
   id: string;
   name: string;
   color: string;
+  /** Vom Moderator eingeklappt — nur als schmale Leiste sichtbar. */
+  collapsed: boolean;
   cards: RetroCardView[];
 }
 

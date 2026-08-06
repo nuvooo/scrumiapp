@@ -96,6 +96,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       id: c.id,
       name: c.name,
       color: c.color,
+      collapsed: c.collapsed,
       cards: c.cards.map((card) => {
         const mine = you !== null && card.authorId === you.id;
         const covered = retro.hidden && !mine;

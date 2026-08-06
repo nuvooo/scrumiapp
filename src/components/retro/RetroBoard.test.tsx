@@ -24,12 +24,13 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
       id: "c1",
       name: "Lief gut 👍",
       color: "#4CC38A",
+      collapsed: false,
       cards: [
         { id: "k1", mine: true, covered: false, author: "Ben", text: "Gutes Pairing", votes: 2, myVotes: 1, comments: [{ id: "m1", author: "Zoe", text: "stimmt!" }] },
         { id: "k2", mine: false, covered: false, author: "Zoe", text: "Deploy lief rund", votes: 5, myVotes: 0, comments: [] },
       ],
     },
-    { id: "c2", name: "Geht besser 🤔", color: "#E5484D", cards: [] },
+    { id: "c2", name: "Geht besser 🤔", color: "#E5484D", collapsed: false, cards: [] },
   ],
   typing: [],
   version: 0,
@@ -42,7 +43,8 @@ const handlers = {
   onVote: noop, onUnvote: noop,
   onAddComment: noop, onDeleteComment: noop,
   onMerge: noop,
-  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop, onDeleteColumn: noop,
+  onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop,
+  onSetColumnCollapsed: noop, onDeleteColumn: noop,
   // Ohne API-Key fällt der GIF-Dialog auf die kuratierte Galerie zurück.
   onSearchGifs: async () => ({ ok: false, error: "Kein GIPHY_API_KEY konfiguriert." }),
   onTyping: noop,
@@ -99,7 +101,7 @@ describe("RetroBoard", () => {
       hidden: true,
       columns: [
         {
-          id: "c1", name: "Lief gut 👍", color: "#4CC38A",
+          id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
           cards: [
             { id: "k1", mine: true, covered: false, author: "Ben", text: "Meine Karte", votes: 0, myVotes: 0, comments: [] },
             { id: "k2", mine: false, covered: true, author: "", text: "Geheimer Text 🤫", votes: 0, myVotes: 0, comments: [] },
@@ -144,10 +146,87 @@ describe("RetroBoard", () => {
 
   it("sortiert Karten auf Wunsch nach Stimmen", () => {
     render(<RetroBoard state={baseState()} {...handlers} />);
-    fireEvent.click(screen.getByLabelText("Nach Stimmen sortiert"));
+    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "votes" } });
     const column = screen.getByTestId("column-Lief gut 👍");
     const cards = within(column).getAllByTestId(/^card-/);
     expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // 5 Stimmen vor 2
+  });
+
+  it("sortiert Karten nach Ersteller (A–Z)", () => {
+    const withAuthors = baseState({
+      columns: [
+        {
+          id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
+          cards: [
+            { id: "k1", mine: false, covered: false, author: "Zoe", text: "Z-Karte", votes: 0, myVotes: 0, comments: [] },
+            { id: "k2", mine: false, covered: false, author: "Anna", text: "A-Karte", votes: 0, myVotes: 0, comments: [] },
+          ],
+        },
+      ],
+    });
+    render(<RetroBoard state={withAuthors} {...handlers} />);
+    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "author" } });
+    const cards = within(screen.getByTestId("column-Lief gut 👍")).getAllByTestId(/^card-/);
+    expect(cards[0]).toHaveAttribute("data-testid", "card-k2"); // Anna vor Zoe
+  });
+
+  it("Ersteller-Pakete: Karten desselben Erstellers stehen zusammen", () => {
+    const mixed = baseState({
+      columns: [
+        {
+          id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
+          cards: [
+            { id: "k1", mine: false, covered: false, author: "Zoe", text: "Z1", votes: 0, myVotes: 0, comments: [] },
+            { id: "k2", mine: false, covered: false, author: "Anna", text: "A1", votes: 0, myVotes: 0, comments: [] },
+            { id: "k3", mine: false, covered: false, author: "Zoe", text: "Z2", votes: 0, myVotes: 0, comments: [] },
+          ],
+        },
+      ],
+    });
+    render(<RetroBoard state={mixed} {...handlers} />);
+    fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "shuffle" } });
+    const order = within(screen.getByTestId("column-Lief gut 👍"))
+      .getAllByTestId(/^card-/)
+      .map((c) => c.getAttribute("data-testid"));
+    // Zoes Karten (k1, k3) hängen zusammen — egal in welcher Paket-Reihenfolge
+    const zoeIndices = [order.indexOf("card-k1"), order.indexOf("card-k3")].sort((a, b) => a - b);
+    expect(zoeIndices[1] - zoeIndices[0]).toBe(1);
+    expect(screen.getByRole("button", { name: "🎲 Neu mischen" })).toBeInTheDocument();
+  });
+
+  it("der Moderator blendet Spalten aus und wieder ein", () => {
+    const onSetColumnCollapsed = vi.fn();
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const { unmount } = render(<RetroBoard state={admin} {...handlers} onSetColumnCollapsed={onSetColumnCollapsed} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 ausblenden" }));
+    expect(onSetColumnCollapsed).toHaveBeenCalledWith("c1", true);
+    unmount();
+
+    // Eingeklappt: schmale Leiste ohne Karten; Moderator kann wieder einblenden
+    const collapsed = baseState({
+      you: { name: "Anna", avatar: "", isAdmin: true },
+      columns: [
+        { id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: true,
+          cards: [{ id: "k1", mine: false, covered: false, author: "Zoe", text: "Versteckt", votes: 0, myVotes: 0, comments: [] }] },
+      ],
+    });
+    onSetColumnCollapsed.mockClear();
+    render(<RetroBoard state={collapsed} {...handlers} onSetColumnCollapsed={onSetColumnCollapsed} />);
+    expect(screen.queryByText("Versteckt")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 einblenden" }));
+    expect(onSetColumnCollapsed).toHaveBeenCalledWith("c1", false);
+  });
+
+  it("Teilnehmer sehen eingeklappte Spalten nur als Leiste ohne Knöpfe", () => {
+    const collapsed = baseState({
+      columns: [
+        { id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: true,
+          cards: [{ id: "k1", mine: false, covered: false, author: "Zoe", text: "Versteckt", votes: 0, myVotes: 0, comments: [] }] },
+      ],
+    });
+    render(<RetroBoard state={collapsed} {...handlers} />);
+    expect(screen.queryByText("Versteckt")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Spalte Lief gut 👍 einblenden" })).not.toBeInTheDocument();
   });
 
   it("das Plus steht unter dem letzten Post, der Composer öffnet dort", () => {
@@ -315,7 +394,7 @@ describe("RetroBoard", () => {
     const withGif = baseState({
       columns: [
         {
-          id: "c1", name: "Lief gut 👍", color: "#4CC38A",
+          id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
           cards: [{ id: "k1", mine: true, covered: false, author: "Ben", text: "https://media.giphy.com/x/giphy.gif", votes: 0, myVotes: 0, comments: [] }],
         },
       ],

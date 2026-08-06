@@ -12,6 +12,7 @@ import {
   renameRetroColumn,
   setRetroColumnColor,
   reorderRetroColumn,
+  setRetroColumnCollapsed,
   deleteRetroColumn,
   addRetroCard,
   updateRetroCard,
@@ -448,6 +449,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onRenameColumn={(columnId, name) => run(() => renameRetroColumn(retroId, t, columnId, name))}
         onSetColumnColor={(columnId, color) => run(() => setRetroColumnColor(retroId, t, columnId, color))}
         onReorderColumn={(columnId, targetColumnId) => run(() => reorderRetroColumn(retroId, t, columnId, targetColumnId))}
+        onSetColumnCollapsed={(columnId, collapsed) => run(() => setRetroColumnCollapsed(retroId, t, columnId, collapsed))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
         onSearchGifs={searchGifs}
         onTyping={(columnId) => {
