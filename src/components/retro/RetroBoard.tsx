@@ -72,6 +72,7 @@ function Card({
   color,
   isAdmin,
   youName,
+  authorAvatar,
   votesLeft,
   searchGifs,
   onUpdate,
@@ -86,6 +87,8 @@ function Card({
   color: string;
   isAdmin: boolean;
   youName: string;
+  /** Avatar des Karten-Autors (aus der Teilnehmerliste, "" = keiner). */
+  authorAvatar: string;
   votesLeft: number;
   searchGifs: GifSearch;
   onUpdate: (text: string) => void;
@@ -180,7 +183,7 @@ function Card({
           <CardText text={card.text} />
           {card.author && (
             <div className="mt-1.5 text-[11px] font-medium text-dim" title="Autor der Karte">
-              ✍️ {card.author}
+              {authorAvatar || "✍️"} {card.author}
             </div>
           )}
           <div className="mt-2 flex items-center gap-1.5">
@@ -652,6 +655,7 @@ export function RetroBoard({
               color: column.color,
               isAdmin,
               youName: state.you?.name ?? "",
+              authorAvatar: state.participants.find((p) => p.name === card.author)?.avatar ?? "",
               votesLeft: state.votesLeft,
               searchGifs: onSearchGifs,
               onUpdate: (text: string) => onUpdateCard(card.id, text),

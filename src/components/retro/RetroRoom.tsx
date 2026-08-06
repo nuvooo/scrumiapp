@@ -23,8 +23,15 @@ import {
   mergeRetroCards,
   searchGifs,
   setRetroTyping,
+  updateRetroProfile,
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
+import { ProfileDock, storedProfile } from "@/components/ProfileDock";
+
+const RETRO_ROLES = [
+  { value: "member", label: "Teilnehmer", hint: "schreibt Karten und votet" },
+  { value: "moderator", label: "Moderator", hint: "Spalten, Verdeckt-Modus, Mergen" },
+];
 
 /** Pause vor dem nächsten Versuch, wenn der State-Abruf fehlschlägt. */
 const RETRY_MS = 2000;
@@ -45,6 +52,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
 
   useEffect(() => {
     setToken(window.localStorage.getItem(tokenKey(retroId)));
+    setJoinName((current) => current || storedProfile().name);
     setTokenLoaded(true);
   }, [retroId]);
 
@@ -277,6 +285,11 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+              {p.avatar && (
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border border-edge bg-raise text-[13px] leading-none">
+                  {p.avatar}
+                </span>
+              )}
               {p.name}
               {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
@@ -311,6 +324,17 @@ export function RetroRoom({ retroId }: { retroId: string }) {
           // Fire-and-forget: kein refresh(), das Update kommt über den WebSocket.
           setRetroTyping(retroId, t, columnId).catch(() => {});
         }}
+      />
+
+      {/* Zentrales Profil unten links: Name, Avatar und Rolle ändern */}
+      <ProfileDock
+        name={state.you.name}
+        avatar={state.you.avatar}
+        role={state.you.isAdmin ? "moderator" : "member"}
+        roles={RETRO_ROLES}
+        onSave={(name, avatar, role) =>
+          run(() => updateRetroProfile(retroId, t, name, avatar, role as "member" | "moderator"))
+        }
       />
     </div>
   );

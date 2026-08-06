@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { bumpRefinement } from "@/lib/refinementVersion";
 import { setTyping } from "@/lib/retroTyping";
+import { AVATAR_EMOJIS } from "@/lib/view/refinementState";
 import { RETRO_COLORS, RETRO_TEMPLATES } from "@/lib/view/retroState";
 
 export interface ActionResult<T = undefined> {
@@ -117,6 +118,33 @@ export async function joinRetro(
   } catch {
     return fail(`Der Name „${trimmed}" ist in diesem Board schon vergeben.`);
   }
+}
+
+/** Eigenen Namen, Avatar und Rolle ändern — jederzeit. */
+export async function updateRetroProfile(
+  retroId: string,
+  token: string,
+  name: string,
+  avatar: string,
+  role: "member" | "moderator",
+): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Der Name darf nicht leer sein.");
+  if (avatar !== "" && !(AVATAR_EMOJIS as readonly string[]).includes(avatar)) {
+    return fail("Diesen Avatar gibt es nicht.");
+  }
+  try {
+    await prisma.retroParticipant.update({
+      where: { id: participant.id },
+      data: { name: trimmed, avatar, isAdmin: role === "moderator" },
+    });
+  } catch {
+    return fail(`Der Name „${trimmed}" ist in diesem Board schon vergeben.`);
+  }
+  bumpRetro(retroId);
+  return { ok: true };
 }
 
 export async function deleteRetro(retroId: string, token: string): Promise<ActionResult> {

@@ -105,8 +105,8 @@ export interface RetroStateView {
   votesPerUser: number;
   /** Eigene verbleibende Stimmen. */
   votesLeft: number;
-  you: { name: string; isAdmin: boolean } | null;
-  participants: { name: string; isAdmin: boolean; online: boolean }[];
+  you: { name: string; avatar: string; isAdmin: boolean } | null;
+  participants: { name: string; avatar: string; isAdmin: boolean; online: boolean }[];
   columns: RetroColumnView[];
   /** Wer gerade eine Karte schreibt — name ist im Verdeckt-Modus leer (anonym). */
   typing: { columnId: string; name: string; mine: boolean }[];

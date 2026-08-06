@@ -81,9 +81,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     hidden: retro.hidden,
     votesPerUser: retro.votesPerUser,
     votesLeft,
-    you: you ? { name: you.name, isAdmin: you.isAdmin } : null,
+    you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin } : null,
     participants: retro.participants.map((p) => ({
       name: p.name,
+      avatar: p.avatar,
       isAdmin: p.isAdmin,
       online: isOnline(p),
     })),

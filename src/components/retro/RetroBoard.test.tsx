@@ -11,10 +11,11 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
   hidden: false,
   votesPerUser: 3,
   votesLeft: 2,
-  you: { name: "Ben", isAdmin: false },
+  you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
-    { name: "Anna", isAdmin: true, online: true },
-    { name: "Ben", isAdmin: false, online: true },
+    { name: "Anna", avatar: "", isAdmin: true, online: true },
+    { name: "Ben", avatar: "", isAdmin: false, online: true },
+    { name: "Zoe", avatar: "🦊", isAdmin: false, online: true },
   ],
   columns: [
     {
@@ -52,7 +53,8 @@ describe("RetroBoard", () => {
     expect(screen.getByTestId("column-Geht besser 🤔")).toBeInTheDocument();
     expect(screen.getByText("Gutes Pairing")).toBeInTheDocument();
     expect(within(screen.getByTestId("card-k2")).getByText("👍 5")).toBeInTheDocument();
-    expect(within(screen.getByTestId("card-k2")).getByText(/✍️ Zoe/)).toBeInTheDocument();
+    // Autor mit Avatar aus der Teilnehmerliste
+    expect(within(screen.getByTestId("card-k2")).getByText(/🦊 Zoe/)).toBeInTheDocument();
     expect(screen.getByText(/Noch 2 von 3 Stimmen/)).toBeInTheDocument();
   });
 
@@ -155,7 +157,7 @@ describe("RetroBoard", () => {
 
   it("Mergen fragt per Dialog nach, bevor es passiert", () => {
     const onMerge = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     render(<RetroBoard state={admin} {...handlers} onMerge={onMerge} />);
     const drop = () =>
       fireEvent.drop(screen.getByTestId("card-k2"), {
@@ -181,7 +183,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator sortiert Spalten per Drag & Drop um", () => {
     const onReorderColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     render(<RetroBoard state={admin} {...handlers} onReorderColumn={onReorderColumn} />);
     fireEvent.drop(screen.getByTestId("column-Geht besser 🤔"), {
       dataTransfer: {
@@ -199,7 +201,7 @@ describe("RetroBoard", () => {
     unmount();
 
     const onRenameColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     render(<RetroBoard state={admin} {...handlers} onRenameColumn={onRenameColumn} />);
     fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 umbenennen" }));
     fireEvent.change(screen.getByLabelText("Spaltenname"), { target: { value: "Highlights" } });
@@ -209,7 +211,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator legt neue Spalten mit Farbe an", () => {
     const onAddColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     render(<RetroBoard state={admin} {...handlers} onAddColumn={onAddColumn} />);
     fireEvent.click(screen.getByRole("button", { name: "+ Spalte" }));
     fireEvent.change(screen.getByLabelText("Name der neuen Spalte"), { target: { value: "Aktionen" } });
