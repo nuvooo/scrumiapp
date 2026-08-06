@@ -105,6 +105,10 @@ export interface RetroStateView {
   votesPerUser: number;
   /** Eigene verbleibende Stimmen. */
   votesLeft: number;
+  /** Voting erst nach Freigabe durch den Moderator. */
+  votingOpen: boolean;
+  /** Restsekunden des Timers (0 = abgelaufen, null = kein Timer). Clients zählen lokal weiter. */
+  timerRemainingSec: number | null;
   you: { name: string; avatar: string; isAdmin: boolean } | null;
   participants: { name: string; avatar: string; isAdmin: boolean; online: boolean }[];
   columns: RetroColumnView[];

@@ -11,6 +11,8 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
   hidden: false,
   votesPerUser: 3,
   votesLeft: 2,
+  votingOpen: true,
+  timerRemainingSec: null,
   you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
     { name: "Anna", avatar: "", isAdmin: true, online: true },
@@ -83,6 +85,13 @@ describe("RetroBoard", () => {
   it("ohne restliche Stimmen ist Voten gesperrt", () => {
     render(<RetroBoard state={baseState({ votesLeft: 0 })} {...handlers} />);
     expect(within(screen.getByTestId("card-k2")).getByRole("button", { name: "Stimme geben" })).toBeDisabled();
+  });
+
+  it("vor der Freigabe durch den Moderator ist das Voting komplett gesperrt", () => {
+    render(<RetroBoard state={baseState({ votingOpen: false })} {...handlers} />);
+    expect(screen.getByText("🗳️ Voting noch nicht freigegeben")).toBeInTheDocument();
+    expect(within(screen.getByTestId("card-k2")).getByRole("button", { name: "Stimme geben" })).toBeDisabled();
+    expect(within(screen.getByTestId("card-k1")).getByRole("button", { name: "Stimme zurücknehmen" })).toBeDisabled();
   });
 
   it("verdeckte fremde Karten zeigen eine geblurte Vorschau ohne Autor", () => {

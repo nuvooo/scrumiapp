@@ -156,6 +156,32 @@ export async function deleteRetro(retroId: string, token: string): Promise<Actio
   return { ok: true };
 }
 
+/** Voting freigeben oder wieder sperren — nur der Moderator. */
+export async function setRetroVotingOpen(retroId: string, token: string, open: boolean): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  await prisma.retro.update({ where: { id: retroId }, data: { votingOpen: open } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Timer starten (Sekunden) oder stoppen (null) — nur der Moderator. */
+export async function setRetroTimer(
+  retroId: string,
+  token: string,
+  seconds: number | null,
+): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  if (seconds !== null && (!Number.isInteger(seconds) || seconds < 10 || seconds > 3600)) {
+    return fail("Timer: 10 Sekunden bis 60 Minuten.");
+  }
+  await prisma.retro.update({
+    where: { id: retroId },
+    data: { timerEndsAt: seconds === null ? null : new Date(Date.now() + seconds * 1000) },
+  });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
 /** Verdeckt-Modus umschalten: an = anonym schreiben, aus = alle lesen mit. */
 export async function setRetroHidden(retroId: string, token: string, hidden: boolean): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
@@ -311,6 +337,7 @@ export async function voteRetroCard(retroId: string, token: string, cardId: stri
   if (!participant) return fail("Nicht Teil dieses Boards.");
   const retro = await prisma.retro.findUnique({ where: { id: retroId } });
   if (!retro) return fail("Retro nicht gefunden.");
+  if (!retro.votingOpen) return fail("Das Voting ist noch nicht freigegeben.");
   const card = await prisma.retroCard.findFirst({ where: { id: cardId, column: { retroId } } });
   if (!card) return fail("Karte nicht gefunden.");
   const used = await prisma.retroVote.count({

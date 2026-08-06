@@ -81,6 +81,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     hidden: retro.hidden,
     votesPerUser: retro.votesPerUser,
     votesLeft,
+    votingOpen: retro.votingOpen,
+    timerRemainingSec: retro.timerEndsAt
+      ? Math.max(0, Math.round((retro.timerEndsAt.getTime() - Date.now()) / 1000))
+      : null,
     you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin } : null,
     participants: retro.participants.map((p) => ({
       name: p.name,

@@ -198,6 +198,10 @@ model Retro {
   hidden       Boolean            @default(true)
   /// Stimmen pro Teilnehmer fürs Voting
   votesPerUser Int                @default(3)
+  /// Voting erst nach Freigabe durch den Moderator
+  votingOpen   Boolean            @default(false)
+  /// Laufender Timer (null = keiner); Clients zählen lokal herunter
+  timerEndsAt  DateTime?
   createdAt    DateTime           @default(now())
   columns      RetroColumn[]
   participants RetroParticipant[]

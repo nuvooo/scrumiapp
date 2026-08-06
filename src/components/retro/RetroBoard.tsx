@@ -74,6 +74,7 @@ function Card({
   youName,
   authorAvatar,
   votesLeft,
+  votingOpen,
   searchGifs,
   onUpdate,
   onDelete,
@@ -90,6 +91,8 @@ function Card({
   /** Avatar des Karten-Autors (aus der Teilnehmerliste, "" = keiner). */
   authorAvatar: string;
   votesLeft: number;
+  /** Voting erst nach Freigabe durch den Moderator. */
+  votingOpen: boolean;
   searchGifs: GifSearch;
   onUpdate: (text: string) => void;
   onDelete: () => void;
@@ -192,9 +195,15 @@ function Card({
             <button
               type="button"
               aria-label="Stimme geben"
-              title={votesLeft > 0 ? "Stimme geben" : "Keine Stimmen mehr übrig"}
+              title={
+                !votingOpen
+                  ? "Das Voting ist noch nicht freigegeben"
+                  : votesLeft > 0
+                    ? "Stimme geben"
+                    : "Keine Stimmen mehr übrig"
+              }
               onClick={onVote}
-              disabled={votesLeft <= 0}
+              disabled={votesLeft <= 0 || !votingOpen}
               className="btn-secondary h-[22px] w-[22px] rounded-[6px] text-[12px] leading-none disabled:cursor-not-allowed disabled:opacity-40"
             >
               +
@@ -203,9 +212,10 @@ function Card({
               <button
                 type="button"
                 aria-label="Stimme zurücknehmen"
-                title={`Deine Stimmen: ${card.myVotes}`}
+                title={votingOpen ? `Deine Stimmen: ${card.myVotes}` : "Das Voting ist gesperrt"}
                 onClick={onUnvote}
-                className="btn-secondary h-[22px] w-[22px] rounded-[6px] text-[12px] leading-none"
+                disabled={!votingOpen}
+                className="btn-secondary h-[22px] w-[22px] rounded-[6px] text-[12px] leading-none disabled:cursor-not-allowed disabled:opacity-40"
               >
                 –
               </button>
@@ -583,9 +593,13 @@ export function RetroBoard({
   return (
     <div className="mt-5">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-[12px] text-mid">
-          🗳️ Noch {state.votesLeft} von {state.votesPerUser} Stimmen
-        </span>
+        {state.votingOpen ? (
+          <span className="font-mono text-[12px] text-mid">
+            🗳️ Noch {state.votesLeft} von {state.votesPerUser} Stimmen
+          </span>
+        ) : (
+          <span className="font-mono text-[12px] text-dim">🗳️ Voting noch nicht freigegeben</span>
+        )}
         <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-mid">
           <input
             type="checkbox"
@@ -657,6 +671,7 @@ export function RetroBoard({
               youName: state.you?.name ?? "",
               authorAvatar: state.participants.find((p) => p.name === card.author)?.avatar ?? "",
               votesLeft: state.votesLeft,
+              votingOpen: state.votingOpen,
               searchGifs: onSearchGifs,
               onUpdate: (text: string) => onUpdateCard(card.id, text),
               onDelete: () => onDeleteCard(card.id),

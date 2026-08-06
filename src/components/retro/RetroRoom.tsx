@@ -24,6 +24,8 @@ import {
   searchGifs,
   setRetroTyping,
   updateRetroProfile,
+  setRetroVotingOpen,
+  setRetroTimer,
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
 import { onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
@@ -32,6 +34,90 @@ import { onProfileSaved, storedProfile, writeProfile } from "@/components/Profil
 const RETRY_MS = 2000;
 const tokenKey = (id: string) => `scrumi.retro.${id}.token`;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const TIMER_PRESETS = [
+  { label: "1 min", seconds: 60 },
+  { label: "3 min", seconds: 180 },
+  { label: "5 min", seconds: 300 },
+  { label: "10 min", seconds: 600 },
+];
+
+const formatTimer = (s: number) =>
+  `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+/** Countdown im Kopf: Server liefert Restsekunden, der Client tickt lokal weiter. */
+function TimerChip({
+  remaining,
+  isAdmin,
+  onStart,
+  onStop,
+}: {
+  remaining: number | null;
+  isAdmin: boolean;
+  onStart: (seconds: number) => void;
+  onStop: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(remaining);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setSecondsLeft(remaining);
+    if (remaining === null || remaining <= 0) return;
+    const timer = setInterval(
+      () => setSecondsLeft((s) => (s === null || s <= 0 ? s : s - 1)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [remaining]);
+
+  if (secondsLeft === null) {
+    if (!isAdmin) return null;
+    return (
+      <span className="relative">
+        <button type="button" onClick={() => setMenuOpen((o) => !o)} className="btn-secondary px-3 py-[7px]">
+          ⏱ Timer
+        </button>
+        {menuOpen && (
+          <span className="absolute right-0 top-[38px] z-30 flex gap-1 rounded-[9px] border border-edge bg-field p-1.5 shadow-card">
+            {TIMER_PRESETS.map((p) => (
+              <button
+                key={p.seconds}
+                type="button"
+                onClick={() => {
+                  onStart(p.seconds);
+                  setMenuOpen(false);
+                }}
+                className="btn-secondary whitespace-nowrap px-2.5 py-1.5 text-[12px]"
+              >
+                {p.label}
+              </button>
+            ))}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  const expired = secondsLeft <= 0;
+  return (
+    <span
+      className={`flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[13px] ${
+        expired
+          ? "border-[#3A1E24] bg-[#170F12] text-danger"
+          : secondsLeft <= 30
+            ? "border-[#3A2A1E] bg-[#171106] text-[#F59E4A]"
+            : "border-edge bg-field text-fg"
+      }`}
+    >
+      {expired ? "⏰ Zeit ist um!" : `⏱ ${formatTimer(secondsLeft)}`}
+      {isAdmin && (
+        <button type="button" aria-label="Timer stoppen" title="Timer stoppen" onClick={onStop} className="text-dim hover:text-fg">
+          ×
+        </button>
+      )}
+    </span>
+  );
+}
 
 export function RetroRoom({ retroId }: { retroId: string }) {
   const router = useRouter();
@@ -265,6 +351,30 @@ export function RetroRoom({ retroId }: { retroId: string }) {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <TimerChip
+            remaining={state.timerRemainingSec}
+            isAdmin={isAdmin}
+            onStart={(seconds) => run(() => setRetroTimer(retroId, t, seconds))}
+            onStop={() => run(() => setRetroTimer(retroId, t, null))}
+          />
+          {isAdmin ? (
+            <button
+              type="button"
+              title={
+                state.votingOpen
+                  ? "Voting läuft — Klick sperrt es wieder"
+                  : "Voting freigeben, damit alle Stimmen vergeben können"
+              }
+              onClick={() => run(() => setRetroVotingOpen(retroId, t, !state.votingOpen))}
+              className={`px-3.5 py-[7px] ${state.votingOpen ? "btn-secondary" : "btn-primary"}`}
+            >
+              {state.votingOpen ? "🗳 Voting sperren" : "🗳 Voting freigeben"}
+            </button>
+          ) : (
+            <span className="rounded-full border border-edge bg-field px-2.5 py-1 text-[12px] text-mid">
+              {state.votingOpen ? "🗳 Voting offen" : "🗳 Voting gesperrt"}
+            </span>
+          )}
           {isAdmin ? (
             <button
               type="button"
@@ -322,11 +432,12 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onUpdateCard={(cardId, text) => run(() => updateRetroCard(retroId, t, cardId, text))}
         onDeleteCard={(cardId) => run(() => deleteRetroCard(retroId, t, cardId))}
         onVote={(cardId) => {
-          if (state.votesLeft <= 0) return;
+          if (state.votesLeft <= 0 || !state.votingOpen) return;
           applyLocalVote(cardId, 1);
           run(() => voteRetroCard(retroId, t, cardId));
         }}
         onUnvote={(cardId) => {
+          if (!state.votingOpen) return;
           applyLocalVote(cardId, -1);
           run(() => unvoteRetroCard(retroId, t, cardId));
         }}
