@@ -28,6 +28,7 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
     },
     { id: "c2", name: "Geht besser 🤔", color: "#E5484D", cards: [] },
   ],
+  typing: [],
   version: 0,
   ...over,
 });
@@ -41,6 +42,7 @@ const handlers = {
   onAddColumn: noop, onRenameColumn: noop, onSetColumnColor: noop, onReorderColumn: noop, onDeleteColumn: noop,
   // Ohne API-Key fällt der GIF-Dialog auf die kuratierte Galerie zurück.
   onSearchGifs: async () => ({ ok: false, error: "Kein GIPHY_API_KEY konfiguriert." }),
+  onTyping: noop,
 };
 
 describe("RetroBoard", () => {
@@ -248,6 +250,34 @@ describe("RetroBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     expect(onSearchGifs).toHaveBeenCalledWith("");
     expect(onAddCard).toHaveBeenCalledWith("c2", "https://media0.giphy.com/media/abc/200.gif?cid=1");
+  });
+
+  it("zeigt Geister-Karten, wenn jemand schreibt — anonym im Verdeckt-Modus", () => {
+    const { unmount } = render(
+      <RetroBoard
+        state={baseState({
+          typing: [
+            { columnId: "c1", name: "Zoe", mine: false },
+            { columnId: "c2", name: "", mine: false }, // verdeckt = anonym
+            { columnId: "c1", name: "Ben", mine: true }, // man selbst: keine Geister-Karte
+          ],
+        })}
+        {...handlers}
+      />,
+    );
+    expect(screen.getByText("✍️ Zoe schreibt…")).toBeInTheDocument();
+    expect(screen.getByText("✍️ Jemand schreibt…")).toBeInTheDocument();
+    expect(screen.queryByText("✍️ Ben schreibt…")).not.toBeInTheDocument();
+    unmount();
+  });
+
+  it("meldet Schreiben beim Öffnen und Schließen des Composers", () => {
+    const onTyping = vi.fn();
+    render(<RetroBoard state={baseState()} {...handlers} onTyping={onTyping} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    expect(onTyping).toHaveBeenCalledWith("c2");
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(onTyping).toHaveBeenCalledWith(null);
   });
 
   it("rendert GIF-URLs in Karten als Bild", () => {

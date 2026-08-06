@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { refinementVersion } from "@/lib/refinementVersion";
+import { activeTyping } from "@/lib/retroTyping";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             : card.comments.map((cm) => ({ id: cm.id, author: cm.author.name, text: cm.text })),
         };
       }),
+    })),
+    // „Schreibt gerade": im Verdeckt-Modus anonym (ohne Namen).
+    typing: activeTyping(retro.id).map((t) => ({
+      columnId: t.columnId,
+      name: retro.hidden ? "" : t.name,
+      mine: you !== null && t.participantId === you.id,
     })),
     version: refinementVersion(versionKey),
   });

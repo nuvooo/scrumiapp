@@ -108,6 +108,8 @@ export interface RetroStateView {
   you: { name: string; isAdmin: boolean } | null;
   participants: { name: string; isAdmin: boolean; online: boolean }[];
   columns: RetroColumnView[];
+  /** Wer gerade eine Karte schreibt — name ist im Verdeckt-Modus leer (anonym). */
+  typing: { columnId: string; name: string; mine: boolean }[];
   /** Änderungszähler fürs Long-Polling (Fallback ohne WebSocket). */
   version: number;
 }

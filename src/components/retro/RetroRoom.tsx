@@ -22,6 +22,7 @@ import {
   unvoteRetroCard,
   mergeRetroCards,
   searchGifs,
+  setRetroTyping,
 } from "@/app/(app)/retro/actions";
 import { RetroBoard } from "./RetroBoard";
 
@@ -128,6 +129,14 @@ export function RetroRoom({ retroId }: { retroId: string }) {
     if (!result.ok) setError(result.error ?? "Aktion fehlgeschlagen.");
     await refresh();
   };
+
+  // Sicherheitsnetz: „schreibt gerade"-Einträge verfallen serverseitig nach
+  // ein paar Sekunden ohne eigenen Push — kurz danach einmal nachladen.
+  useEffect(() => {
+    if (!state || state.typing.filter((t) => !t.mine).length === 0) return;
+    const timer = setTimeout(() => refresh(), 7000);
+    return () => clearTimeout(timer);
+  }, [state, refresh]);
 
   /** Eigene Stimme sofort anzeigen, ohne auf den Server zu warten. */
   const applyLocalVote = (cardId: string, delta: 1 | -1) => {
@@ -298,6 +307,10 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onReorderColumn={(columnId, targetColumnId) => run(() => reorderRetroColumn(retroId, t, columnId, targetColumnId))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
         onSearchGifs={searchGifs}
+        onTyping={(columnId) => {
+          // Fire-and-forget: kein refresh(), das Update kommt über den WebSocket.
+          setRetroTyping(retroId, t, columnId).catch(() => {});
+        }}
       />
     </div>
   );

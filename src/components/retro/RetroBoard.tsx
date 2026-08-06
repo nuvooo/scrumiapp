@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cardSegments } from "@/lib/retroCardText";
 import { EmojiGifPicker, type GifSearch } from "./EmojiGifPicker";
 import {
@@ -284,11 +284,13 @@ function Column({
   votesLeft,
   sortByVotes,
   searchGifs,
+  typing,
   onAddCard,
   onRename,
   onSetColor,
   onReorder,
   onDelete,
+  onTyping,
   cardHandlers,
 }: {
   column: RetroColumnView;
@@ -296,12 +298,16 @@ function Column({
   votesLeft: number;
   sortByVotes: boolean;
   searchGifs: GifSearch;
+  /** Andere, die gerade in dieser Spalte schreiben (name leer = anonym). */
+  typing: { name: string }[];
   onAddCard: (text: string) => void;
   onRename: (name: string) => void;
   onSetColor: (color: string) => void;
   /** Eine andere Spalte wurde auf diese gezogen — an diese Position schieben. */
   onReorder: (sourceColumnId: string) => void;
   onDelete: () => void;
+  /** Meldet, dass hier gerade eine Karte geschrieben wird (bzw. nicht mehr). */
+  onTyping: (active: boolean) => void;
   cardHandlers: (card: RetroCardView) => Parameters<typeof Card>[0];
 }) {
   const [composerOpen, setComposerOpen] = useState(false);
@@ -313,6 +319,18 @@ function Column({
   const [columnDragOver, setColumnDragOver] = useState(false);
 
   const cards = sortByVotes ? [...column.cards].sort((a, b) => b.votes - a.votes) : column.cards;
+
+  // Solange der Composer offen ist, regelmäßig „schreibt gerade" melden.
+  useEffect(() => {
+    if (!composerOpen) return;
+    onTyping(true);
+    const timer = setInterval(() => onTyping(true), 3000);
+    return () => {
+      clearInterval(timer);
+      onTyping(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerOpen]);
 
   const submitCard = () => {
     const combined = joinCardText(composerText, composerGifs);
@@ -479,6 +497,17 @@ function Column({
         </div>
       )}
 
+      {/* Geister-Karten: hier schreibt gerade jemand */}
+      {typing.map((t, i) => (
+        <div
+          key={`typing-${i}`}
+          data-testid={`typing-${column.id}-${i}`}
+          className="animate-pulse rounded-[10px] border border-dashed border-edge bg-field p-2.5 text-[12.5px] text-dim"
+        >
+          ✍️ {t.name ? `${t.name} schreibt…` : "Jemand schreibt…"}
+        </div>
+      ))}
+
       {cards.map((card) => (
         <Card key={card.id} {...cardHandlers(card)} />
       ))}
@@ -502,6 +531,7 @@ export function RetroBoard({
   onReorderColumn,
   onDeleteColumn,
   onSearchGifs,
+  onTyping,
 }: {
   state: RetroStateView;
   onAddCard: (columnId: string, text: string) => void;
@@ -520,6 +550,8 @@ export function RetroBoard({
   onDeleteColumn: (columnId: string) => void;
   /** GIF-Suche (Giphy-Proxy) für die Karten-Eingabe. */
   onSearchGifs: GifSearch;
+  /** „Schreibt gerade"-Signal (columnId oder null für Stopp). */
+  onTyping: (columnId: string | null) => void;
 }) {
   const isAdmin = state.you?.isAdmin ?? false;
   const [sortByVotes, setSortByVotes] = useState(false);
@@ -601,11 +633,13 @@ export function RetroBoard({
             votesLeft={state.votesLeft}
             sortByVotes={sortByVotes}
             searchGifs={onSearchGifs}
+            typing={state.typing.filter((t) => t.columnId === column.id && !t.mine)}
             onAddCard={(text) => onAddCard(column.id, text)}
             onRename={(name) => onRenameColumn(column.id, name)}
             onSetColor={(color) => onSetColumnColor(column.id, color)}
             onReorder={(sourceColumnId) => onReorderColumn(sourceColumnId, column.id)}
             onDelete={() => onDeleteColumn(column.id)}
+            onTyping={(active) => onTyping(active ? column.id : null)}
             cardHandlers={(card) => ({
               card,
               color: column.color,

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { bumpRefinement } from "@/lib/refinementVersion";
+import { setTyping } from "@/lib/retroTyping";
 import { RETRO_COLORS, RETRO_TEMPLATES } from "@/lib/view/retroState";
 
 export interface ActionResult<T = undefined> {
@@ -193,6 +194,19 @@ export async function reorderRetroColumn(
 export async function deleteRetroColumn(retroId: string, token: string, columnId: string): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
   await prisma.retroColumn.deleteMany({ where: { id: columnId, retroId } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** „Schreibt gerade"-Signal: columnId = null heißt aufgehört. Fire-and-forget vom Client. */
+export async function setRetroTyping(
+  retroId: string,
+  token: string,
+  columnId: string | null,
+): Promise<ActionResult> {
+  const participant = await requireParticipant(retroId, token);
+  if (!participant) return fail("Nicht Teil dieses Boards.");
+  setTyping(retroId, participant.id, participant.name, columnId);
   bumpRetro(retroId);
   return { ok: true };
 }
