@@ -3,27 +3,27 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRefinement } from "@/app/(app)/refinement/actions";
-import { storedProfile } from "@/components/ProfileDock";
+import { onProfileSaved, storedProfile, type StoredProfile } from "@/components/ProfileDock";
 
 export function CreateRefinement({ teamId }: { teamId: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profile, setProfile] = useState<StoredProfile | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Der Ersteller ist automatisch Moderator — Name und Avatar kommen aus dem Profil unten links.
+  // Nur Moderatoren legen Sessions an — Rolle kommt aus dem Profil unten links
+  // und reagiert live auf Änderungen.
   useEffect(() => {
-    setProfileName(storedProfile().name);
+    setProfile(storedProfile());
+    return onProfileSaved(() => setProfile(storedProfile()));
   }, []);
 
+  const isModerator = profile?.refinementRole === "moderator";
+  const canCreate = isModerator && !!profile?.name;
+
   const create = async () => {
-    if (pending) return;
-    const profile = storedProfile();
-    if (!profile.name) {
-      setError("Lege zuerst unten links dein Profil an — der Ersteller wird automatisch Moderator.");
-      return;
-    }
+    if (pending || !profile || !canCreate) return;
     setPending(true);
     setError(null);
     const result = await createRefinement(teamId, name, profile.name, profile.avatar);
@@ -48,17 +48,25 @@ export function CreateRefinement({ teamId }: { teamId: string }) {
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && create()}
             placeholder="z. B. Refinement KW 32"
-            className="input-field"
+            disabled={!canCreate}
+            className="input-field disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
-        <button type="button" onClick={create} disabled={pending} className="btn-primary whitespace-nowrap px-4 py-2.5">
+        <button
+          type="button"
+          onClick={create}
+          disabled={pending || !canCreate}
+          className="btn-primary whitespace-nowrap px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {pending ? "Legt an…" : "Anlegen"}
         </button>
       </div>
       <div className="mt-2 text-[12px] text-dim">
-        {profileName
-          ? `Du wirst als ${profileName} Moderator dieser Session.`
-          : "Der Ersteller wird automatisch Moderator — Name kommt aus deinem Profil unten links."}
+        {canCreate
+          ? `Du wirst als ${profile?.name} Moderator dieser Session.`
+          : !profile?.name
+            ? "Lege zuerst unten links dein Profil an — nur Moderatoren können Refinements anlegen."
+            : "Nur Moderatoren legen Refinements an — stelle unten links deine Rolle im Refinement auf Moderator."}
       </div>
       {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
     </div>

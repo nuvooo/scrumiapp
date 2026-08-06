@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRetro } from "@/app/(app)/retro/actions";
 import { RETRO_TEMPLATES } from "@/lib/view/retroState";
-import { storedProfile } from "@/components/ProfileDock";
+import { onProfileSaved, storedProfile, type StoredProfile } from "@/components/ProfileDock";
 
 export function CreateRetro({ teamId }: { teamId: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profile, setProfile] = useState<StoredProfile | null>(null);
   const [templateKey, setTemplateKey] = useState(RETRO_TEMPLATES[0].key);
   const [votesText, setVotesText] = useState("3");
   const [pending, setPending] = useState(false);
@@ -17,18 +17,18 @@ export function CreateRetro({ teamId }: { teamId: string }) {
 
   const template = RETRO_TEMPLATES.find((t) => t.key === templateKey) ?? RETRO_TEMPLATES[0];
 
-  // Der Ersteller ist automatisch Moderator — Name und Avatar kommen aus dem Profil unten links.
+  // Nur Moderatoren legen Boards an — Rolle kommt aus dem Profil unten links
+  // und reagiert live auf Änderungen.
   useEffect(() => {
-    setProfileName(storedProfile().name);
+    setProfile(storedProfile());
+    return onProfileSaved(() => setProfile(storedProfile()));
   }, []);
 
+  const isModerator = profile?.retroRole === "moderator";
+  const canCreate = isModerator && !!profile?.name;
+
   const create = async () => {
-    if (pending) return;
-    const profile = storedProfile();
-    if (!profile.name) {
-      setError("Lege zuerst unten links dein Profil an — der Ersteller wird automatisch Moderator.");
-      return;
-    }
+    if (pending || !profile || !canCreate) return;
     setPending(true);
     setError(null);
     const votes = Number(votesText);
@@ -53,7 +53,8 @@ export function CreateRetro({ teamId }: { teamId: string }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="z. B. Retro Sprint 42"
-            className="input-field"
+            disabled={!canCreate}
+            className="input-field disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
         <div>
@@ -79,7 +80,12 @@ export function CreateRetro({ teamId }: { teamId: string }) {
             className="input-field text-center font-mono"
           />
         </div>
-        <button type="button" onClick={create} disabled={pending} className="btn-primary whitespace-nowrap px-4 py-2.5">
+        <button
+          type="button"
+          onClick={create}
+          disabled={pending || !canCreate}
+          className="btn-primary whitespace-nowrap px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {pending ? "Legt an…" : "Anlegen"}
         </button>
       </div>
@@ -97,9 +103,11 @@ export function CreateRetro({ teamId }: { teamId: string }) {
         <span className="text-[11.5px] text-dim">— Spalten lassen sich im Board jederzeit anpassen</span>
       </div>
       <div className="mt-2 text-[12px] text-dim">
-        {profileName
-          ? `Du wirst als ${profileName} Moderator dieses Boards.`
-          : "Der Ersteller wird automatisch Moderator — Name kommt aus deinem Profil unten links."}
+        {canCreate
+          ? `Du wirst als ${profile?.name} Moderator dieses Boards.`
+          : !profile?.name
+            ? "Lege zuerst unten links dein Profil an — nur Moderatoren können Retros anlegen."
+            : "Nur Moderatoren legen Retros an — stelle unten links deine Rolle im Retro auf Moderator."}
       </div>
       {error && <div className="mt-2 text-[12.5px] text-danger">{error}</div>}
     </div>
