@@ -1,19 +1,26 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
+
+import confetti from "canvas-confetti";
 import { RefinementVoting } from "./RefinementVoting";
 import type { RefinementStateView } from "@/lib/view/refinementState";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.mocked(confetti).mockClear();
+});
 
 const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView => ({
   id: "r1",
   name: "Refinement KW 31",
   state: "RUNNING",
-  you: { name: "Ben", isAdmin: false },
+  you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
-    { name: "Anna", isAdmin: true, online: true, voted: false },
-    { name: "Ben", isAdmin: false, online: true, voted: false },
-    { name: "Zoe", isAdmin: false, online: true, voted: true },
+    { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+    { name: "Ben", avatar: "", isAdmin: false, online: true, voted: false },
+    { name: "Zoe", avatar: "🦊", isAdmin: false, online: true, voted: true },
   ],
   tickets: [
     { id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null, state: "VOTING", finalPoints: null },
@@ -23,16 +30,18 @@ const baseState = (over: Partial<RefinementStateView> = {}): RefinementStateView
     id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
     state: "VOTING", myVoteGiven: false, votes: null, stats: null,
   },
+  throws: [],
+  version: 0,
   ...over,
 });
 
 const revealedState = (): RefinementStateView =>
   baseState({
-    you: { name: "Anna", isAdmin: true },
+    you: { name: "Anna", avatar: "", isAdmin: true },
     participants: [
-      { name: "Anna", isAdmin: true, online: true, voted: false },
-      { name: "Ben", isAdmin: false, online: true, voted: true },
-      { name: "Zoe", isAdmin: false, online: true, voted: true },
+      { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+      { name: "Ben", avatar: "", isAdmin: false, online: true, voted: true },
+      { name: "Zoe", avatar: "", isAdmin: false, online: true, voted: true },
     ],
     activeTicket: {
       id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
@@ -46,7 +55,7 @@ const revealedState = (): RefinementStateView =>
   });
 
 const noop = () => {};
-const handlers = { onVote: noop, onRetract: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop };
+const handlers = { onVote: noop, onRetract: noop, onSelect: noop, onReveal: noop, onAccept: noop, onFinish: noop, onThrow: noop };
 
 describe("RefinementVoting", () => {
   it("zeigt den Tisch: abgestimmt = Kartenrücken, Moderator ohne Sitzplatz", () => {
@@ -91,7 +100,7 @@ describe("RefinementVoting", () => {
 
   it("der Moderator schätzt nicht mit: keine Kartenhand, aber Aufdecken und Ticketwahl", () => {
     const onReveal = vi.fn();
-    const admin = baseState({ you: { name: "Anna", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
     const { unmount } = render(<RefinementVoting state={admin} {...handlers} onReveal={onReveal} />);
     expect(screen.queryByRole("button", { name: "5 Punkte" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Unklar" })).not.toBeInTheDocument();
@@ -114,9 +123,9 @@ describe("RefinementVoting", () => {
   it("abwesende Teilnehmer sitzen nicht am Tisch und zählen nicht", () => {
     const withOffline = baseState({
       participants: [
-        { name: "Anna", isAdmin: true, online: true, voted: false },
-        { name: "Ben", isAdmin: false, online: true, voted: false },
-        { name: "Zoe", isAdmin: false, online: false, voted: true }, // Tab zu
+        { name: "Anna", avatar: "", isAdmin: true, online: true, voted: false },
+        { name: "Ben", avatar: "", isAdmin: false, online: true, voted: false },
+        { name: "Zoe", avatar: "", isAdmin: false, online: false, voted: true }, // Tab zu
       ],
     });
     render(<RefinementVoting state={withOffline} {...handlers} />);
@@ -125,7 +134,7 @@ describe("RefinementVoting", () => {
   });
 
   it("markiert das ausgewählte Ticket in der Seitenliste", () => {
-    render(<RefinementVoting state={baseState({ you: { name: "Anna", isAdmin: true } })} {...handlers} />);
+    render(<RefinementVoting state={baseState({ you: { name: "Anna", avatar: "", isAdmin: true } })} {...handlers} />);
     expect(screen.getByRole("button", { name: "AB-1 besprechen" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("button", { name: "AB-2 besprechen" })).not.toHaveAttribute("aria-current");
   });
@@ -139,7 +148,7 @@ describe("RefinementVoting", () => {
     unmount();
 
     // Kein aktives Ticket: Button erscheint im Platzhalter
-    const idle = baseState({ you: { name: "Anna", isAdmin: true }, activeTicket: null });
+    const idle = baseState({ you: { name: "Anna", avatar: "", isAdmin: true }, activeTicket: null });
     onSelect.mockClear();
     render(<RefinementVoting state={idle} {...handlers} onSelect={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Nächstes Ticket →" }));
@@ -161,5 +170,69 @@ describe("RefinementVoting", () => {
     fireEvent.change(input, { target: { value: "13" } });
     fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
     expect(onAccept).toHaveBeenCalledWith(13);
+  });
+
+  it("aufgedeckte Karten liegen als Flip offen (is-open)", () => {
+    render(<RefinementVoting state={revealedState()} {...handlers} />);
+    expect(screen.getByTestId("seat-card-Ben").querySelector(".flip-card")).toHaveClass("is-open");
+    // Vor dem Aufdecken bleibt die Karte zu
+    cleanup();
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    expect(screen.getByTestId("seat-card-Zoe").querySelector(".flip-card")).not.toHaveClass("is-open");
+  });
+
+  it("Klick auf einen fremden Sitz öffnet den Emoji-Picker und wirft", () => {
+    const onThrow = vi.fn();
+    render(<RefinementVoting state={baseState()} {...handlers} onThrow={onThrow} />);
+    fireEvent.click(screen.getByRole("button", { name: "Zoe bewerfen" }));
+    fireEvent.click(screen.getByRole("button", { name: "🍅 auf Zoe werfen" }));
+    expect(onThrow).toHaveBeenCalledWith("Zoe", "🍅");
+    // Picker schließt nach dem Wurf
+    expect(screen.queryByRole("button", { name: "🍅 auf Zoe werfen" })).not.toBeInTheDocument();
+  });
+
+  it("den eigenen Sitz kann man nicht bewerfen", () => {
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    expect(screen.queryByRole("button", { name: "Ben bewerfen" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("seat-card-Ben")).toBeDisabled();
+  });
+
+  it("feiert Einstimmigkeit mit Konfetti — aber nur einmal pro Aufdecken", () => {
+    const unanimousState = (): RefinementStateView =>
+      baseState({
+        activeTicket: {
+          id: "t1", jiraKey: "AB-1", summary: "Login", issueType: "Story", description: "", url: null, previousPoints: null,
+          state: "REVEALED", myVoteGiven: true, myVote: 8,
+          votes: [
+            { name: "Ben", points: 8 },
+            { name: "Zoe", points: 8 },
+          ],
+          stats: { average: 8, median: 8, count: 2 },
+        },
+      });
+    const { rerender } = render(<RefinementVoting state={unanimousState()} {...handlers} />);
+    expect(confetti).toHaveBeenCalled();
+    expect(screen.getByText(/Einstimmig!/)).toBeInTheDocument();
+
+    // Ein weiterer Poll mit gleichem Stand feiert nicht erneut
+    vi.mocked(confetti).mockClear();
+    rerender(<RefinementVoting state={unanimousState()} {...handlers} />);
+    expect(confetti).not.toHaveBeenCalled();
+  });
+
+  it("kein Konfetti bei unterschiedlichen Karten oder „?“", () => {
+    render(<RefinementVoting state={revealedState()} {...handlers} />);
+    expect(confetti).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Einstimmig!/)).not.toBeInTheDocument();
+  });
+
+  it("markiert den eigenen Sitz und zeigt Avatare", () => {
+    render(<RefinementVoting state={baseState()} {...handlers} />);
+    // Ben (du) ist deutlich hervorgehoben
+    expect(screen.getByTestId("participant-Ben")).toHaveAttribute("data-you");
+    expect(screen.getByText(/Ben \(du\)/)).toBeInTheDocument();
+    expect(screen.getByTestId("participant-Zoe")).not.toHaveAttribute("data-you");
+    // Zoes Fuchs-Avatar erscheint am Sitz
+    expect(screen.getByTestId("participant-Zoe")).toHaveTextContent("🦊");
   });
 });

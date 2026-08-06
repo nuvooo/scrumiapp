@@ -9,6 +9,15 @@ export interface VoteStats {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/**
+ * Einstimmig = mindestens zwei Stimmen, alle numerisch und identisch.
+ * Ein „?“ (null) bricht den Konsens — da ist noch Redebedarf.
+ */
+export function isUnanimous(votes: (number | null)[]): boolean {
+  if (votes.length < 2) return false;
+  return votes.every((v) => v !== null && v === votes[0]);
+}
+
 /** Statistik über die abgegebenen Poker-Votes; „?“-Votes (null) bleiben außen vor. */
 export function calcVoteStats(votes: (number | null)[]): VoteStats {
   const nums = votes.filter((v): v is number => v !== null).sort((a, b) => a - b);

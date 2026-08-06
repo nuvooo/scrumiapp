@@ -162,6 +162,8 @@ model RefinementParticipant {
   refinement   Refinement       @relation(fields: [refinementId], references: [id], onDelete: Cascade)
   refinementId String
   name         String
+  /// Emoji-Avatar ("" = keiner gewählt)
+  avatar       String           @default("")
   isAdmin      Boolean          @default(false)
   /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
   token        String           @unique @default(cuid())

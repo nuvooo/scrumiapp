@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatPoints } from "@/lib/format";
-import type { RefinementStateView } from "@/lib/view/refinementState";
+import { AVATAR_EMOJIS, type RefinementStateView } from "@/lib/view/refinementState";
 import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 import {
   joinRefinement,
@@ -18,16 +18,20 @@ import {
   retractVote,
   revealVotes,
   acceptEstimate,
+  throwEmoji,
   finishRefinement,
   renameRefinement,
   deleteRefinement,
   backToDraft,
+  updateProfile,
 } from "@/app/(app)/refinement/actions";
 import { RefinementDraft } from "./RefinementDraft";
 import { RefinementVoting } from "./RefinementVoting";
 
-const POLL_MS = 2000;
+/** Pause vor dem nächsten Versuch, wenn der State-Abruf fehlschlägt. */
+const RETRY_MS = 2000;
 const tokenKey = (id: string) => `scrumi.refinement.${id}.token`;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const router = useRouter();
@@ -38,17 +42,23 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
   const [joinAsAdmin, setJoinAsAdmin] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [nameText, setNameText] = useState("");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileAvatar, setProfileAvatar] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Zählt lokale Aktionen: Poll-Antworten, die vor einer Aktion gestartet
   // sind, werden verworfen — sonst überschreibt veralteter Server-Stand die
   // optimistische Anzeige (Karte "flackert" zurück).
   const actionSeqRef = useRef(0);
+  // Zuletzt gesehene Server-Version — steuert das Long-Polling.
+  const versionRef = useRef<number | null>(null);
 
   useEffect(() => {
     setToken(window.localStorage.getItem(tokenKey(refinementId)));
     setTokenLoaded(true);
   }, [refinementId]);
 
+  /** Sofortiger Abruf (ohne Warten) — direkt nach eigenen Aktionen. */
   const refresh = useCallback(async () => {
     const seq = actionSeqRef.current;
     const res = await fetch(
@@ -56,16 +66,75 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       { cache: "no-store" },
     );
     if (res.ok && seq === actionSeqRef.current) {
-      setState((await res.json()) as RefinementStateView);
+      const data = (await res.json()) as RefinementStateView;
+      versionRef.current = data.version ?? null;
+      setState(data);
     }
   }, [refinementId, token]);
 
+  // Echter Push statt Polling: Der WebSocket (server.mjs) meldet "changed",
+  // sobald sich im Raum etwas tut — dann wird der Zustand einmal abgerufen.
+  // Fällt der Socket aus, überbrückt Long-Polling, bis die Verbindung wieder steht.
   useEffect(() => {
     if (!tokenLoaded) return;
-    refresh();
-    const timer = setInterval(refresh, POLL_MS);
-    return () => clearInterval(timer);
-  }, [tokenLoaded, refresh]);
+    let stopped = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: number | undefined;
+    // Generationszähler: Erhöhen beendet eine laufende Fallback-Schleife.
+    let fallbackGen = 0;
+
+    const fetchLongPoll = async () => {
+      const seq = actionSeqRef.current;
+      const v = versionRef.current;
+      const res = await fetch(
+        `/api/refinement/${refinementId}/state?token=${encodeURIComponent(token ?? "")}${v !== null ? `&v=${v}` : ""}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error("state failed");
+      const data = (await res.json()) as RefinementStateView;
+      versionRef.current = data.version ?? null;
+      if (seq === actionSeqRef.current) setState(data);
+    };
+
+    const startFallback = async () => {
+      const gen = ++fallbackGen;
+      while (!stopped && gen === fallbackGen) {
+        try {
+          await fetchLongPoll();
+        } catch {
+          await sleep(RETRY_MS);
+        }
+      }
+    };
+
+    const connect = () => {
+      if (stopped) return;
+      const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(
+        `${proto}://${window.location.host}/ws/refinement?id=${encodeURIComponent(refinementId)}&token=${encodeURIComponent(token ?? "")}`,
+      );
+      ws.onopen = () => {
+        fallbackGen++; // Fallback stoppen — der Socket übernimmt
+        refresh();
+      };
+      ws.onmessage = () => refresh();
+      ws.onclose = () => {
+        if (stopped) return;
+        startFallback();
+        reconnectTimer = window.setTimeout(connect, 3000);
+      };
+    };
+
+    refresh(); // Erststand sofort laden
+    connect();
+
+    return () => {
+      stopped = true;
+      fallbackGen++;
+      window.clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [tokenLoaded, refinementId, token, refresh]);
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setError(null);
@@ -148,6 +217,18 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
     setRenaming(false);
   };
 
+  const openProfile = () => {
+    if (!state.you) return;
+    setProfileName(state.you.name);
+    setProfileAvatar(state.you.avatar);
+    setEditingProfile(true);
+  };
+
+  const saveProfile = async () => {
+    await run(() => updateProfile(refinementId, t, profileName, profileAvatar));
+    setEditingProfile(false);
+  };
+
   const remove = async () => {
     if (!window.confirm(`Refinement „${state.name}" wirklich löschen?`)) return;
     const result = await deleteRefinement(refinementId, t);
@@ -185,7 +266,21 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
             {state.state === "DRAFT" && "Vorbereitung — Tickets zusammenstellen"}
             {state.state === "RUNNING" && "Refinement läuft"}
             {state.state === "DONE" && "Abgeschlossen"}
-            {state.you && <> · du bist {state.you.name}{isAdmin ? " (Moderator)" : ""}</>}
+            {state.you && (
+              <>
+                {" · du bist "}
+                <button
+                  type="button"
+                  onClick={openProfile}
+                  title="Name und Avatar ändern"
+                  className="cursor-pointer font-medium text-link hover:text-linkhi hover:underline"
+                >
+                  {state.you.avatar && <>{state.you.avatar} </>}
+                  {state.you.name} ✎
+                </button>
+                {isAdmin ? " (Moderator)" : ""}
+              </>
+            )}
           </div>
         </div>
         {isAdmin && !renaming && (
@@ -218,6 +313,55 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
       </div>
       {error && <div className="mt-3 text-[12.5px] text-danger">{error}</div>}
 
+      {editingProfile && state.you && (
+        <div className="card mt-4 max-w-[460px] p-[18px]">
+          <div className="text-sm font-semibold">Dein Profil</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input
+              aria-label="Dein Name"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveProfile()}
+              className="input-field min-w-0 flex-1"
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Kein Avatar"
+              title="Kein Avatar"
+              onClick={() => setProfileAvatar("")}
+              className={`flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border text-[12px] text-mid ${
+                profileAvatar === "" ? "border-accent bg-chip" : "border-edge bg-field"
+              }`}
+            >
+              –
+            </button>
+            {AVATAR_EMOJIS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                aria-label={`Avatar ${a}`}
+                onClick={() => setProfileAvatar(a)}
+                className={`flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border text-[17px] ${
+                  profileAvatar === a ? "border-accent bg-chip" : "border-edge bg-field hover:border-tipline"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3.5 flex gap-2">
+            <button type="button" onClick={saveProfile} className="btn-primary px-4 py-2">
+              Speichern
+            </button>
+            <button type="button" onClick={() => setEditingProfile(false)} className="btn-secondary px-3.5 py-2">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Wer ist da? Nur wer gerade anwesend ist (Heartbeat) wird angezeigt. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {state.participants
@@ -225,10 +369,20 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           .map((p) => (
             <span
               key={p.name}
-              className="flex items-center gap-1.5 rounded-full border border-edge bg-field px-2.5 py-1 text-[12.5px] text-mid"
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] ${
+                p.name === state.you?.name
+                  ? "border-accent bg-chip font-medium text-fg"
+                  : "border-edge bg-field text-mid"
+              }`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+              {p.avatar && (
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border border-edge bg-raise text-[13px] leading-none">
+                  {p.avatar}
+                </span>
+              )}
               {p.name}
+              {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
             </span>
           ))}
@@ -270,6 +424,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           onAccept={(points) => {
             if (state.activeTicket) run(() => acceptEstimate(refinementId, t, state.activeTicket!.id, points));
           }}
+          onThrow={(targetName, emoji) => run(() => throwEmoji(refinementId, t, targetName, emoji))}
           onFinish={() => run(() => finishRefinement(refinementId, t))}
         />
       )}

@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { JiraCloudClient, jiraConfigFromEnv, type JiraSearchResult } from "@/lib/jira/jiraClient";
+import { addThrow } from "@/lib/refinementThrows";
+import { bumpRefinement } from "@/lib/refinementVersion";
+import { AVATAR_EMOJIS, THROW_EMOJIS } from "@/lib/view/refinementState";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -64,10 +67,37 @@ export async function joinRefinement(
     const participant = await prisma.refinementParticipant.create({
       data: { refinementId, name: trimmed, isAdmin: asAdmin },
     });
+    bumpRefinement(refinementId);
     return { ok: true, data: { token: participant.token } };
   } catch {
     return fail(`Der Name „${trimmed}" ist in dieser Session schon vergeben.`);
   }
+}
+
+/** Eigenen Namen und Avatar ändern — jederzeit, auch mitten in der Abstimmung. */
+export async function updateProfile(
+  refinementId: string,
+  token: string,
+  name: string,
+  avatar: string,
+): Promise<ActionResult> {
+  const participant = await requireParticipant(refinementId, token);
+  if (!participant) return fail("Nicht Teil dieser Session.");
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Der Name darf nicht leer sein.");
+  if (avatar !== "" && !(AVATAR_EMOJIS as readonly string[]).includes(avatar)) {
+    return fail("Diesen Avatar gibt es nicht.");
+  }
+  try {
+    await prisma.refinementParticipant.update({
+      where: { id: participant.id },
+      data: { name: trimmed, avatar },
+    });
+  } catch {
+    return fail(`Der Name „${trimmed}" ist in dieser Session schon vergeben.`);
+  }
+  bumpRefinement(refinementId);
+  return { ok: true };
 }
 
 /** Vorschläge für den Draft: unbewertete, offene Tickets vom Board des Teams. */
@@ -112,6 +142,7 @@ export async function addTicket(
   } catch {
     return fail(`${ticket.jiraKey} ist schon in der Liste.`);
   }
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -139,12 +170,14 @@ export async function addTickets(
       position: existing.length + i,
     })),
   });
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
 export async function removeTicket(refinementId: string, token: string, ticketId: string): Promise<ActionResult> {
   if (!(await requireParticipant(refinementId, token, true))) return fail("Nur der Admin darf das.");
   await prisma.refinementTicket.deleteMany({ where: { id: ticketId, refinementId } });
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -166,6 +199,7 @@ export async function moveTicket(
     prisma.refinementTicket.update({ where: { id: tickets[index].id }, data: { position: other } }),
     prisma.refinementTicket.update({ where: { id: tickets[other].id }, data: { position: index } }),
   ]);
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -179,6 +213,7 @@ export async function renameRefinement(
   if (!trimmed) return fail("Der Name darf nicht leer sein.");
   await prisma.refinement.update({ where: { id: refinementId }, data: { name: trimmed } });
   revalidatePath("/refinement");
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -203,6 +238,7 @@ export async function backToDraft(refinementId: string, token: string): Promise<
     }),
   ]);
   revalidatePath("/refinement");
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -212,6 +248,7 @@ export async function startRefinement(refinementId: string, token: string): Prom
   if (count === 0) return fail("Erst Tickets hinzufügen.");
   await prisma.refinement.update({ where: { id: refinementId }, data: { state: "RUNNING" } });
   revalidatePath("/refinement");
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -229,6 +266,7 @@ export async function selectTicket(refinementId: string, token: string, ticketId
     prisma.refinementTicket.update({ where: { id: ticketId }, data: { state: "VOTING" } }),
     prisma.refinement.update({ where: { id: refinementId }, data: { activeTicketId: ticketId } }),
   ]);
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -248,6 +286,7 @@ export async function vote(
     create: { ticketId, participantId: participant.id, points },
     update: { points },
   });
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -262,6 +301,7 @@ export async function retractVote(
   const ticket = await prisma.refinementTicket.findFirst({ where: { id: ticketId, refinementId } });
   if (!ticket || ticket.state !== "VOTING") return fail("Gerade keine Abstimmung offen.");
   await prisma.refinementVote.deleteMany({ where: { ticketId, participantId: participant.id } });
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -271,6 +311,7 @@ export async function revealVotes(refinementId: string, token: string, ticketId:
     where: { id: ticketId, refinementId, state: "VOTING" },
     data: { state: "REVEALED" },
   });
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -304,6 +345,27 @@ export async function acceptEstimate(
     // Das Ticket kann in gesyncten Sprints liegen — Ansichten sofort aktuell halten.
     prisma.issue.updateMany({ where: { jiraKey: ticket.jiraKey }, data: { storyPoints: points } }),
   ]);
+  bumpRefinement(refinementId);
+  return { ok: true };
+}
+
+/** Jemanden mit einem Emoji bewerfen — reine Show, landet im flüchtigen Wurf-Store. */
+export async function throwEmoji(
+  refinementId: string,
+  token: string,
+  targetName: string,
+  emoji: string,
+): Promise<ActionResult> {
+  const participant = await requireParticipant(refinementId, token);
+  if (!participant) return fail("Nicht Teil dieser Session.");
+  if (!(THROW_EMOJIS as readonly string[]).includes(emoji)) return fail("Dieses Emoji gibt es nicht.");
+  if (targetName === participant.name) return fail("Sich selbst bewirft man nicht.");
+  const target = await prisma.refinementParticipant.findFirst({
+    where: { refinementId, name: targetName },
+  });
+  if (!target) return fail("Zielperson nicht gefunden.");
+  addThrow(refinementId, participant.name, targetName, emoji);
+  bumpRefinement(refinementId);
   return { ok: true };
 }
 
@@ -314,5 +376,6 @@ export async function finishRefinement(refinementId: string, token: string): Pro
     data: { state: "DONE", activeTicketId: null },
   });
   revalidatePath("/refinement");
+  bumpRefinement(refinementId);
   return { ok: true };
 }
