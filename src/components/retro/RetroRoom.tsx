@@ -332,6 +332,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         avatar={state.you.avatar}
         role={state.you.isAdmin ? "moderator" : "member"}
         roles={RETRO_ROLES}
+        roleTitle="Rolle in diesem Retro-Board"
         onSave={(name, avatar, role) =>
           run(() => updateRetroProfile(retroId, t, name, avatar, role as "member" | "moderator"))
         }

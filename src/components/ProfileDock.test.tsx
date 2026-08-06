@@ -11,7 +11,7 @@ const roles = [
 
 describe("ProfileDock", () => {
   it("zeigt Avatar, Name und Rolle als Chip", () => {
-    render(<ProfileDock name="Ben" avatar="🦊" role="member" roles={roles} onSave={() => {}} />);
+    render(<ProfileDock name="Ben" avatar="🦊" role="member" roles={roles} roleTitle="Rolle in diesem Retro-Board" onSave={() => {}} />);
     const chip = screen.getByRole("button", { name: "Profil bearbeiten" });
     expect(chip).toHaveTextContent("🦊");
     expect(chip).toHaveTextContent("Ben");
@@ -20,8 +20,9 @@ describe("ProfileDock", () => {
 
   it("öffnet den Editor und speichert Name, Avatar und Rolle", () => {
     const onSave = vi.fn();
-    render(<ProfileDock name="Ben" avatar="" role="member" roles={roles} onSave={onSave} />);
+    render(<ProfileDock name="Ben" avatar="" role="member" roles={roles} roleTitle="Rolle in diesem Retro-Board" onSave={onSave} />);
     fireEvent.click(screen.getByRole("button", { name: "Profil bearbeiten" }));
+    expect(screen.getByText("Rolle in diesem Retro-Board")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Dein Name"), { target: { value: "Benji" } });
     fireEvent.click(screen.getByRole("button", { name: "Avatar 🦊" }));
     fireEvent.click(screen.getByRole("radio", { name: /Moderator/ }));
@@ -32,7 +33,7 @@ describe("ProfileDock", () => {
   });
 
   it("merkt sich Name und Avatar für die Beitritts-Vorbelegung", () => {
-    render(<ProfileDock name="Ben" avatar="" role="member" roles={roles} onSave={() => {}} />);
+    render(<ProfileDock name="Ben" avatar="" role="member" roles={roles} roleTitle="Rolle" onSave={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Profil bearbeiten" }));
     fireEvent.change(screen.getByLabelText("Dein Name"), { target: { value: "Benji" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));

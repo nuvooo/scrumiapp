@@ -442,6 +442,7 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
           avatar={state.you.avatar}
           role={roleOf(state.you)}
           roles={ROLES}
+          roleTitle="Rolle in diesem Refinement"
           onSave={(name, avatar, role) =>
             run(() => updateProfile(refinementId, t, name, avatar, role as RefinementRole))
           }
