@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { bumpRefinement } from "@/lib/refinementVersion";
 import { setTyping } from "@/lib/retroTyping";
+import { isValidRetroBackground } from "@/lib/retroBackground";
 import { AVATAR_EMOJIS } from "@/lib/view/refinementState";
 import { RETRO_COLORS, RETRO_TEMPLATES } from "@/lib/view/retroState";
 
@@ -218,6 +219,16 @@ export async function setRetroSortMode(
 export async function setRetroMusic(retroId: string, token: string, on: boolean): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
   await prisma.retro.update({ where: { id: retroId }, data: { musicOn: on } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Hintergrundbild des Boards setzen (Preset-Key oder Bild-URL) — nur der Moderator. */
+export async function setRetroBackground(retroId: string, token: string, background: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  const value = background.trim();
+  if (!isValidRetroBackground(value)) return fail("Bitte eine gültige Bild-URL (http/https) angeben.");
+  await prisma.retro.update({ where: { id: retroId }, data: { background: value } });
   bumpRetro(retroId);
   return { ok: true };
 }

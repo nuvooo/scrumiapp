@@ -29,7 +29,9 @@ import {
   setRetroTimer,
   setRetroMusic,
   setRetroSortMode,
+  setRetroBackground,
 } from "@/app/(app)/retro/actions";
+import { RETRO_BACKGROUNDS, retroBackgroundCss } from "@/lib/retroBackground";
 import { RetroBoard } from "./RetroBoard";
 import { onProfileSaved, storedProfile, writeProfile } from "@/components/ProfileDock";
 import { AmbientMusic } from "@/lib/ambientMusic";
@@ -145,6 +147,88 @@ function MusicPanel({
           onChange={(e) => changeVolume(Number(e.target.value) / 100)}
           className="w-[84px] accent-[#6e8ff6]"
         />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Hintergrundbild des Boards: Der Moderator wählt ein Preset oder trägt eine
+ * Bild-URL ein — alle Teilnehmer sehen denselben Hintergrund.
+ */
+function BackgroundPanel({
+  background,
+  onSet,
+}: {
+  background: string;
+  onSet: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+
+  const applyUrl = () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    onSet(trimmed);
+    setUrl("");
+    setOpen(false);
+  };
+
+  return (
+    <span className="relative">
+      <button
+        type="button"
+        title="Hintergrundbild des Boards — sichtbar für alle"
+        onClick={() => setOpen((o) => !o)}
+        className={`px-3 py-[7px] ${background ? "btn-primary" : "btn-secondary"}`}
+      >
+        🖼 Hintergrund
+      </button>
+      {open && (
+        <span className="absolute right-0 top-[38px] z-30 block w-[248px] rounded-[9px] border border-edge bg-field p-2.5 shadow-card">
+          <span className="grid grid-cols-3 gap-1.5">
+            <button
+              type="button"
+              title="Kein Hintergrund"
+              onClick={() => {
+                onSet("");
+                setOpen(false);
+              }}
+              className={`h-[44px] rounded-[7px] border bg-raise text-[11px] text-mid ${
+                background === "" ? "border-accent" : "border-edge"
+              }`}
+            >
+              Ohne
+            </button>
+            {RETRO_BACKGROUNDS.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                title={p.name}
+                aria-label={`Hintergrund ${p.name}`}
+                onClick={() => {
+                  onSet(p.key);
+                  setOpen(false);
+                }}
+                className={`h-[44px] rounded-[7px] border ${background === p.key ? "border-accent" : "border-edge"}`}
+                style={{ backgroundImage: p.css }}
+              />
+            ))}
+          </span>
+          <span className="mt-2 flex gap-1.5">
+            <input
+              aria-label="Bild-URL"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && applyUrl()}
+              placeholder="https://…/bild.jpg"
+              className="input-field min-w-0 flex-1 px-2 py-1.5 text-[12px]"
+            />
+            <button type="button" onClick={applyUrl} className="btn-secondary px-2.5 py-1.5 text-[12px]">
+              OK
+            </button>
+          </span>
+        </span>
       )}
     </span>
   );
@@ -431,6 +515,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
 
   const isAdmin = state.you.isAdmin;
   const t = token ?? "";
+  const backgroundCss = retroBackgroundCss(state.background);
 
   const remove = async () => {
     if (!window.confirm(`Retro „${state.name}" wirklich löschen?`)) return;
@@ -444,6 +529,16 @@ export function RetroRoom({ retroId }: { retroId: string }) {
 
   return (
     <div data-full-width>
+      {/* Hintergrundbild hinter dem gesamten Board; Overlay hält Text lesbar. */}
+      {backgroundCss && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 -z-10"
+          style={{ backgroundImage: backgroundCss, backgroundSize: "cover", backgroundPosition: "center" }}
+        >
+          <div className="absolute inset-0 bg-[rgba(7,10,16,0.55)]" />
+        </div>
+      )}
       <Link href="/retro" className="inline-block text-[12.5px] text-muted hover:text-fg hover:underline">
         ← Zur Übersicht
       </Link>
@@ -456,6 +551,12 @@ export function RetroRoom({ retroId }: { retroId: string }) {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <BackgroundPanel
+              background={state.background}
+              onSet={(value) => run(() => setRetroBackground(retroId, t, value))}
+            />
+          )}
           <MusicPanel
             musicOn={state.musicOn}
             isAdmin={isAdmin}

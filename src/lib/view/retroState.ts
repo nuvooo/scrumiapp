@@ -117,6 +117,8 @@ export interface RetroStateView {
   sortOrder: string[];
   /** Hintergrundmusik vom Moderator für alle eingeschaltet. */
   musicOn: boolean;
+  /** Hintergrundbild des Boards (Preset-Key oder Bild-URL) — vom Moderator für alle gesetzt. */
+  background: string;
   you: { name: string; avatar: string; isAdmin: boolean } | null;
   participants: { name: string; avatar: string; isAdmin: boolean; online: boolean }[];
   columns: RetroColumnView[];

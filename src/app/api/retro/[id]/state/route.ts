@@ -86,6 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? Math.max(0, Math.round((retro.timerEndsAt.getTime() - Date.now()) / 1000))
       : null,
     musicOn: retro.musicOn,
+    background: retro.background,
     sortMode: retro.sortMode,
     sortOrder: (() => {
       try {

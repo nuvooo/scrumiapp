@@ -208,6 +208,8 @@ model Retro {
   sortOrder    String             @default("[]")
   /// Hintergrundmusik vom Moderator für alle eingeschaltet
   musicOn      Boolean            @default(false)
+  /// Hintergrundbild des Boards (Preset-Key oder Bild-URL) — gilt für alle
+  background   String             @default("")
   createdAt    DateTime           @default(now())
   columns      RetroColumn[]
   participants RetroParticipant[]

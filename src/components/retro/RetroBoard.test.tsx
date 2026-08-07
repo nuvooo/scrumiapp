@@ -16,6 +16,7 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
   sortMode: "default",
   sortOrder: [],
   musicOn: false,
+  background: "",
   you: { name: "Ben", avatar: "", isAdmin: false },
   participants: [
     { name: "Anna", avatar: "", isAdmin: true, online: true },
