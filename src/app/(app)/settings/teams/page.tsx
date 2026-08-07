@@ -1,7 +1,9 @@
 import { TeamForm } from "@/components/TeamForm";
 import { TeamEditor } from "@/components/TeamEditor";
 import { TeamMembers } from "@/components/TeamMembers";
+import { TeamSelect } from "@/components/TeamSprintSelector";
 import { loadTeamsWithMembers } from "@/lib/view/loaders";
+import { resolveTeamId } from "@/lib/view/selection";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +23,33 @@ function syncStatus(team: { lastSyncError: string | null; lastSyncedAt: Date | n
   return { text: "noch nicht synchronisiert", tone: "none" as const };
 }
 
-export default async function TeamsPage() {
+export default async function TeamsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string; sprint?: string }>;
+}) {
+  const { team } = await searchParams;
   const teams = await loadTeamsWithMembers();
+  const activeTeamId = resolveTeamId(teams, team);
 
   return (
     <div>
       <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Teams / Jira</h1>
       <div className="mt-[7px] text-[13px] text-muted">
-        Teams anlegen, Jira-Boards verknüpfen und Sync-Intervalle festlegen
+        Aktive Auswahl festlegen, Teams anlegen, Jira-Boards verknüpfen und Sync-Intervalle festlegen
       </div>
 
       <div className="card mt-6 max-w-[820px] p-[18px]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-faint">Aktives Team</div>
+        <div className="mt-1.5 text-[13px] text-muted">
+          Gilt für alle Analyse-Seiten (Dashboard, Burndown, Report …) — den Sprint wählst du direkt auf der Seite
+        </div>
+        <div className="mt-3">
+          <TeamSelect teams={teams.map((t) => ({ id: t.id, name: t.name }))} value={activeTeamId ?? ""} />
+        </div>
+      </div>
+
+      <div className="card mt-3.5 max-w-[820px] p-[18px]">
         <TeamForm />
       </div>
 

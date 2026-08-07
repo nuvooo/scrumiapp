@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AVATAR_EMOJIS } from "@/lib/view/refinementState";
+import { SIDEBAR_TOGGLED_EVENT } from "@/components/Sidebar";
 
 export interface DockRole {
   value: string;
@@ -121,11 +122,18 @@ export function ProfileDock() {
   const [retroSel, setRetroSel] = useState("");
 
   useEffect(() => {
-    setSlot(document.getElementById("profile-dock-slot"));
+    // Slot existiert nur bei ausgeklappter Sidebar — beim Umschalten neu auflösen,
+    // damit der Chip auf die schwebende Position unten links ausweicht.
+    const resolveSlot = () => setSlot(document.getElementById("profile-dock-slot"));
+    resolveSlot();
     setProfile(storedProfile());
     const handler = () => setProfile(storedProfile());
     window.addEventListener(UPDATED_EVENT, handler);
-    return () => window.removeEventListener(UPDATED_EVENT, handler);
+    window.addEventListener(SIDEBAR_TOGGLED_EVENT, resolveSlot);
+    return () => {
+      window.removeEventListener(UPDATED_EVENT, handler);
+      window.removeEventListener(SIDEBAR_TOGGLED_EVENT, resolveSlot);
+    };
   }, []);
 
   if (profile === null) return null;
@@ -180,7 +188,8 @@ export function ProfileDock() {
     <>
       {/* Desktop: in der Sidebar unter der Jira-Karte; Mobile: schwebend unten links */}
       {slot && createPortal(chip, slot)}
-      <div className={`fixed bottom-4 left-4 z-40 w-[210px] ${slot ? "lg:hidden" : ""}`}>{chip}</div>
+      {/* lg:left-[70px]: bei eingeklappter Sidebar nicht die schmale Leiste überlappen */}
+      <div className={`fixed bottom-4 left-4 z-40 w-[210px] lg:left-[70px] ${slot ? "lg:hidden" : ""}`}>{chip}</div>
 
       {open && (
         <div

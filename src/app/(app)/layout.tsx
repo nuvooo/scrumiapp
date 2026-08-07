@@ -1,10 +1,6 @@
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { ProfileDock } from "@/components/ProfileDock";
-import { TeamSprintSelector } from "@/components/TeamSprintSelector";
-import { SyncButton } from "@/components/SyncButton";
-import { loadTeams, loadSprints } from "@/lib/view/loaders";
-import { resolveTeamId } from "@/lib/view/selection";
 
 function jiraHostFromEnv(): string | null {
   const base = process.env.JIRA_BASE_URL;
@@ -16,44 +12,20 @@ function jiraHostFromEnv(): string | null {
   }
 }
 
-function formatLastSync(dates: (Date | null)[]): string | null {
-  const times = dates.filter((d): d is Date => d !== null).map((d) => d.getTime());
-  if (times.length === 0) return null;
-  return new Date(Math.max(...times)).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export default async function AppLayout({
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const teams = await loadTeams();
-  const defaultTeamId = resolveTeamId(teams, undefined);
-  const sprints = defaultTeamId ? await loadSprints(defaultTeamId) : [];
-  const lastSyncedLabel = formatLastSync(teams.map((t) => t.lastSyncedAt));
-
   return (
     <div className="flex min-h-screen">
       <Sidebar jiraHost={jiraHostFromEnv()} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-line bg-[rgba(8,11,17,0.66)] px-4 py-3.5 backdrop-blur-xl lg:px-[34px]">
+        {/* Nur mobil: Desktop navigiert über die Sidebar. Team/Sprint-Auswahl
+            und Jira-Sync liegen unter Verwaltung (Teams / Jira bzw. Daten). */}
+        <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-line bg-[rgba(8,11,17,0.66)] px-4 py-3.5 backdrop-blur-xl lg:hidden">
           <MobileNav jiraHost={jiraHostFromEnv()} />
-          <TeamSprintSelector
-            teams={teams.map((t) => ({ id: t.id, name: t.name }))}
-            sprints={sprints.map((s) => ({
-              id: s.id,
-              name: s.state === "ACTIVE" ? `${s.name} (aktiv)` : s.state === "FUTURE" ? `${s.name} (geplant)` : s.name,
-            }))}
-          />
-          <div className="ml-auto">
-            <SyncButton lastSyncedLabel={lastSyncedLabel} />
-          </div>
+          <div className="text-base font-semibold tracking-[-0.01em]">Scrumi</div>
         </header>
         <main className="max-w-[1320px] flex-1 px-4 pb-10 pt-5 lg:px-[34px] lg:pb-[60px] lg:pt-[34px]">{children}</main>
       </div>

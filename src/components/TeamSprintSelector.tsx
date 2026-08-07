@@ -41,34 +41,37 @@ function LabeledSelect({
   );
 }
 
-export function TeamSprintSelector({ teams, sprints }: { teams: Option[]; sprints: Option[] }) {
+/** Auswahl in die URL schreiben — Seiten lesen team/sprint aus den Query-Parametern. */
+function useSelectionUpdate() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-
-  function update(key: "team" | "sprint", value: string) {
+  return (key: "team" | "sprint", value: string) => {
     const next = new URLSearchParams(params.toString());
     next.set(key, value);
     if (key === "team") next.delete("sprint");
     router.push(`${pathname}?${next.toString()}`);
-  }
+  };
+}
 
+/** Team-Wahl (Verwaltung) — gilt für alle Seiten; ein Teamwechsel setzt den Sprint zurück. */
+export function TeamSelect({ teams, value }: { teams: Option[]; value: string }) {
+  const update = useSelectionUpdate();
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <LabeledSelect
-        label="Team"
-        value={params.get("team") ?? ""}
-        options={teams}
-        emptyLabel="Kein Team"
-        onChange={(v) => update("team", v)}
-      />
-      <LabeledSelect
-        label="Sprint"
-        value={params.get("sprint") ?? ""}
-        options={sprints}
-        emptyLabel="Kein Sprint"
-        onChange={(v) => update("sprint", v)}
-      />
-    </div>
+    <LabeledSelect label="Team" value={value} options={teams} emptyLabel="Kein Team" onChange={(v) => update("team", v)} />
+  );
+}
+
+/** Sprint-Wahl direkt auf einer Analyse-Seite (z. B. Burndown) — der aktive Sprint ist vorausgewählt. */
+export function SprintSelect({ sprints, value }: { sprints: Option[]; value: string }) {
+  const update = useSelectionUpdate();
+  return (
+    <LabeledSelect
+      label="Sprint"
+      value={value}
+      options={sprints}
+      emptyLabel="Kein Sprint"
+      onChange={(v) => update("sprint", v)}
+    />
   );
 }
