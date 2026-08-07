@@ -10,6 +10,14 @@ export function resolveTeamId<T extends HasId>(teams: T[], queryTeam: string | u
   return teams[0]?.id;
 }
 
+/** Optionen für die Sprint-Auswahl — aktive und geplante Sprints sind markiert. */
+export function sprintOptions<T extends SprintLike & { name: string }>(sprints: T[]): { id: string; name: string }[] {
+  return sprints.map((s) => ({
+    id: s.id,
+    name: s.state === "ACTIVE" ? `${s.name} (aktiv)` : s.state === "FUTURE" ? `${s.name} (geplant)` : s.name,
+  }));
+}
+
 export function resolveSprintId<T extends SprintLike>(sprints: T[], querySprint: string | undefined): string | undefined {
   if (querySprint && sprints.some((s) => s.id === querySprint)) return querySprint;
   const active = sprints.find((s) => s.state === "ACTIVE");

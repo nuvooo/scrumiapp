@@ -2,7 +2,8 @@ import Link from "next/link";
 import { KpiCard } from "@/components/KpiCard";
 import { Celebration } from "@/components/Celebration";
 import { loadTeams, loadSprints, loadDashboard, loadCelebration } from "@/lib/view/loaders";
-import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
+import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
+import { SprintSelect } from "@/components/TeamSprintSelector";
 import { formatPoints, formatDateShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -50,13 +51,18 @@ export default async function DashboardPage({
   return (
     <div>
       <Celebration effect={celebration} />
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="text-[29px] font-semibold tracking-[-0.028em]">{data.sprintName}</h1>
-        <span className={`rounded-full border px-2 py-[3px] font-mono text-[11.5px] ${badge.className}`}>
-          {badge.label}
-        </span>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h1 className="text-[29px] font-semibold tracking-[-0.028em]">{data.sprintName}</h1>
+            <span className={`rounded-full border px-2 py-[3px] font-mono text-[11.5px] ${badge.className}`}>
+              {badge.label}
+            </span>
+          </div>
+          <div className="mt-[7px] text-[13px] text-muted">{subtitle}</div>
+        </div>
+        <SprintSelect sprints={sprintOptions(sprints)} value={sprintId} />
       </div>
-      <div className="mt-[7px] text-[13px] text-muted">{subtitle}</div>
 
       <div className="mt-[26px] grid grid-cols-[repeat(auto-fit,minmax(228px,1fr))] gap-3.5">
         <KpiCard label="Velocity" value={formatPoints(data.velocity)} unit="SP" hint="abgeschlossene Story Points" />

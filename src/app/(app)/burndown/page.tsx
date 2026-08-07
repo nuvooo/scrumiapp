@@ -1,8 +1,9 @@
 import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/charts/BurndownChart";
 import { BurndownTabs } from "@/components/charts/BurndownTabs";
 import { Celebration } from "@/components/Celebration";
+import { SprintSelect } from "@/components/TeamSprintSelector";
 import { loadTeams, loadSprints, loadBurndown, loadCelebration } from "@/lib/view/loaders";
-import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
+import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
 import { formatDateShort, roundTo1 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -68,9 +69,14 @@ export default async function BurndownPage({
   return (
     <div>
       <Celebration effect={celebration} />
-      <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Burndown</h1>
-      <div className="mt-[7px] text-[13px] text-muted">
-        {data.sprintName} · Restaufwand über die Arbeitstage des Sprints
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Burndown</h1>
+          <div className="mt-[7px] text-[13px] text-muted">
+            {data.sprintName} · Restaufwand über die Arbeitstage des Sprints
+          </div>
+        </div>
+        <SprintSelect sprints={sprintOptions(sprints)} value={sprintId} />
       </div>
 
       <div className="card mt-6 p-[18px]">

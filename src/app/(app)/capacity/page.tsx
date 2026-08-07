@@ -1,7 +1,8 @@
 import { CapacityRoster } from "@/components/CapacityRoster";
 import { KpiCard } from "@/components/KpiCard";
 import { loadTeams, loadSprints, loadCapacity } from "@/lib/view/loaders";
-import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
+import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
+import { SprintSelect } from "@/components/TeamSprintSelector";
 import { formatPoints, formatDelta } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,13 @@ export default async function CapacityPage({
 
   return (
     <div>
-      <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Kapazität</h1>
-      <div className="mt-[7px] text-[13px] text-muted">Personentage je Teammitglied für {data.sprintName}</div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Kapazität</h1>
+          <div className="mt-[7px] text-[13px] text-muted">Personentage je Teammitglied für {data.sprintName}</div>
+        </div>
+        <SprintSelect sprints={sprintOptions(sprints)} value={sprintId} />
+      </div>
 
       <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
         <KpiCard size="md" label="PT Soll" value={formatPoints(data.totalPlanned)} hint="geplante Personentage" />

@@ -3,7 +3,8 @@ import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/chart
 import { KpiCard } from "@/components/KpiCard";
 import { ReportActions } from "@/components/ReportActions";
 import { loadTeams, loadSprints, loadReport, loadBurndown } from "@/lib/view/loaders";
-import { resolveTeamId, resolveSprintId } from "@/lib/view/selection";
+import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
+import { SprintSelect } from "@/components/TeamSprintSelector";
 import { formatPoints, formatDelta, formatDateShort, roundTo1 } from "@/lib/format";
 import { reportBadge, type ReportIssue } from "@/lib/report/markdown";
 
@@ -58,10 +59,15 @@ export default async function ReportPage({
   if (report.state === "FUTURE") {
     return (
       <div>
-        <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Report</h1>
-        <p className="mt-[7px] text-[13px] text-muted">
-          {report.sprintName} ist noch geplant — einen Report gibt es erst, wenn der Sprint läuft.
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-[29px] font-semibold tracking-[-0.028em]">Report</h1>
+            <p className="mt-[7px] text-[13px] text-muted">
+              {report.sprintName} ist noch geplant — einen Report gibt es erst, wenn der Sprint läuft.
+            </p>
+          </div>
+          <SprintSelect sprints={sprintOptions(sprints)} value={sprintId} />
+        </div>
       </div>
     );
   }
@@ -100,7 +106,8 @@ export default async function ReportPage({
             {d.period && <> · {d.period}</>} · erstellt am {d.generatedAt}
           </div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex flex-wrap items-center gap-3 print:hidden">
+          <SprintSelect sprints={sprintOptions(sprints)} value={sprintId} />
           <ReportActions markdownUrl={`/api/report/${sprintId}/markdown`} />
         </div>
       </div>
