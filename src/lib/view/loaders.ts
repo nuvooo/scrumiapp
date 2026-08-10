@@ -445,6 +445,7 @@ export async function loadPlanning(teamId: string) {
               issueType: i.issueType,
               status: i.status,
               storyPoints: i.storyPoints,
+              assignee: i.assignee,
               url: issueUrl(i.jiraKey),
               takeAlong: mark?.takeAlong ?? false,
               remainingPoints: mark?.remainingPoints ?? i.storyPoints,

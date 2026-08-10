@@ -5,12 +5,13 @@ import { prisma } from "@/lib/db";
 import { JiraCloudClient, jiraConfigFromEnv } from "@/lib/jira/jiraClient";
 import { upsertCarryOverMark } from "@/lib/repositories/carryOverRepository";
 
-export interface ActionResult {
+export interface ActionResult<T = undefined> {
   ok: boolean;
   error?: string;
+  data?: T;
 }
 
-function fail(error: string): ActionResult {
+function fail<T>(error: string): ActionResult<T> {
   return { ok: false, error };
 }
 
@@ -18,6 +19,20 @@ function jiraClient(): JiraCloudClient | null {
   const config = jiraConfigFromEnv();
   if (!config.baseUrl || !config.email || !config.apiToken) return null;
   return new JiraCloudClient(config);
+}
+
+/** Beschreibung eines Tickets live aus Jira holen (gekürzter Klartext) — für den Durchgeh-Modus. */
+export async function fetchIssueDescription(jiraKey: string): Promise<ActionResult<string>> {
+  const client = jiraClient();
+  if (!client) return fail("Jira ist nicht konfiguriert.");
+  try {
+    const results = await client.searchIssues(jiraKey);
+    const match = results.find((r) => r.jiraKey === jiraKey.toUpperCase());
+    if (!match) return fail("Ticket in Jira nicht gefunden.");
+    return { ok: true, data: match.description };
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Jira-Abfrage fehlgeschlagen.");
+  }
 }
 
 /** Mitnehmen-Flag und Rest-SP eines offenen Tickets speichern — nur lokal, Jira bleibt unangetastet. */
