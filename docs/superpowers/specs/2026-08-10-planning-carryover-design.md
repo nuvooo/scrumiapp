@@ -63,6 +63,9 @@ Client-Komponente `CarryOverList`:
 
 - pro Ticket: Checkbox „mitnehmen", Rest-SP-Eingabe (vorbefüllt mit aktuellen
   SP), Original-SP, Status, Jira-Link
+- beide Listen (Carry-Over + Planung) zeigen keine Subtasks und keine Tickets
+  ohne Story Points — geplant wird auf Story-Ebene (Nachtrag vom Nutzer);
+  die KPI „Ohne Schätzung" zählt weiterhin alle offenen Board-Tickets
 - Dropdown „Verschieben nach…" mit FUTURE-Sprints des Teams
 - KPI „Eingeplant" = Planungs-SP + Rest-SP der mitgenommenen Tickets; Verdict
   rechnet damit; neue Card „Carry-Over" (Anzahl + Rest-SP-Summe)

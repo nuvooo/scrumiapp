@@ -51,4 +51,15 @@ describe("calcPlanning", () => {
     const r = calcPlanning([issue(10.55)], 10);
     expect(r.overBy).toBe(0.6);
   });
+
+  it("rechnet Carry-Over-Rest-SP in Eingeplant und Verdict ein", () => {
+    const r = calcPlanning([issue(15)], 20, 7);
+    expect(r.plannedPoints).toBe(22);
+    expect(r.verdict).toBe("tight");
+    expect(r.overBy).toBe(2);
+  });
+
+  it("Carry-Over 0 ändert nichts am bisherigen Verhalten", () => {
+    expect(calcPlanning([issue(20)], 20, 0)).toEqual(calcPlanning([issue(20)], 20));
+  });
 });

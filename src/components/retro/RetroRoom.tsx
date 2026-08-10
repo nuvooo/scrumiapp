@@ -8,6 +8,7 @@ import {
   joinRetro,
   deleteRetro,
   setRetroHidden,
+  setRetroParticipantRevealed,
   addRetroColumn,
   renameRetroColumn,
   setRetroColumnColor,
@@ -604,6 +605,20 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               {state.hidden ? "🙈 Karten verdeckt" : "👁 Karten sichtbar"}
             </span>
           )}
+          {state.hidden && (
+            <button
+              type="button"
+              title={
+                state.you.revealed
+                  ? "Deine Karten sind für alle sichtbar — Klick verdeckt sie wieder"
+                  : "Deine Karten für alle sichtbar machen, z. B. wenn du mit Vortragen dran bist"
+              }
+              onClick={() => run(() => setRetroParticipantRevealed(retroId, t, !state.you!.revealed))}
+              className={`px-3.5 py-[7px] ${state.you.revealed ? "btn-secondary" : "btn-primary"}`}
+            >
+              {state.you.revealed ? "🙉 Meine Karten verdecken" : "🎤 Meine Karten aufdecken"}
+            </button>
+          )}
           {isAdmin && (
             <button type="button" onClick={remove} className="btn-danger px-3.5 py-[7px]">
               Löschen
@@ -633,6 +648,37 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               {p.name}
               {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
+              {state.votingOpen && (
+                <span
+                  title={
+                    p.votesUsed >= state.votesPerUser
+                      ? "Alle Stimmen vergeben"
+                      : `${p.votesUsed} von ${state.votesPerUser} Stimmen vergeben`
+                  }
+                  className={`font-mono text-[10px] ${p.votesUsed >= state.votesPerUser ? "text-ok" : "text-faint"}`}
+                >
+                  {p.votesUsed >= state.votesPerUser ? "🗳✓" : `🗳${p.votesUsed}/${state.votesPerUser}`}
+                </span>
+              )}
+              {state.hidden && !isAdmin && p.revealed && (
+                <span title="Karten aufgedeckt" className="text-[11px]">👁</span>
+              )}
+              {state.hidden && isAdmin && (
+                <button
+                  type="button"
+                  title={
+                    p.revealed
+                      ? `Karten von ${p.name} wieder verdecken`
+                      : `Karten von ${p.name} für alle aufdecken`
+                  }
+                  onClick={() => run(() => setRetroParticipantRevealed(retroId, t, !p.revealed, p.name))}
+                  className={`-mr-1 rounded-full px-1 text-[11px] leading-none hover:bg-chip ${
+                    p.revealed ? "" : "opacity-45 grayscale"
+                  }`}
+                >
+                  👁
+                </button>
+              )}
             </span>
           ))}
       </div>

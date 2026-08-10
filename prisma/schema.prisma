@@ -51,8 +51,24 @@ model Sprint {
   issues          Issue[]
   burndownPoints  BurndownPoint[]
   capacityEntries CapacityEntry[]
+  carryOverPlans  CarryOverPlan[]
 
   @@unique([teamId, jiraSprintId])
+}
+
+/// Planning-Markierung „mitnehmen" mit Rest-Story-Points für offene Tickets
+/// des aktiven Sprints. Eigene Tabelle statt Feld am Issue, weil der Sync
+/// Issues per delete+create ersetzt. Jira bleibt unangetastet.
+model CarryOverPlan {
+  id              String   @id @default(cuid())
+  sprint          Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId        String
+  jiraKey         String
+  takeAlong       Boolean  @default(true)
+  remainingPoints Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sprintId, jiraKey])
 }
 
 model Issue {
@@ -235,6 +251,8 @@ model RetroParticipant {
   name       String
   avatar     String         @default("")
   isAdmin    Boolean        @default(false)
+  /// Eigene Karten trotz Verdeckt-Modus für alle sichtbar (z. B. beim Vortragen)
+  revealed   Boolean        @default(false)
   /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
   token      String         @unique @default(cuid())
   /// Letzter Heartbeat (WebSocket/Poll) — bestimmt, wer als anwesend gilt

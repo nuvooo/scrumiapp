@@ -17,11 +17,11 @@ const baseState = (over: Partial<RetroStateView> = {}): RetroStateView => ({
   sortOrder: [],
   musicOn: false,
   background: "",
-  you: { name: "Ben", avatar: "", isAdmin: false },
+  you: { name: "Ben", avatar: "", isAdmin: false, revealed: false },
   participants: [
-    { name: "Anna", avatar: "", isAdmin: true, online: true },
-    { name: "Ben", avatar: "", isAdmin: false, online: true },
-    { name: "Zoe", avatar: "🦊", isAdmin: false, online: true },
+    { name: "Anna", avatar: "", isAdmin: true, online: true, revealed: false, votesUsed: 0 },
+    { name: "Ben", avatar: "", isAdmin: false, online: true, revealed: false, votesUsed: 1 },
+    { name: "Zoe", avatar: "🦊", isAdmin: false, online: true, revealed: false, votesUsed: 3 },
   ],
   columns: [
     {

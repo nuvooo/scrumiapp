@@ -233,10 +233,45 @@ export async function setRetroBackground(retroId: string, token: string, backgro
   return { ok: true };
 }
 
-/** Verdeckt-Modus umschalten: an = anonym schreiben, aus = alle lesen mit. */
+/**
+ * Verdeckt-Modus umschalten: an = anonym schreiben, aus = alle lesen mit.
+ * Beim Verdecken werden alle Einzel-Aufdeckungen zurückgesetzt — die nächste
+ * Vortragsrunde startet komplett verdeckt.
+ */
 export async function setRetroHidden(retroId: string, token: string, hidden: boolean): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
-  await prisma.retro.update({ where: { id: retroId }, data: { hidden } });
+  await prisma.$transaction([
+    prisma.retro.update({ where: { id: retroId }, data: { hidden } }),
+    ...(hidden
+      ? [prisma.retroParticipant.updateMany({ where: { retroId }, data: { revealed: false } })]
+      : []),
+  ]);
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/**
+ * Eigene Karten trotz Verdeckt-Modus sichtbar machen (z. B. beim Vortragen) —
+ * jeder für sich selbst, der Moderator per targetName auch für andere.
+ */
+export async function setRetroParticipantRevealed(
+  retroId: string,
+  token: string,
+  revealed: boolean,
+  targetName?: string,
+): Promise<ActionResult> {
+  const actor = await requireParticipant(retroId, token);
+  if (!actor) return fail("Nicht im Retro angemeldet.");
+  let target = actor;
+  if (targetName !== undefined && targetName !== actor.name) {
+    if (!actor.isAdmin) return fail("Nur der Moderator darf andere aufdecken.");
+    const found = await prisma.retroParticipant.findUnique({
+      where: { retroId_name: { retroId, name: targetName } },
+    });
+    if (!found) return fail("Teilnehmer nicht gefunden.");
+    target = found;
+  }
+  await prisma.retroParticipant.update({ where: { id: target.id }, data: { revealed } });
   bumpRetro(retroId);
   return { ok: true };
 }

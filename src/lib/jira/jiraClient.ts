@@ -44,6 +44,8 @@ export interface JiraClient {
   fetchBoardColumns(boardId: string): Promise<BoardColumn[]>;
   /** Schreibt die Schätzung ins konfigurierte Story-Points-Feld des Tickets. */
   setStoryPoints(issueKey: string, points: number): Promise<void>;
+  /** Verschiebt Tickets in den angegebenen Sprint (Jira-Sprint-ID, Agile-API). */
+  moveIssuesToSprint(jiraSprintId: string, issueKeys: string[]): Promise<void>;
   /** Volltext-/Key-Suche für das Refinement (max. 20 Treffer). */
   searchIssues(query: string): Promise<JiraSearchResult[]>;
   /** Alle unbewerteten, offenen Tickets des Boards (Backlog + Sprints, in Rank-Reihenfolge). */
@@ -136,6 +138,22 @@ export class JiraCloudClient implements JiraClient {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ fields: { [this.config.storyPointsField]: points } }),
+    });
+    if (!res.ok) {
+      throw new Error(`Jira request failed: ${res.status} ${res.statusText} (${path})`);
+    }
+  }
+
+  async moveIssuesToSprint(jiraSprintId: string, issueKeys: string[]): Promise<void> {
+    const path = `/rest/agile/1.0/sprint/${jiraSprintId}/issue`;
+    const res = await this.fetchFn(`${this.config.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: this.authHeader(),
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ issues: issueKeys }),
     });
     if (!res.ok) {
       throw new Error(`Jira request failed: ${res.status} ${res.statusText} (${path})`);

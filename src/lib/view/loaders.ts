@@ -400,7 +400,10 @@ export async function loadCapacity(sprintId: string) {
 /**
  * Planning-Daten: der nächste geplante Sprint des Teams (frühestes startDate,
  * sonst Name) mit seinen offenen Board-Tickets, dem Forecast aus Kapazität ×
- * gepoolter Effizienz und dem Planungs-Check. null ohne geplanten Sprint.
+ * gepoolter Effizienz und dem Planungs-Check. Dazu die offenen Tickets des
+ * aktiven Sprints als Carry-Over-Kandidaten (Rest-SP der mitgenommenen fließen
+ * in den Check ein) und die geplanten Sprints als Verschiebe-Ziele.
+ * null ohne geplanten Sprint.
  */
 export async function loadPlanning(teamId: string) {
   const future = await prisma.sprint.findMany({
@@ -408,22 +411,59 @@ export async function loadPlanning(teamId: string) {
     include: { issues: { orderBy: { jiraKey: "asc" } } },
   });
   if (future.length === 0) return null;
-  const sprint = [...future].sort((a, b) => {
+  const sortedFuture = [...future].sort((a, b) => {
     if (a.startDate && b.startDate) return a.startDate.getTime() - b.startDate.getTime();
     if (a.startDate) return -1;
     if (b.startDate) return 1;
     return a.name.localeCompare(b.name, "de");
-  })[0];
+  });
+  const sprint = sortedFuture[0];
+
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
+  const issueUrl = (jiraKey: string) => (jiraBase ? `${jiraBase}/browse/${jiraKey}` : null);
+  // In den Planning-Listen stören Subtasks und ungeschätzte Tickets — geplant
+  // wird auf Story-Ebene. Die KPI „Ohne Schätzung" zählt weiterhin alles.
+  const isSubtask = (issueType: string) => /sub-?task|unteraufgabe/i.test(issueType);
+  const showInPlanning = (i: { issueType: string; storyPoints: number }) =>
+    !isSubtask(i.issueType) && i.storyPoints > 0;
+
+  const active = await prisma.sprint.findFirst({
+    where: { teamId, state: "ACTIVE" },
+    include: { issues: { orderBy: { jiraKey: "asc" } }, carryOverPlans: true },
+  });
+  const carryOver = active
+    ? (() => {
+        const marks = new Map(active.carryOverPlans.map((m) => [m.jiraKey, m]));
+        const items = active.issues
+          .filter((i) => i.statusCategory !== "DONE" && i.onBoard && showInPlanning(i))
+          .map((i) => {
+            const mark = marks.get(i.jiraKey);
+            return {
+              id: i.id,
+              jiraKey: i.jiraKey,
+              summary: i.summary,
+              issueType: i.issueType,
+              status: i.status,
+              storyPoints: i.storyPoints,
+              url: issueUrl(i.jiraKey),
+              takeAlong: mark?.takeAlong ?? false,
+              remainingPoints: mark?.remainingPoints ?? i.storyPoints,
+            };
+          });
+        return { sprintId: active.id, sprintName: active.name, items };
+      })()
+    : null;
+  const carryOverTaken = carryOver?.items.filter((i) => i.takeAlong) ?? [];
+  const carryOverPoints = carryOverTaken.reduce((sum, i) => sum + i.remainingPoints, 0);
 
   const cap = await loadCapacity(sprint.id);
   const totalPlanned = cap?.totalPlanned ?? 0;
   const forecast =
     totalPlanned > 0 ? (await loadForecast(teamId, sprint.id, totalPlanned))?.possiblePoints ?? null : null;
-  const summary = calcPlanning(sprint.issues, forecast);
+  const summary = calcPlanning(sprint.issues, forecast, carryOverPoints);
 
-  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
   const issues = sprint.issues
-    .filter((i) => i.statusCategory !== "DONE" && i.onBoard)
+    .filter((i) => i.statusCategory !== "DONE" && i.onBoard && showInPlanning(i))
     .map((i) => ({
       id: i.id,
       jiraKey: i.jiraKey,
@@ -431,7 +471,7 @@ export async function loadPlanning(teamId: string) {
       issueType: i.issueType,
       status: i.status,
       storyPoints: i.storyPoints,
-      url: jiraBase ? `${jiraBase}/browse/${i.jiraKey}` : null,
+      url: issueUrl(i.jiraKey),
     }));
 
   return {
@@ -442,6 +482,10 @@ export async function loadPlanning(teamId: string) {
     totalPlanned,
     summary,
     issues,
+    carryOver,
+    carryOverPoints,
+    carryOverCount: carryOverTaken.length,
+    plannedSprints: sortedFuture.map((s) => ({ id: s.id, name: s.name })),
   };
 }
 

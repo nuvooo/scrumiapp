@@ -119,8 +119,17 @@ export interface RetroStateView {
   musicOn: boolean;
   /** Hintergrundbild des Boards (Preset-Key oder Bild-URL) — vom Moderator für alle gesetzt. */
   background: string;
-  you: { name: string; avatar: string; isAdmin: boolean } | null;
-  participants: { name: string; avatar: string; isAdmin: boolean; online: boolean }[];
+  you: { name: string; avatar: string; isAdmin: boolean; revealed: boolean } | null;
+  participants: {
+    name: string;
+    avatar: string;
+    isAdmin: boolean;
+    online: boolean;
+    /** Eigene Karten trotz Verdeckt-Modus aufgedeckt (z. B. beim Vortragen). */
+    revealed: boolean;
+    /** Bereits vergebene Voting-Stimmen. */
+    votesUsed: number;
+  }[];
   columns: RetroColumnView[];
   /** Wer gerade eine Karte schreibt — name ist im Verdeckt-Modus leer (anonym). */
   typing: { columnId: string; name: string; mine: boolean }[];

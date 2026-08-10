@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { KpiCard } from "@/components/KpiCard";
 import { PlanningList } from "@/components/PlanningList";
+import { CarryOverList } from "@/components/CarryOverList";
 import { loadTeams, loadPlanning } from "@/lib/view/loaders";
 import { resolveTeamId } from "@/lib/view/selection";
 import { formatPoints } from "@/lib/format";
@@ -64,6 +65,14 @@ export default async function PlanningPage({
           unit={summary.unestimatedCount === 1 ? "Ticket" : "Tickets"}
           size="md"
         />
+        <KpiCard
+          label="Carry-Over"
+          value={formatPoints(data.carryOverPoints)}
+          unit="SP"
+          size="md"
+          hint={`${data.carryOverCount} ${data.carryOverCount === 1 ? "Ticket" : "Tickets"} mitgenommen`}
+          monoHint
+        />
       </div>
 
       {verdict && (
@@ -76,7 +85,26 @@ export default async function PlanningPage({
         </div>
       )}
 
-      <PlanningList issues={data.issues} />
+      {data.carryOver && (
+        <div className="mt-[26px]">
+          <h2 className="text-[15px] font-semibold">Offen aus {data.carryOver.sprintName}</h2>
+          <p className="mt-1 text-[12.5px] text-muted">
+            Mitgenommene Tickets zählen mit ihren Rest-SP zum Commitment — die Schätzung am
+            Jira-Ticket bleibt unverändert. Verschieben ordnet das Ticket in Jira dem gewählten
+            Sprint zu.
+          </p>
+          <CarryOverList
+            sprintId={data.carryOver.sprintId}
+            items={data.carryOver.items}
+            plannedSprints={data.plannedSprints}
+          />
+        </div>
+      )}
+
+      <div className="mt-[26px]">
+        <h2 className="text-[15px] font-semibold">Eingeplant in {data.sprintName}</h2>
+        <PlanningList issues={data.issues} />
+      </div>
     </div>
   );
 }

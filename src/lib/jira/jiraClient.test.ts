@@ -364,3 +364,25 @@ describe("JiraCloudClient.setStoryPoints", () => {
     await expect(client.setStoryPoints("AB-1", 5)).rejects.toThrow(/403/);
   });
 });
+
+describe("JiraCloudClient.moveIssuesToSprint", () => {
+  it("verschiebt Tickets per POST in den Sprint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.moveIssuesToSprint("77", ["AB-1", "AB-2"]);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://example.atlassian.net/rest/agile/1.0/sprint/77/issue");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(init.body as string)).toEqual({ issues: ["AB-1", "AB-2"] });
+  });
+
+  it("wirft bei einer abgelehnten Antwort", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ errorMessages: ["forbidden"] }, 403));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await expect(client.moveIssuesToSprint("77", ["AB-1"])).rejects.toThrow(/403/);
+  });
+});

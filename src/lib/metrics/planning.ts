@@ -15,10 +15,17 @@ export interface PlanningSummary {
   overBy: number;
 }
 
-/** Planungs-Check: eingeplante Punkte des Sprints gegen die Prognose stellen. */
-export function calcPlanning(issues: PlanningIssueLike[], forecast: number | null): PlanningSummary {
+/**
+ * Planungs-Check: eingeplante Punkte des Sprints (plus Rest-SP der mitgenommenen
+ * Carry-Over-Tickets) gegen die Prognose stellen.
+ */
+export function calcPlanning(
+  issues: PlanningIssueLike[],
+  forecast: number | null,
+  carryOverPoints = 0,
+): PlanningSummary {
   const open = issues.filter((i) => i.statusCategory !== "DONE" && i.onBoard);
-  const plannedPoints = open.reduce((sum, i) => sum + i.storyPoints, 0);
+  const plannedPoints = open.reduce((sum, i) => sum + i.storyPoints, 0) + carryOverPoints;
   const unestimatedCount = open.filter((i) => i.storyPoints <= 0).length;
 
   if (forecast === null) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+﻿import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { createTeam } from "@/lib/repositories/teamRepository";
 import { syncAllTeams } from "./syncAll";
@@ -18,6 +18,7 @@ class NoopJira implements JiraClient {
   async fetchBoardSprints(): Promise<MappedSprint[]> { return []; }
   async fetchSprintIssues() { return []; }
   async setStoryPoints() {}
+  async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
 }
@@ -27,6 +28,7 @@ class FailingJira implements JiraClient {
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("boom"); }
   async fetchSprintIssues(): Promise<[]> { return []; }
   async setStoryPoints() {}
+  async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
 }

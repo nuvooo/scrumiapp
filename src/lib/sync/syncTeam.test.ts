@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+﻿import { describe, it, expect, afterEach } from "vitest";
 import { prisma } from "@/lib/db";
 import { createTeam } from "@/lib/repositories/teamRepository";
 import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
@@ -19,6 +19,7 @@ afterEach(async () => {
 
 class FakeJira implements JiraClient {
   async setStoryPoints() {}
+  async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
   async fetchBoardColumns() { return []; }
@@ -29,6 +30,7 @@ class FakeJira implements JiraClient {
 
 class FailingJira implements JiraClient {
   async setStoryPoints() {}
+  async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
   async fetchBoardColumns() { return []; }
@@ -38,6 +40,7 @@ class FailingJira implements JiraClient {
 
 class CountingJira implements JiraClient {
   async setStoryPoints() {}
+  async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
   async fetchBoardColumns() { return []; }
@@ -80,7 +83,7 @@ describe("syncTeam", () => {
     expect(burndown.length).toBe(1);
     expect(burndown[0].remainingPoints).toBe(3);
     expect(burndown[0].remainingBugs).toBe(1);
-    // AB-3 (Bug) zählt nicht als Ticket — Bugs werden separat gezählt
+    // AB-3 (Bug) zÃ¤hlt nicht als Ticket â€” Bugs werden separat gezÃ¤hlt
     expect(burndown[0].remainingTickets).toBe(1);
 
     const refreshed = await prisma.team.findUnique({ where: { id: team.id } });

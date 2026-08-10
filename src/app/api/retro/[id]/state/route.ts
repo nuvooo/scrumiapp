@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             orderBy: { createdAt: "asc" },
             include: {
               votes: true,
-              author: { select: { name: true } },
+              author: { select: { name: true, revealed: true } },
               comments: { orderBy: { createdAt: "asc" }, include: { author: { select: { name: true } } } },
             },
           },
@@ -67,13 +67,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const isOnline = (p: { token: string; lastSeenAt: Date | null }) =>
     p.token === token || (p.lastSeenAt !== null && now - p.lastSeenAt.getTime() < 12_000);
 
-  const votesLeft = you
-    ? retro.votesPerUser -
-      retro.columns.reduce(
-        (sum, c) => sum + c.cards.reduce((s, card) => s + card.votes.filter((v) => v.participantId === you.id).length, 0),
-        0,
-      )
-    : 0;
+  // Vergebene Stimmen pro Teilnehmer — fürs eigene Restkontingent und die
+  // „wer hat schon fertig gevotet"-Anzeige in der Teilnehmerleiste.
+  const votesUsedById = new Map<string, number>();
+  for (const c of retro.columns) {
+    for (const card of c.cards) {
+      for (const v of card.votes) {
+        votesUsedById.set(v.participantId, (votesUsedById.get(v.participantId) ?? 0) + 1);
+      }
+    }
+  }
+  const votesLeft = you ? retro.votesPerUser - (votesUsedById.get(you.id) ?? 0) : 0;
 
   return Response.json({
     id: retro.id,
@@ -95,12 +99,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return [];
       }
     })(),
-    you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin } : null,
+    you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin, revealed: you.revealed } : null,
     participants: retro.participants.map((p) => ({
       name: p.name,
       avatar: p.avatar,
       isAdmin: p.isAdmin,
       online: isOnline(p),
+      revealed: p.revealed,
+      votesUsed: votesUsedById.get(p.id) ?? 0,
     })),
     columns: retro.columns.map((c) => ({
       id: c.id,
@@ -109,7 +115,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       collapsed: c.collapsed,
       cards: c.cards.map((card) => {
         const mine = you !== null && card.authorId === you.id;
-        const covered = retro.hidden && !mine;
+        const covered = retro.hidden && !mine && !card.author.revealed;
         return {
           id: card.id,
           mine,
