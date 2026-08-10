@@ -1,10 +1,11 @@
-import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/charts/BurndownChart";
+import { BurndownChart, ChartLegend } from "@/components/charts/BurndownChart";
 import { BurndownTabs } from "@/components/charts/BurndownTabs";
 import { Celebration } from "@/components/Celebration";
 import { SprintSelect } from "@/components/TeamSprintSelector";
 import { loadTeams, loadSprints, loadBurndown, loadCelebration } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
-import { formatDateShort, roundTo1 } from "@/lib/format";
+import { mergeBurndownRows } from "@/lib/view/burndownRows";
+import { roundTo1 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -27,44 +28,20 @@ export default async function BurndownPage({
 
   const celebration = await loadCelebration(sprintId);
 
-  const byLabel = new Map<string, BurndownRow>();
-  for (const p of data.ideal) {
-    const label = formatDateShort(p.date);
-    byLabel.set(label, { label, ideal: roundTo1(p.remainingPoints), actual: null });
-  }
-  for (const p of data.actual) {
-    const label = formatDateShort(p.date);
-    const row = byLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = roundTo1(p.remainingPoints);
-    byLabel.set(label, row);
-  }
-  const rows = [...byLabel.values()];
+  const rows = mergeBurndownRows(
+    data.ideal.map((p) => ({ date: p.date, value: roundTo1(p.remainingPoints) })),
+    data.actual.map((p) => ({ date: p.date, value: roundTo1(p.remainingPoints) })),
+  );
 
-  const bugByLabel = new Map<string, BurndownRow>();
-  for (const p of data.bugBurndown.ideal) {
-    const label = formatDateShort(p.date);
-    bugByLabel.set(label, { label, ideal: roundTo1(p.remainingBugs), actual: null });
-  }
-  for (const p of data.bugBurndown.actual) {
-    const label = formatDateShort(p.date);
-    const row = bugByLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = p.remainingBugs;
-    bugByLabel.set(label, row);
-  }
-  const bugRows = [...bugByLabel.values()];
+  const bugRows = mergeBurndownRows(
+    data.bugBurndown.ideal.map((p) => ({ date: p.date, value: roundTo1(p.remainingBugs) })),
+    data.bugBurndown.actual.map((p) => ({ date: p.date, value: p.remainingBugs })),
+  );
 
-  const ticketByLabel = new Map<string, BurndownRow>();
-  for (const p of data.ticketBurndown.ideal) {
-    const label = formatDateShort(p.date);
-    ticketByLabel.set(label, { label, ideal: roundTo1(p.remainingTickets), actual: null });
-  }
-  for (const p of data.ticketBurndown.actual) {
-    const label = formatDateShort(p.date);
-    const row = ticketByLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = p.remainingTickets;
-    ticketByLabel.set(label, row);
-  }
-  const ticketRows = [...ticketByLabel.values()];
+  const ticketRows = mergeBurndownRows(
+    data.ticketBurndown.ideal.map((p) => ({ date: p.date, value: roundTo1(p.remainingTickets) })),
+    data.ticketBurndown.actual.map((p) => ({ date: p.date, value: p.remainingTickets })),
+  );
 
   return (
     <div>

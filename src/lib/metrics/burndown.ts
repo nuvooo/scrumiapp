@@ -12,6 +12,24 @@ export interface Burndown {
 }
 
 /**
+ * Snapshots auf das Arbeitstags-Raster normalisieren: Wochenend-Snapshots (Sa/So)
+ * werden auf den nächsten Arbeitstag verschoben; fallen dadurch mehrere Snapshots
+ * auf denselben Tag, gewinnt der jüngste. Ergebnis ist nach Datum sortiert.
+ */
+function normalizeToWorkingDays(points: DomainBurndownPoint[]): DomainBurndownPoint[] {
+  const byDay = new Map<number, DomainBurndownPoint>();
+  const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
+  for (const p of sorted) {
+    const date = new Date(Date.UTC(p.date.getUTCFullYear(), p.date.getUTCMonth(), p.date.getUTCDate()));
+    while (date.getUTCDay() === 0 || date.getUTCDay() === 6) {
+      date.setUTCDate(date.getUTCDate() + 1);
+    }
+    byDay.set(date.getTime(), { ...p, date });
+  }
+  return [...byDay.values()];
+}
+
+/**
  * Burndown-Daten: Ideallinie (linear committed -> 0 über die Arbeitstage des Sprints)
  * und Ist-Linie aus den gespeicherten BurndownPoints (nach Datum sortiert).
  */
@@ -36,9 +54,10 @@ export function calcBurndown(
   // Ist-Linie: In v1 wird nur remainingPoints geplottet. Das in DomainBurndownPoint
   // enthaltene completedPoints wird zwar gespeichert/persistiert, aber hier bewusst
   // nicht dargestellt.
-  const actual: BurndownLinePoint[] = [...points]
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((p) => ({ date: p.date, remainingPoints: p.remainingPoints }));
+  const actual: BurndownLinePoint[] = normalizeToWorkingDays(points).map((p) => ({
+    date: p.date,
+    remainingPoints: p.remainingPoints,
+  }));
 
   return { ideal, actual };
 }
@@ -66,7 +85,7 @@ export function calcBugBurndown(
     return { ideal: [], actual: [] };
   }
 
-  const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sorted = normalizeToWorkingDays(points);
   const startBugs = sorted[0].remainingBugs;
 
   const days = workingDaysBetween(sprint.startDate, sprint.endDate);
@@ -108,7 +127,7 @@ export function calcTicketBurndown(
     return { ideal: [], actual: [] };
   }
 
-  const sorted = [...points].sort((a, b) => a.date.getTime() - b.date.getTime());
+  const sorted = normalizeToWorkingDays(points);
   const startTickets = sorted[0].remainingTickets;
 
   const days = workingDaysBetween(sprint.startDate, sprint.endDate);

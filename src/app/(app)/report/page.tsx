@@ -1,11 +1,12 @@
 import Image from "next/image";
-import { BurndownChart, ChartLegend, type BurndownRow } from "@/components/charts/BurndownChart";
+import { BurndownChart, ChartLegend } from "@/components/charts/BurndownChart";
 import { KpiCard } from "@/components/KpiCard";
 import { ReportActions } from "@/components/ReportActions";
 import { loadTeams, loadSprints, loadReport, loadBurndown } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
 import { SprintSelect } from "@/components/TeamSprintSelector";
-import { formatPoints, formatDelta, formatDateShort, roundTo1 } from "@/lib/format";
+import { formatPoints, formatDelta, roundTo1 } from "@/lib/format";
+import { mergeBurndownRows } from "@/lib/view/burndownRows";
 import { reportBadge, type ReportIssue } from "@/lib/report/markdown";
 
 export const dynamic = "force-dynamic";
@@ -77,18 +78,10 @@ export default async function ReportPage({
   const diff = d.completed - d.committed;
 
   const burndown = await loadBurndown(sprintId);
-  const byLabel = new Map<string, BurndownRow>();
-  for (const p of burndown?.ideal ?? []) {
-    const label = formatDateShort(p.date);
-    byLabel.set(label, { label, ideal: roundTo1(p.remainingPoints), actual: null });
-  }
-  for (const p of burndown?.actual ?? []) {
-    const label = formatDateShort(p.date);
-    const row = byLabel.get(label) ?? { label, ideal: null, actual: null };
-    row.actual = roundTo1(p.remainingPoints);
-    byLabel.set(label, row);
-  }
-  const burndownRows = [...byLabel.values()];
+  const burndownRows = mergeBurndownRows(
+    (burndown?.ideal ?? []).map((p) => ({ date: p.date, value: roundTo1(p.remainingPoints) })),
+    (burndown?.actual ?? []).map((p) => ({ date: p.date, value: roundTo1(p.remainingPoints) })),
+  );
 
   return (
     <div>

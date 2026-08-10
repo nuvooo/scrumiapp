@@ -28,6 +28,30 @@ describe("calcBurndown", () => {
     expect(result.actual.map((p) => p.remainingPoints)).toEqual([40, 30]);
   });
 
+  it("shifts weekend snapshots to the next working day, keeping the latest value", () => {
+    const points: DomainBurndownPoint[] = [
+      { date: new Date("2026-05-22"), remainingPoints: 30, completedPoints: 10, remainingBugs: 3, remainingTickets: 0 }, // Fr
+      { date: new Date("2026-05-23"), remainingPoints: 28, completedPoints: 12, remainingBugs: 3, remainingTickets: 0 }, // Sa
+      { date: new Date("2026-05-24"), remainingPoints: 25, completedPoints: 15, remainingBugs: 2, remainingTickets: 0 }, // So
+    ];
+    const result = calcBurndown(sprint(40, "2026-05-18", "2026-05-29"), points);
+    expect(result.actual.map((p) => [p.date.toISOString().slice(0, 10), p.remainingPoints])).toEqual([
+      ["2026-05-22", 30],
+      ["2026-05-25", 25],
+    ]);
+  });
+
+  it("lets a real Monday snapshot win over shifted weekend snapshots", () => {
+    const points: DomainBurndownPoint[] = [
+      { date: new Date("2026-05-23"), remainingPoints: 28, completedPoints: 12, remainingBugs: 3, remainingTickets: 0 }, // Sa
+      { date: new Date("2026-05-25"), remainingPoints: 20, completedPoints: 20, remainingBugs: 1, remainingTickets: 0 }, // Mo
+    ];
+    const result = calcBurndown(sprint(40, "2026-05-18", "2026-05-29"), points);
+    expect(result.actual.map((p) => [p.date.toISOString().slice(0, 10), p.remainingPoints])).toEqual([
+      ["2026-05-25", 20],
+    ]);
+  });
+
   it("returns empty lines when sprint has no dates", () => {
     const s = sprint(40, "2026-05-18", "2026-05-22");
     s.startDate = null;
@@ -63,6 +87,17 @@ describe("calcBugBurndown", () => {
     expect(result.actual.map((p) => p.remainingBugs)).toEqual([5, 3]);
   });
 
+  it("shifts weekend snapshots to the next working day", () => {
+    const result = calcBugBurndown(
+      sprint(0, "2026-05-18", "2026-05-29"),
+      points([["2026-05-22", 5], ["2026-05-23", 4]]),
+    );
+    expect(result.actual.map((p) => [p.date.toISOString().slice(0, 10), p.remainingBugs])).toEqual([
+      ["2026-05-22", 5],
+      ["2026-05-25", 4],
+    ]);
+  });
+
   it("returns empty lines when there are no snapshots", () => {
     const result = calcBugBurndown(sprint(0, "2026-05-18", "2026-05-22"), []);
     expect(result.ideal).toEqual([]);
@@ -92,6 +127,17 @@ describe("calcTicketBurndown", () => {
   it("passes actual ticket counts through sorted by date", () => {
     const result = calcTicketBurndown(ticketSprint, ticketPoints([["2026-05-20", 6], ["2026-05-18", 10]]));
     expect(result.actual.map((p) => p.remainingTickets)).toEqual([10, 6]);
+  });
+
+  it("shifts weekend snapshots to the next working day", () => {
+    const result = calcTicketBurndown(
+      sprint(0, "2026-05-18", "2026-05-29"),
+      ticketPoints([["2026-05-22", 6], ["2026-05-24", 5]]),
+    );
+    expect(result.actual.map((p) => [p.date.toISOString().slice(0, 10), p.remainingTickets])).toEqual([
+      ["2026-05-22", 6],
+      ["2026-05-25", 5],
+    ]);
   });
 
   it("returns empty lines when there are no snapshots", () => {
