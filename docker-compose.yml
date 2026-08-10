@@ -33,6 +33,7 @@ services:
       JIRA_BUG_ISSUE_TYPES: "${JIRA_BUG_ISSUE_TYPES:-}"
       SYNC_DEFAULT_INTERVAL: "${SYNC_DEFAULT_INTERVAL:-60}"
       APP_PASSWORD: "${APP_PASSWORD:-}"
+      GIPHY_API_KEY: "${GIPHY_API_KEY:-}"
 
 volumes:
   scrumi_pgdata:
