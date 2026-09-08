@@ -17,13 +17,14 @@ export function RoadmapGoalDialog({
   pending: boolean;
   error: string | null;
   onClose: () => void;
-  onCreate: (laneId: string, title: string, description: string, startMonth: string, endMonth: string) => void;
+  onCreate: (laneId: string, title: string, description: string, startMonth: string, endMonth: string, storyPoints: number) => void;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [laneId, setLaneId] = useState(lanes[0]?.id ?? "");
   const [start, setStart] = useState(defaultMonth);
   const [end, setEnd] = useState(defaultMonth);
+  const [storyPoints, setStoryPoints] = useState("0");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -47,6 +48,17 @@ export function RoadmapGoalDialog({
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] leading-relaxed text-fg"
+          />
+        </label>
+        <label className="mt-3 block">
+          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Story Points</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={storyPoints}
+            onChange={(e) => setStoryPoints(e.target.value)}
+            className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"
           />
         </label>
         <div className="mt-3 flex gap-3">
@@ -88,7 +100,7 @@ export function RoadmapGoalDialog({
           </button>
           <button
             type="button"
-            onClick={() => onCreate(laneId, title, description, start, end)}
+            onClick={() => onCreate(laneId, title, description, start, end, Number(storyPoints) || 0)}
             disabled={pending}
             className="btn-primary px-3.5 py-[7px] disabled:opacity-40"
           >

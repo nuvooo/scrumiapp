@@ -42,6 +42,7 @@ const GOAL_STATUS_OPTIONS = [
 export function RoadmapItemDialog({
   item,
   lanes,
+  labels,
   pending,
   error,
   readOnly = false,
@@ -49,9 +50,11 @@ export function RoadmapItemDialog({
   onDelete,
   onSavePlacement,
   onSaveGoal,
+  onSaveLabels,
 }: {
   item: RoadmapItemView;
   lanes: LaneOption[];
+  labels: LabelView[];
   pending: boolean;
   error: string | null;
   /** Betrachter-Modus: nur ansehen, keine Bearbeitung. */
@@ -61,7 +64,8 @@ export function RoadmapItemDialog({
   /** Zeitraum/Bahn speichern (Touch-Fallback zum Drag&Drop) */
   onSavePlacement: (laneId: string, startMonth: string, endMonth: string) => void;
   /** Nur für eigene Ziele */
-  onSaveGoal: (title: string, description: string, statusCategory: "new" | "indeterminate" | "done") => void;
+  onSaveGoal: (title: string, description: string, statusCategory: "new" | "indeterminate" | "done", storyPoints: number) => void;
+  onSaveLabels: (labelIds: string[]) => void;
 }) {
   const isGoal = item.jiraKey === null;
   const [title, setTitle] = useState(item.title);
@@ -73,6 +77,12 @@ export function RoadmapItemDialog({
 
   const placementChanged = laneId !== item.laneId || start !== item.startMonth || end !== item.endMonth;
   const laneName = lanes.find((l) => l.id === item.laneId)?.name ?? "";
+  const [storyPoints, setStoryPoints] = useState(String(item.storyPoints ?? 0));
+  const [labelIds, setLabelIds] = useState<string[]>(item.labelIds);
+  const labelsChanged =
+    labelIds.length !== item.labelIds.length || labelIds.some((id) => !item.labelIds.includes(id));
+  const toggleLabel = (id: string) =>
+    setLabelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -139,10 +149,27 @@ export function RoadmapItemDialog({
                   ))}
                 </select>
               </label>
+              <label>
+                <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Story Points</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={storyPoints}
+                  onChange={(e) => setStoryPoints(e.target.value)}
+                  className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"
+                />
+              </label>
             </div>
           )
         ) : (
           <div className="mt-3.5 text-[15px] font-medium leading-snug text-fg">{item.title}</div>
+        )}
+        {!isGoal && (item.storyPoints > 0 || item.assignee) && (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 text-[12px] text-faint">
+            {item.storyPoints > 0 && <span>{item.storyPoints} SP</span>}
+            {item.assignee && <span>👤 {item.assignee}</span>}
+          </div>
         )}
 
         {readOnly ? (
@@ -155,6 +182,21 @@ export function RoadmapItemDialog({
               <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Zeitraum </span>
               {item.startMonth} – {item.endMonth}
             </span>
+            {item.labelIds.length > 0 && (
+              <span className="flex flex-wrap gap-1">
+                {labels
+                  .filter((l) => item.labelIds.includes(l.id))
+                  .map((l) => (
+                    <span
+                      key={l.id}
+                      className="rounded-[4px] px-1.5 py-[1px] text-[10px] text-white"
+                      style={{ backgroundColor: l.color }}
+                    >
+                      {l.name}
+                    </span>
+                  ))}
+              </span>
+            )}
           </div>
         ) : (
           <div className="mt-3.5 flex flex-wrap gap-3 border-t border-edge pt-3.5">
@@ -191,6 +233,28 @@ export function RoadmapItemDialog({
           </div>
         )}
 
+        {!readOnly && labels.length > 0 && (
+          <div className="mt-3.5 border-t border-edge pt-3.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Labels</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {labels.map((l) => {
+                const on = labelIds.includes(l.id);
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => toggleLabel(l.id)}
+                    className={`rounded-[6px] px-2 py-[3px] text-[11px] ${on ? "text-white" : "text-mid"}`}
+                    style={{ backgroundColor: on ? l.color : "transparent", border: `1px solid ${l.color}` }}
+                  >
+                    {l.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {error && <p className="mt-2.5 text-[12.5px] text-danger">{error}</p>}
 
         {readOnly ? (
@@ -213,6 +277,16 @@ export function RoadmapItemDialog({
               <button type="button" onClick={onClose} className="btn-secondary px-3.5 py-[7px]">
                 Schließen
               </button>
+              {labelsChanged && (
+                <button
+                  type="button"
+                  onClick={() => onSaveLabels(labelIds)}
+                  disabled={pending}
+                  className="btn-primary px-3.5 py-[7px] disabled:opacity-40"
+                >
+                  Labels speichern
+                </button>
+              )}
               {placementChanged && (
                 <button
                   type="button"
@@ -226,7 +300,9 @@ export function RoadmapItemDialog({
               {isGoal && (
                 <button
                   type="button"
-                  onClick={() => onSaveGoal(title, description, status as "new" | "indeterminate" | "done")}
+                  onClick={() =>
+                    onSaveGoal(title, description, status as "new" | "indeterminate" | "done", Number(storyPoints) || 0)
+                  }
                   disabled={pending}
                   className="btn-primary px-3.5 py-[7px] disabled:opacity-40"
                 >

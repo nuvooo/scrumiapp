@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   addGoalAction, addJiraItemAction, createLaneAction, deleteItemAction, deleteLaneAction,
   deleteRoadmapAction, moveItemAction, moveLaneAction, refreshStatusesAction,
-  renameLaneAction, renameRoadmapAction, updateGoalAction, updateRoadmapRangeAction,
+  renameLaneAction, renameRoadmapAction, setItemLabelsAction, updateGoalAction, updateRoadmapRangeAction,
 } from "@/app/(app)/roadmap/actions";
 import {
   addMonths, barGeometry, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
@@ -586,6 +586,7 @@ export function RoadmapEditor({
         <RoadmapItemDialog
           item={dialogItem}
           lanes={lanes}
+          labels={roadmap.labels}
           pending={pending}
           error={error}
           readOnly={!isModerator}
@@ -602,9 +603,13 @@ export function RoadmapEditor({
             setDialogItemId(null);
             run(() => moveItemAction(dialogItem.id, laneId, start, end));
           }}
-          onSaveGoal={(title, description, statusCategory) => {
+          onSaveGoal={(title, description, statusCategory, storyPoints) => {
             setDialogItemId(null);
-            run(() => updateGoalAction(dialogItem.id, title, description, statusCategory));
+            run(() => updateGoalAction(dialogItem.id, title, description, statusCategory, storyPoints));
+          }}
+          onSaveLabels={(labelIds) => {
+            setItems((prev) => prev.map((i) => (i.id === dialogItem.id ? { ...i, labelIds } : i)));
+            run(() => setItemLabelsAction(dialogItem.id, labelIds));
           }}
         />
       )}
@@ -616,9 +621,9 @@ export function RoadmapEditor({
           pending={pending}
           error={error}
           onClose={() => setGoalDialogOpen(false)}
-          onCreate={(laneId, title, description, start, end) => {
+          onCreate={(laneId, title, description, start, end, storyPoints) => {
             setGoalDialogOpen(false);
-            run(() => addGoalAction(roadmap.id, laneId, title, description, start, end));
+            run(() => addGoalAction(roadmap.id, laneId, title, description, start, end, storyPoints));
           }}
         />
       )}
