@@ -4,9 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createRoadmapAction } from "@/app/(app)/roadmap/actions";
 import { monthKey, addMonths } from "@/lib/view/roadmapGrid";
+import { useIsRoadmapModerator } from "./useRoadmapRole";
 
 export function NewRoadmapButton({ teamId }: { teamId: string }) {
   const router = useRouter();
+  const isModerator = useIsRoadmapModerator();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [start, setStart] = useState(() => monthKey(new Date()));
@@ -26,6 +28,8 @@ export function NewRoadmapButton({ teamId }: { teamId: string }) {
       setName("");
       router.push(`/roadmap/${result.data.id}?team=${teamId}`);
     });
+
+  if (!isModerator) return null;
 
   return (
     <>

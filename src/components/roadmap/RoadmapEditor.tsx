@@ -15,6 +15,9 @@ import { barClasses, typeBadge } from "./itemColors";
 import { RoadmapItemDialog, type LaneOption, type RoadmapItemView } from "./RoadmapItemDialog";
 import { RoadmapGoalDialog } from "./RoadmapGoalDialog";
 import { RoadmapSidePanel, DRAG_MIME, type SidePanelIssue } from "./RoadmapSidePanel";
+import { RoadmapConfirmDialog } from "./RoadmapConfirmDialog";
+import { RoadmapPromptDialog } from "./RoadmapPromptDialog";
+import { useIsRoadmapModerator } from "./useRoadmapRole";
 
 export interface RoadmapLaneView {
   id: string;
@@ -54,11 +57,15 @@ export function RoadmapEditor({
   teamId: string;
 }) {
   const router = useRouter();
+  const isModerator = useIsRoadmapModerator();
   const [items, setItems] = useState(roadmap.items);
   const [error, setError] = useState<string | null>(null);
   const [statusStale, setStatusStale] = useState(false);
   const [dialogItemId, setDialogItemId] = useState<string | null>(null);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [lanePromptOpen, setLanePromptOpen] = useState(false);
+  const [confirmRoadmapDelete, setConfirmRoadmapDelete] = useState(false);
+  const [laneToDelete, setLaneToDelete] = useState<{ id: string; name: string; count: number } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -248,80 +255,91 @@ export function RoadmapEditor({
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          defaultValue={roadmap.name}
-          aria-label="Roadmap-Name"
-          onBlur={(e) => {
-            if (e.target.value.trim() && e.target.value !== roadmap.name)
-              run(() => renameRoadmapAction(roadmap.id, e.target.value));
-          }}
-          className="min-w-[220px] rounded-[7px] border border-transparent bg-transparent px-2 py-1 text-[22px] font-semibold tracking-[-0.02em] text-fg hover:border-edge focus:border-edge focus:bg-field"
-        />
-        <div className="flex items-center gap-1.5">
+        {isModerator ? (
           <input
-            type="month"
-            defaultValue={roadmap.startMonth}
-            aria-label="Startmonat"
+            type="text"
+            defaultValue={roadmap.name}
+            aria-label="Roadmap-Name"
             onBlur={(e) => {
-              if (e.target.value && e.target.value !== roadmap.startMonth)
-                run(() => updateRoadmapRangeAction(roadmap.id, e.target.value, roadmap.endMonth));
+              if (e.target.value.trim() && e.target.value !== roadmap.name)
+                run(() => renameRoadmapAction(roadmap.id, e.target.value));
             }}
-            className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
+            className="min-w-[220px] rounded-[7px] border border-transparent bg-transparent px-2 py-1 text-[22px] font-semibold tracking-[-0.02em] text-fg hover:border-edge focus:border-edge focus:bg-field"
           />
-          <span className="text-[12px] text-faint">–</span>
-          <input
-            type="month"
-            defaultValue={roadmap.endMonth}
-            aria-label="Endmonat"
-            onBlur={(e) => {
-              if (e.target.value && e.target.value !== roadmap.endMonth)
-                run(() => updateRoadmapRangeAction(roadmap.id, roadmap.startMonth, e.target.value));
-            }}
-            className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
-          />
-        </div>
+        ) : (
+          <h1 className="px-2 py-1 text-[22px] font-semibold tracking-[-0.02em] text-fg">{roadmap.name}</h1>
+        )}
+        {isModerator ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="month"
+              defaultValue={roadmap.startMonth}
+              aria-label="Startmonat"
+              onBlur={(e) => {
+                if (e.target.value && e.target.value !== roadmap.startMonth)
+                  run(() => updateRoadmapRangeAction(roadmap.id, e.target.value, roadmap.endMonth));
+              }}
+              className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
+            />
+            <span className="text-[12px] text-faint">–</span>
+            <input
+              type="month"
+              defaultValue={roadmap.endMonth}
+              aria-label="Endmonat"
+              onBlur={(e) => {
+                if (e.target.value && e.target.value !== roadmap.endMonth)
+                  run(() => updateRoadmapRangeAction(roadmap.id, roadmap.startMonth, e.target.value));
+              }}
+              className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
+            />
+          </div>
+        ) : (
+          <span className="text-[12px] text-faint">
+            {roadmap.startMonth} – {roadmap.endMonth}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {statusStale && (
             <span className="text-[11.5px] text-warn" title="Jira nicht erreichbar — angezeigte Status können veraltet sein">
               Status evtl. veraltet
             </span>
           )}
-          <button type="button" onClick={() => setGoalDialogOpen(true)} className="btn-primary px-3.5 py-[7px]">
-            + Ziel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const name = window.prompt("Name der neuen Bahn:");
-              if (name?.trim()) run(() => createLaneAction(roadmap.id, name));
-            }}
-            className="btn-secondary px-3.5 py-[7px]"
-          >
-            + Bahn
-          </button>
-          <button
-            type="button"
-            onClick={() => setPanelOpen((v) => !v)}
-            className="btn-secondary px-3.5 py-[7px]"
-            title={panelOpen ? "Seitenleiste ausblenden" : "Seitenleiste einblenden"}
-          >
-            {panelOpen ? "⇥" : "⇤ Tickets"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(`Roadmap „${roadmap.name}" wirklich löschen?`))
-                startTransition(async () => {
-                  const result = await deleteRoadmapAction(roadmap.id);
-                  if (result.ok) router.push(`/roadmap?team=${teamId}`);
-                  else setError(result.error ?? "Löschen fehlgeschlagen.");
-                });
-            }}
-            className="rounded-[9px] border border-[#5a2a2a] px-3 py-[7px] text-[12.5px] text-danger hover:bg-[#1d0e0e]"
-          >
-            Löschen
-          </button>
+          {isModerator ? (
+            <>
+              <button type="button" onClick={() => setGoalDialogOpen(true)} className="btn-primary px-3.5 py-[7px]">
+                + Ziel
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanePromptOpen(true)}
+                className="btn-secondary px-3.5 py-[7px]"
+              >
+                + Bahn
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelOpen((v) => !v)}
+                className="btn-secondary px-3.5 py-[7px]"
+                title={panelOpen ? "Seitenleiste ausblenden" : "Seitenleiste einblenden"}
+              >
+                {panelOpen ? "⇥" : "⇤ Tickets"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmRoadmapDelete(true)}
+                className="rounded-[9px] border border-[#5a2a2a] px-3 py-[7px] text-[12.5px] text-danger hover:bg-[#1d0e0e]"
+              >
+                Löschen
+              </button>
+            </>
+          ) : (
+            <span
+              className="text-[11.5px] text-faint"
+              title="Zum Bearbeiten die Moderator-Rolle im Profil (unten links) aktivieren"
+            >
+              Nur-Lese-Ansicht
+            </span>
+          )}
         </div>
       </div>
 
@@ -394,48 +412,48 @@ export function RoadmapEditor({
                   style={{ gridTemplateColumns: `${LANE_LABEL_WIDTH}px 1fr` }}
                 >
                   <div className="flex items-center gap-1 py-1 pr-2">
-                    <input
-                      type="text"
-                      defaultValue={lane.name}
-                      aria-label={`Bahn ${lane.name} umbenennen`}
-                      onBlur={(e) => {
-                        if (e.target.value.trim() && e.target.value !== lane.name)
-                          run(() => renameLaneAction(lane.id, e.target.value));
-                      }}
-                      className="min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-1.5 py-0.5 text-[12.5px] text-mid hover:border-edge focus:border-edge focus:bg-field"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => run(() => moveLaneAction(lane.id, -1))}
-                      disabled={laneIndex === 0}
-                      aria-label={`Bahn ${lane.name} nach oben`}
-                      className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => run(() => moveLaneAction(lane.id, 1))}
-                      disabled={laneIndex === roadmap.lanes.length - 1}
-                      aria-label={`Bahn ${lane.name} nach unten`}
-                      className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const message =
-                          laneItems.length > 0
-                            ? `Bahn „${lane.name}" mit ${laneItems.length} Einträgen löschen?`
-                            : `Bahn „${lane.name}" löschen?`;
-                        if (window.confirm(message)) run(() => deleteLaneAction(lane.id));
-                      }}
-                      aria-label={`Bahn ${lane.name} löschen`}
-                      className="rounded px-1 text-[11px] text-faint hover:text-danger"
-                    >
-                      ✕
-                    </button>
+                    {isModerator ? (
+                      <>
+                        <input
+                          type="text"
+                          defaultValue={lane.name}
+                          aria-label={`Bahn ${lane.name} umbenennen`}
+                          onBlur={(e) => {
+                            if (e.target.value.trim() && e.target.value !== lane.name)
+                              run(() => renameLaneAction(lane.id, e.target.value));
+                          }}
+                          className="min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-1.5 py-0.5 text-[12.5px] text-mid hover:border-edge focus:border-edge focus:bg-field"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => run(() => moveLaneAction(lane.id, -1))}
+                          disabled={laneIndex === 0}
+                          aria-label={`Bahn ${lane.name} nach oben`}
+                          className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => run(() => moveLaneAction(lane.id, 1))}
+                          disabled={laneIndex === roadmap.lanes.length - 1}
+                          aria-label={`Bahn ${lane.name} nach unten`}
+                          className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLaneToDelete({ id: lane.id, name: lane.name, count: laneItems.length })}
+                          aria-label={`Bahn ${lane.name} löschen`}
+                          className="rounded px-1 text-[11px] text-faint hover:text-danger"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate px-1.5 py-0.5 text-[12.5px] text-mid">{lane.name}</span>
+                    )}
                   </div>
                   <div
                     ref={(el) => {
@@ -458,31 +476,36 @@ export function RoadmapEditor({
                     {bars.map(({ item, geo }) => (
                       <div
                         key={item.id}
-                        onPointerDown={(e) => startDrag(e, item, "move")}
+                        onPointerDown={isModerator ? (e) => startDrag(e, item, "move") : undefined}
+                        onClick={isModerator ? undefined : () => setDialogItemId(item.id)}
                         title={`${item.title} (${item.startMonth} – ${item.endMonth})`}
                         style={{ gridColumn: `${geo.start + 1} / span ${geo.span}`, gridRow: rowById[item.id] + 1 }}
-                        className={`group relative m-[2px] flex cursor-grab select-none items-center gap-1.5 overflow-hidden rounded-[7px] border px-2 text-[11.5px] leading-[26px] active:cursor-grabbing ${barClasses(item.statusCategory)} ${drag?.itemId === item.id ? "ring-1 ring-accent" : ""}`}
+                        className={`group relative m-[2px] flex select-none items-center gap-1.5 overflow-hidden rounded-[7px] border px-2 text-[11.5px] leading-[26px] ${isModerator ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${barClasses(item.statusCategory)} ${drag?.itemId === item.id ? "ring-1 ring-accent" : ""}`}
                       >
-                        <span
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            startDrag(e, item, "resize-left");
-                          }}
-                          className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                        />
+                        {isModerator && (
+                          <span
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              startDrag(e, item, "resize-left");
+                            }}
+                            className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
+                          />
+                        )}
                         {geo.clippedLeft && <span className="flex-none">◂</span>}
                         <span className="flex-none font-mono text-[9px] uppercase tracking-[0.08em] opacity-70">
                           {typeBadge(item)}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{item.title}</span>
                         {geo.clippedRight && <span className="flex-none">▸</span>}
-                        <span
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            startDrag(e, item, "resize-right");
-                          }}
-                          className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                        />
+                        {isModerator && (
+                          <span
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              startDrag(e, item, "resize-right");
+                            }}
+                            className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -492,7 +515,7 @@ export function RoadmapEditor({
           </div>
         </div>
 
-        {panelOpen && (
+        {isModerator && panelOpen && (
           <RoadmapSidePanel
             sprintIssues={sprintIssues}
             containedKeys={containedKeys}
@@ -510,6 +533,7 @@ export function RoadmapEditor({
           lanes={lanes}
           pending={pending}
           error={error}
+          readOnly={!isModerator}
           onClose={() => setDialogItemId(null)}
           onDelete={() => {
             setDialogItemId(null);
@@ -541,6 +565,61 @@ export function RoadmapEditor({
             setGoalDialogOpen(false);
             run(() => addGoalAction(roadmap.id, laneId, title, description, start, end));
           }}
+        />
+      )}
+
+      {lanePromptOpen && (
+        <RoadmapPromptDialog
+          title="Neue Bahn"
+          label="Name"
+          placeholder="z. B. Frontend"
+          confirmLabel="Anlegen"
+          pending={pending}
+          onClose={() => setLanePromptOpen(false)}
+          onSubmit={(name) => {
+            setLanePromptOpen(false);
+            run(() => createLaneAction(roadmap.id, name));
+          }}
+        />
+      )}
+
+      {laneToDelete && (
+        <RoadmapConfirmDialog
+          title="Bahn löschen"
+          message={
+            laneToDelete.count > 0
+              ? `Bahn „${laneToDelete.name}" mit ${laneToDelete.count} ${laneToDelete.count === 1 ? "Eintrag" : "Einträgen"} löschen? Die Einträge werden mitgelöscht.`
+              : `Bahn „${laneToDelete.name}" löschen?`
+          }
+          confirmLabel="Löschen"
+          pending={pending}
+          onClose={() => setLaneToDelete(null)}
+          onConfirm={() => {
+            const id = laneToDelete.id;
+            setLaneToDelete(null);
+            run(() => deleteLaneAction(id));
+          }}
+        />
+      )}
+
+      {confirmRoadmapDelete && (
+        <RoadmapConfirmDialog
+          title="Roadmap löschen"
+          message={`Roadmap „${roadmap.name}" mit allen Bahnen und Einträgen wirklich löschen?`}
+          confirmLabel="Löschen"
+          pending={pending}
+          onClose={() => setConfirmRoadmapDelete(false)}
+          onConfirm={() =>
+            startTransition(async () => {
+              setError(null);
+              const result = await deleteRoadmapAction(roadmap.id);
+              if (result.ok) router.push(`/roadmap?team=${teamId}`);
+              else {
+                setConfirmRoadmapDelete(false);
+                setError(result.error ?? "Löschen fehlgeschlagen.");
+              }
+            })
+          }
         />
       )}
     </div>

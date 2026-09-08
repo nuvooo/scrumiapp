@@ -8,7 +8,14 @@ afterEach(cleanup);
 const seedProfile = (over: Record<string, string> = {}) =>
   window.localStorage.setItem(
     "scrumi.profile",
-    JSON.stringify({ name: "Ben", avatar: "🦊", refinementRole: "estimator", retroRole: "member", ...over }),
+    JSON.stringify({
+      name: "Ben",
+      avatar: "🦊",
+      refinementRole: "estimator",
+      retroRole: "member",
+      roadmapRole: "viewer",
+      ...over,
+    }),
   );
 
 describe("ProfileDock", () => {
@@ -39,6 +46,8 @@ describe("ProfileDock", () => {
     fireEvent.click(within(refinementSection).getByRole("radio", { name: /Besucher/ }));
     const retroSection = screen.getByRole("group", { name: "Rolle im Retro" });
     fireEvent.click(within(retroSection).getByRole("radio", { name: /Moderator/ }));
+    const roadmapSection = screen.getByRole("group", { name: "Rolle in der Roadmap" });
+    fireEvent.click(within(roadmapSection).getByRole("radio", { name: /Moderator/ }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(saved).toHaveBeenCalledWith({
@@ -46,8 +55,15 @@ describe("ProfileDock", () => {
       avatar: "🐼",
       refinementRole: "visitor",
       retroRole: "moderator",
+      roadmapRole: "moderator",
     });
-    expect(storedProfile()).toEqual({ name: "Benji", avatar: "🐼", refinementRole: "visitor", retroRole: "moderator" });
+    expect(storedProfile()).toEqual({
+      name: "Benji",
+      avatar: "🐼",
+      refinementRole: "visitor",
+      retroRole: "moderator",
+      roadmapRole: "moderator",
+    });
     // Chip zeigt den neuen Stand
     expect(screen.getByRole("button", { name: "Profil bearbeiten" })).toHaveTextContent("Benji");
     unsubscribe();

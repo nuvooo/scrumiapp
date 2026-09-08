@@ -181,6 +181,28 @@ der Seite geladen — kein eigener Endpoint.
 - Roadmap-Zeitraum verkleinern löscht keine Items; außerhalb liegende Balken
   werden am Rand abgeschnitten und mit Pfeil-Indikator dargestellt.
 
+## Berechtigungen (Moderator vs. Betrachter)
+
+Nachgereicht nach dem ersten Entwurf: Bearbeiten ist nur Moderatoren
+vorbehalten. Die App hat kein echtes Nutzer-Login (nur ein globales Passwort),
+daher folgt die Rolle dem bestehenden Muster von Retro/Refinement — eine
+**selbstgewählte Profil-Rolle** im `ProfileDock` (localStorage), Feld
+`roadmapRole` mit Werten `viewer` (Default) und `moderator`.
+
+- Durchsetzung ist reines UI-Gating (keine serverseitige Erzwingung) — bewusst
+  konsistent mit den anderen Modulen; kein Sicherheitsversprechen.
+- `useIsRoadmapModerator()` liest die Rolle nach dem Mount und reagiert live auf
+  Profil-Speicherungen (`onProfileSaved`). Start als `false` (kein
+  Hydration-Mismatch).
+- Betrachter: Übersicht und Editor sind read-only. Kein „+ Neue Roadmap",
+  kein „+ Ziel"/„+ Bahn"/„Löschen", keine Seitenleiste, kein Drag/Resize,
+  Namen/Zeiträume/Bahnen als Text. Balken bleiben anklickbar und öffnen den
+  Detail-Dialog im Read-only-Modus (`RoadmapItemDialog readOnly`).
+- Moderatoren: voller Funktionsumfang wie zuvor.
+- Bestätigungen und Eingaben laufen über eigene Modale
+  (`RoadmapConfirmDialog`, `RoadmapPromptDialog`) statt nativer
+  `window.confirm`/`window.prompt`.
+
 ## Tests
 
 - `roadmapRepository.test.ts`: CRUD, Bahn-Positionen, Item-Verschiebung,
