@@ -1,15 +1,20 @@
 import { prisma } from "@/lib/db";
-import type { Roadmap, RoadmapLane, RoadmapItem } from "@prisma/client";
+import type { Roadmap, RoadmapLane, RoadmapItem, RoadmapLabel, RoadmapMilestone } from "@prisma/client";
 
+export type RoadmapItemWithLabels = RoadmapItem & { labels: RoadmapLabel[] };
 export type RoadmapWithContent = Roadmap & {
-  lanes: (RoadmapLane & { items: RoadmapItem[] })[];
+  lanes: (RoadmapLane & { items: RoadmapItemWithLabels[] })[];
+  labels: RoadmapLabel[];
+  milestones: RoadmapMilestone[];
 };
 
 const contentInclude = {
   lanes: {
     orderBy: { position: "asc" as const },
-    include: { items: { orderBy: { position: "asc" as const } } },
+    include: { items: { orderBy: { position: "asc" as const }, include: { labels: true } } },
   },
+  labels: { orderBy: { position: "asc" as const } },
+  milestones: true,
 };
 
 export function listRoadmaps(teamId: string): Promise<RoadmapWithContent[]> {
@@ -83,6 +88,8 @@ export interface NewRoadmapItem {
   endMonth: Date;
   statusCategory?: string | null;
   statusLabel?: string | null;
+  storyPoints?: number;
+  assignee?: string | null;
 }
 
 export async function createItem(roadmapId: string, laneId: string, data: NewRoadmapItem): Promise<RoadmapItem> {
@@ -100,6 +107,8 @@ export async function createItem(roadmapId: string, laneId: string, data: NewRoa
       endMonth: data.endMonth,
       statusCategory: data.statusCategory ?? null,
       statusLabel: data.statusLabel ?? null,
+      storyPoints: data.storyPoints ?? 0,
+      assignee: data.assignee ?? null,
     },
   });
 }
@@ -112,6 +121,8 @@ export interface RoadmapItemPatch {
   description?: string | null;
   statusCategory?: string | null;
   statusLabel?: string | null;
+  storyPoints?: number;
+  assignee?: string | null;
 }
 
 export function updateItem(id: string, patch: RoadmapItemPatch): Promise<RoadmapItem> {
@@ -122,15 +133,65 @@ export function deleteItem(id: string): Promise<RoadmapItem> {
   return prisma.roadmapItem.delete({ where: { id } });
 }
 
-/** Status-Batch nach dem Jira-Refresh: aktualisiert alle Items der Roadmap je Key. */
+/** Status-Batch nach dem Jira-Refresh: aktualisiert Status, SP und Assignee je Key. */
 export async function updateItemStatuses(
   roadmapId: string,
-  statusByKey: Map<string, { statusCategory: string; statusLabel: string }>,
+  statusByKey: Map<
+    string,
+    { statusCategory: string; statusLabel: string; storyPoints: number; assignee: string | null }
+  >,
 ): Promise<void> {
   if (statusByKey.size === 0) return;
   await prisma.$transaction(
-    [...statusByKey.entries()].map(([jiraKey, status]) =>
-      prisma.roadmapItem.updateMany({ where: { roadmapId, jiraKey }, data: status }),
+    [...statusByKey.entries()].map(([jiraKey, data]) =>
+      prisma.roadmapItem.updateMany({ where: { roadmapId, jiraKey }, data }),
     ),
   );
+}
+
+// ---------- Labels ----------
+
+export async function createLabel(roadmapId: string, name: string, color: string): Promise<RoadmapLabel> {
+  const max = await prisma.roadmapLabel.aggregate({ where: { roadmapId }, _max: { position: true } });
+  return prisma.roadmapLabel.create({
+    data: { roadmapId, name, color, position: (max._max.position ?? -1) + 1 },
+  });
+}
+
+export function updateLabel(id: string, patch: { name?: string; color?: string }): Promise<RoadmapLabel> {
+  return prisma.roadmapLabel.update({ where: { id }, data: patch });
+}
+
+export function deleteLabel(id: string): Promise<RoadmapLabel> {
+  return prisma.roadmapLabel.delete({ where: { id } });
+}
+
+/** Ersetzt die Label-Zuordnung eines Items vollständig. */
+export function setItemLabels(itemId: string, labelIds: string[]): Promise<RoadmapItem> {
+  return prisma.roadmapItem.update({
+    where: { id: itemId },
+    data: { labels: { set: labelIds.map((id) => ({ id })) } },
+  });
+}
+
+// ---------- Meilensteine ----------
+
+export function createMilestone(
+  roadmapId: string,
+  title: string,
+  month: Date,
+  color: string,
+): Promise<RoadmapMilestone> {
+  return prisma.roadmapMilestone.create({ data: { roadmapId, title, month, color } });
+}
+
+export function updateMilestone(
+  id: string,
+  patch: { title?: string; month?: Date; color?: string },
+): Promise<RoadmapMilestone> {
+  return prisma.roadmapMilestone.update({ where: { id }, data: patch });
+}
+
+export function deleteMilestone(id: string): Promise<RoadmapMilestone> {
+  return prisma.roadmapMilestone.delete({ where: { id } });
 }
