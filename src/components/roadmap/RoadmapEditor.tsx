@@ -11,8 +11,9 @@ import {
   addMonths, barGeometry, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
 } from "@/lib/view/roadmapGrid";
 import { stackBars } from "@/lib/view/roadmapStack";
-import { barClasses, typeBadge } from "./itemColors";
-import { RoadmapItemDialog, type LaneOption, type RoadmapItemView } from "./RoadmapItemDialog";
+import { laneProgress } from "@/lib/view/roadmapProgress";
+import { barClasses, typeBadge, PROGRESS_COLORS } from "./itemColors";
+import { RoadmapItemDialog, type LaneOption, type RoadmapItemView, type LabelView } from "./RoadmapItemDialog";
 import { RoadmapGoalDialog } from "./RoadmapGoalDialog";
 import { RoadmapSidePanel, DRAG_MIME, type SidePanelIssue } from "./RoadmapSidePanel";
 import { RoadmapConfirmDialog } from "./RoadmapConfirmDialog";
@@ -24,6 +25,14 @@ export interface RoadmapLaneView {
   name: string;
 }
 
+export interface MilestoneView {
+  id: string;
+  title: string;
+  /** "YYYY-MM" */
+  month: string;
+  color: string;
+}
+
 export interface RoadmapView {
   id: string;
   name: string;
@@ -32,6 +41,8 @@ export interface RoadmapView {
   endMonth: string;
   lanes: RoadmapLaneView[];
   items: RoadmapItemView[];
+  labels: LabelView[];
+  milestones: MilestoneView[];
 }
 
 interface DragState {
@@ -44,8 +55,8 @@ interface DragState {
   moved: boolean;
 }
 
-const LANE_LABEL_WIDTH = 160;
-const ROW_HEIGHT = 34;
+const LANE_LABEL_WIDTH = 200;
+const ROW_HEIGHT = 56;
 
 export function RoadmapEditor({
   roadmap,
@@ -110,7 +121,9 @@ export function RoadmapEditor({
       setItems((prev) =>
         prev.map((i) => {
           const s = i.jiraKey === null ? undefined : byKey.get(i.jiraKey);
-          return s ? { ...i, statusCategory: s.statusCategory, statusLabel: s.statusLabel } : i;
+          return s
+            ? { ...i, statusCategory: s.statusCategory, statusLabel: s.statusLabel, storyPoints: s.storyPoints, assignee: s.assignee }
+            : i;
         }),
       );
     });
@@ -234,6 +247,8 @@ export function RoadmapEditor({
           issueType: issue.issueType,
           statusCategory: issue.statusCategory,
           statusLabel: issue.statusLabel,
+          storyPoints: issue.storyPoints,
+          assignee: issue.assignee,
         },
         month,
         month,
@@ -320,9 +335,9 @@ export function RoadmapEditor({
                 type="button"
                 onClick={() => setPanelOpen((v) => !v)}
                 className="btn-secondary px-3.5 py-[7px]"
-                title={panelOpen ? "Seitenleiste ausblenden" : "Seitenleiste einblenden"}
+                title="Tickets-Offcanvas öffnen"
               >
-                {panelOpen ? "⇥" : "⇤ Tickets"}
+                ⧉ Tickets
               </button>
               <button
                 type="button"
@@ -349,7 +364,7 @@ export function RoadmapEditor({
         </div>
       )}
 
-      <div className="flex items-start gap-3.5">
+      <div className="items-start">
         <div className="min-w-0 flex-1 overflow-x-auto pb-2">
           <div style={{ minWidth: LANE_LABEL_WIDTH + monthCount * 56 }}>
             {/* Kopfzeile: Quartale + Monate */}
@@ -411,49 +426,65 @@ export function RoadmapEditor({
                   className="grid border-b border-edge/60"
                   style={{ gridTemplateColumns: `${LANE_LABEL_WIDTH}px 1fr` }}
                 >
-                  <div className="flex items-center gap-1 py-1 pr-2">
-                    {isModerator ? (
-                      <>
-                        <input
-                          type="text"
-                          defaultValue={lane.name}
-                          aria-label={`Bahn ${lane.name} umbenennen`}
-                          onBlur={(e) => {
-                            if (e.target.value.trim() && e.target.value !== lane.name)
-                              run(() => renameLaneAction(lane.id, e.target.value));
-                          }}
-                          className="min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-1.5 py-0.5 text-[12.5px] text-mid hover:border-edge focus:border-edge focus:bg-field"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => run(() => moveLaneAction(lane.id, -1))}
-                          disabled={laneIndex === 0}
-                          aria-label={`Bahn ${lane.name} nach oben`}
-                          className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => run(() => moveLaneAction(lane.id, 1))}
-                          disabled={laneIndex === roadmap.lanes.length - 1}
-                          aria-label={`Bahn ${lane.name} nach unten`}
-                          className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLaneToDelete({ id: lane.id, name: lane.name, count: laneItems.length })}
-                          aria-label={`Bahn ${lane.name} löschen`}
-                          className="rounded px-1 text-[11px] text-faint hover:text-danger"
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <span className="min-w-0 flex-1 truncate px-1.5 py-0.5 text-[12.5px] text-mid">{lane.name}</span>
-                    )}
+                  <div className="flex flex-col gap-1 py-1 pr-2">
+                    <div className="flex items-center gap-1">
+                      {isModerator ? (
+                        <>
+                          <input
+                            type="text"
+                            defaultValue={lane.name}
+                            aria-label={`Bahn ${lane.name} umbenennen`}
+                            onBlur={(e) => {
+                              if (e.target.value.trim() && e.target.value !== lane.name)
+                                run(() => renameLaneAction(lane.id, e.target.value));
+                            }}
+                            className="min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-1.5 py-0.5 text-[12.5px] text-mid hover:border-edge focus:border-edge focus:bg-field"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => run(() => moveLaneAction(lane.id, -1))}
+                            disabled={laneIndex === 0}
+                            aria-label={`Bahn ${lane.name} nach oben`}
+                            className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => run(() => moveLaneAction(lane.id, 1))}
+                            disabled={laneIndex === roadmap.lanes.length - 1}
+                            aria-label={`Bahn ${lane.name} nach unten`}
+                            className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLaneToDelete({ id: lane.id, name: lane.name, count: laneItems.length })}
+                            aria-label={`Bahn ${lane.name} löschen`}
+                            className="rounded px-1 text-[11px] text-faint hover:text-danger"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate px-1.5 py-0.5 text-[12.5px] text-mid">{lane.name}</span>
+                      )}
+                    </div>
+                    {(() => {
+                      const p = laneProgress(items.filter((i) => i.laneId === lane.id));
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-[#23262b]">
+                            <div style={{ width: `${p.donePct}%`, backgroundColor: PROGRESS_COLORS.done }} />
+                            <div style={{ width: `${p.inProgressPct}%`, backgroundColor: PROGRESS_COLORS.inProgress }} />
+                          </div>
+                          <span className="flex-none font-mono text-[9.5px] text-faint">
+                            {p.done}/{p.total} SP
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div
                     ref={(el) => {
@@ -473,41 +504,64 @@ export function RoadmapEditor({
                         style={{ gridColumn: todayIndex + 1, gridRow: `1 / ${rowCount + 1}` }}
                       />
                     )}
-                    {bars.map(({ item, geo }) => (
-                      <div
-                        key={item.id}
-                        onPointerDown={isModerator ? (e) => startDrag(e, item, "move") : undefined}
-                        onClick={isModerator ? undefined : () => setDialogItemId(item.id)}
-                        title={`${item.title} (${item.startMonth} – ${item.endMonth})`}
-                        style={{ gridColumn: `${geo.start + 1} / span ${geo.span}`, gridRow: rowById[item.id] + 1 }}
-                        className={`group relative m-[2px] flex select-none items-center gap-1.5 overflow-hidden rounded-[7px] border px-2 text-[11.5px] leading-[26px] ${isModerator ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${barClasses(item.statusCategory)} ${drag?.itemId === item.id ? "ring-1 ring-accent" : ""}`}
-                      >
-                        {isModerator && (
-                          <span
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              startDrag(e, item, "resize-left");
-                            }}
-                            className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                          />
-                        )}
-                        {geo.clippedLeft && <span className="flex-none">◂</span>}
-                        <span className="flex-none font-mono text-[9px] uppercase tracking-[0.08em] opacity-70">
-                          {typeBadge(item)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                        {geo.clippedRight && <span className="flex-none">▸</span>}
-                        {isModerator && (
-                          <span
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                              startDrag(e, item, "resize-right");
-                            }}
-                            className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                          />
-                        )}
-                      </div>
-                    ))}
+                    {bars.map(({ item, geo }) => {
+                      const itemLabels = roadmap.labels.filter((l) => item.labelIds.includes(l.id));
+                      return (
+                        <div
+                          key={item.id}
+                          onPointerDown={isModerator ? (e) => startDrag(e, item, "move") : undefined}
+                          onClick={isModerator ? undefined : () => setDialogItemId(item.id)}
+                          title={`${item.title} (${item.startMonth} – ${item.endMonth})`}
+                          style={{ gridColumn: `${geo.start + 1} / span ${geo.span}`, gridRow: rowById[item.id] + 1 }}
+                          className={`group relative m-[2px] flex select-none flex-col gap-0.5 overflow-hidden rounded-[7px] border px-2 py-1 text-[11.5px] ${isModerator ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${barClasses(item.statusCategory)} ${drag?.itemId === item.id ? "ring-1 ring-accent" : ""}`}
+                        >
+                          {isModerator && (
+                            <span
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                startDrag(e, item, "resize-left");
+                              }}
+                              className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
+                            />
+                          )}
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            {geo.clippedLeft && <span className="flex-none">◂</span>}
+                            <span className="flex-none font-mono text-[9px] uppercase tracking-[0.08em] opacity-70">
+                              {typeBadge(item)}
+                            </span>
+                            {item.jiraKey && <span className="flex-none font-mono text-[9.5px] text-link">{item.jiraKey}</span>}
+                            {item.storyPoints > 0 && (
+                              <span className="flex-none font-mono text-[9.5px] text-faint">{item.storyPoints} SP</span>
+                            )}
+                            {item.assignee && <span className="ml-auto flex-none truncate text-[9.5px] text-faint">👤 {item.assignee}</span>}
+                            {geo.clippedRight && <span className="flex-none">▸</span>}
+                          </div>
+                          <span className="min-w-0 flex-1 truncate font-medium leading-tight">{item.title}</span>
+                          {itemLabels.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {itemLabels.map((l) => (
+                                <span
+                                  key={l.id}
+                                  className="rounded-[4px] px-1 text-[9px] leading-[14px] text-white"
+                                  style={{ backgroundColor: l.color }}
+                                >
+                                  {l.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {isModerator && (
+                            <span
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                startDrag(e, item, "resize-right");
+                              }}
+                              className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -519,6 +573,7 @@ export function RoadmapEditor({
           <RoadmapSidePanel
             sprintIssues={sprintIssues}
             containedKeys={containedKeys}
+            onClose={() => setPanelOpen(false)}
             onAdd={(issue) => {
               const firstLane = roadmap.lanes[0];
               if (firstLane) addIssueAt(issue, firstLane.id, currentMonth);
