@@ -333,6 +333,8 @@ export async function createLabelAction(
 ): Promise<ActionResult<{ id: string }>> {
   const trimmed = name.trim();
   if (!trimmed) return fail("Name fehlt.");
+  const roadmap = await prisma.roadmap.findUnique({ where: { id: roadmapId } });
+  if (!roadmap) return fail("Roadmap nicht gefunden.");
   const created = await createLabel(roadmapId, trimmed, color);
   refresh(roadmapId);
   return { ok: true, data: { id: created.id } };
@@ -384,6 +386,8 @@ export async function createMilestoneAction(
   if (!trimmed) return fail("Titel fehlt.");
   const month = parseMonthKey(monthKey);
   if (Number.isNaN(month.getTime())) return fail("Ungültiger Monat.");
+  const roadmap = await prisma.roadmap.findUnique({ where: { id: roadmapId } });
+  if (!roadmap) return fail("Roadmap nicht gefunden.");
   const created = await createMilestone(roadmapId, trimmed, month, color);
   refresh(roadmapId);
   return { ok: true, data: { id: created.id } };

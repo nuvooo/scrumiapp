@@ -83,7 +83,7 @@ export function RoadmapEditor({
   const [laneToDelete, setLaneToDelete] = useState<{ id: string; name: string; count: number } | null>(null);
   const [labelsDialogOpen, setLabelsDialogOpen] = useState(false);
   const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: MilestoneView | null } | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, startTransition] = useTransition();
   const gridRef = useRef<HTMLDivElement | null>(null);
