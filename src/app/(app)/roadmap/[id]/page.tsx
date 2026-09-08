@@ -56,6 +56,8 @@ export default async function RoadmapEditorPage({
         issueType: issue.issueType,
         statusLabel: issue.status,
         statusCategory: DB_CATEGORY[issue.statusCategory] ?? null,
+        storyPoints: issue.storyPoints,
+        assignee: issue.assignee,
       });
     }
   }
@@ -74,6 +76,9 @@ export default async function RoadmapEditorPage({
       statusLabel: item.statusLabel,
       position: item.position,
       url: item.jiraKey && jiraBase ? `${jiraBase}/browse/${item.jiraKey}` : null,
+      storyPoints: item.storyPoints,
+      assignee: item.assignee,
+      labelIds: item.labels.map((l) => l.id),
     })),
   );
 
@@ -84,6 +89,13 @@ export default async function RoadmapEditorPage({
     endMonth: monthKey(roadmap.endMonth),
     lanes: roadmap.lanes.map((l) => ({ id: l.id, name: l.name })),
     items,
+    labels: roadmap.labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
+    milestones: roadmap.milestones.map((m) => ({
+      id: m.id,
+      title: m.title,
+      month: monthKey(m.month),
+      color: m.color,
+    })),
   };
 
   return (

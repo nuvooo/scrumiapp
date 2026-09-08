@@ -17,11 +17,20 @@ export interface RoadmapItemView {
   statusLabel: string | null;
   position: number;
   url: string | null;
+  storyPoints: number;
+  assignee: string | null;
+  labelIds: string[];
 }
 
 export interface LaneOption {
   id: string;
   name: string;
+}
+
+export interface LabelView {
+  id: string;
+  name: string;
+  color: string;
 }
 
 const GOAL_STATUS_OPTIONS = [
