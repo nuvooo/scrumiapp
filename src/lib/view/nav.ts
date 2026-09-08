@@ -6,6 +6,7 @@ export const NAV_GROUPS = [
       { href: "/dashboard", label: "Dashboard" },
       { href: "/standup", label: "Standup" },
       { href: "/planning", label: "Planning" },
+      { href: "/roadmap", label: "Roadmap" },
       { href: "/refinement", label: "Refinement" },
       { href: "/retro", label: "Retro" },
       { href: "/burndown", label: "Burndown" },
