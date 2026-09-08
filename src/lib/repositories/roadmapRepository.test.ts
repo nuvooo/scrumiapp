@@ -5,6 +5,8 @@ import {
   listRoadmaps, getRoadmap, createRoadmap, renameRoadmap, updateRoadmapRange, deleteRoadmap,
   createLane, renameLane, moveLane, deleteLane,
   createItem, updateItem, deleteItem, updateItemStatuses,
+  createLabel, updateLabel, deleteLabel, setItemLabels,
+  createMilestone, updateMilestone, deleteMilestone,
 } from "./roadmapRepository";
 
 const teams: string[] = [];
@@ -134,12 +136,107 @@ describe("roadmapRepository — Items", () => {
     const goal = await createItem(roadmap.id, lane.id, { title: "G", startMonth: jan, endMonth: jan });
 
     await updateItemStatuses(roadmap.id, new Map([
-      ["AB-1", { statusCategory: "done", statusLabel: "Fertig" }],
+      ["AB-1", { statusCategory: "done", statusLabel: "Fertig", storyPoints: 0, assignee: null }],
     ]));
     expect((await prisma.roadmapItem.findUnique({ where: { id: a.id } }))?.statusCategory).toBe("done");
     expect((await prisma.roadmapItem.findUnique({ where: { id: goal.id } }))?.statusCategory).toBeNull();
 
     await deleteItem(a.id);
     expect(await prisma.roadmapItem.count({ where: { roadmapId: roadmap.id } })).toBe(1);
+  });
+});
+
+describe("roadmapRepository — Labels", () => {
+  it("legt Labels an, weist sie Items zu und lädt sie mit", async () => {
+    const teamId = await makeTeam();
+    const roadmap = await createRoadmap(teamId, "R", jan, jun);
+    const lane = (await getRoadmap(roadmap.id))!.lanes[0];
+    const item = await createItem(roadmap.id, lane.id, { title: "Z", startMonth: jan, endMonth: jan });
+    const l1 = await createLabel(roadmap.id, "Frontend", "#4c9fc4");
+    const l2 = await createLabel(roadmap.id, "Risiko", "#c4574c");
+
+    await setItemLabels(item.id, [l1.id, l2.id]);
+
+    const loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.labels.map((l) => [l.name, l.position])).toEqual([
+      ["Frontend", 0],
+      ["Risiko", 1],
+    ]);
+    const loadedItem = loaded?.lanes[0].items[0];
+    expect(loadedItem?.labels.map((l) => l.name).sort()).toEqual(["Frontend", "Risiko"]);
+  });
+
+  it("ändert und löscht ein Label ohne das Item zu löschen", async () => {
+    const teamId = await makeTeam();
+    const roadmap = await createRoadmap(teamId, "R", jan, jun);
+    const lane = (await getRoadmap(roadmap.id))!.lanes[0];
+    const item = await createItem(roadmap.id, lane.id, { title: "Z", startMonth: jan, endMonth: jan });
+    const label = await createLabel(roadmap.id, "Alt", "#4c9fc4");
+    await setItemLabels(item.id, [label.id]);
+
+    await updateLabel(label.id, { name: "Neu", color: "#c4574c" });
+    await deleteLabel(label.id);
+
+    const loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.labels).toEqual([]);
+    expect(loaded?.lanes[0].items.length).toBe(1);
+    expect(loaded?.lanes[0].items[0].labels).toEqual([]);
+  });
+
+  it("setItemLabels ersetzt die Zuordnung", async () => {
+    const teamId = await makeTeam();
+    const roadmap = await createRoadmap(teamId, "R", jan, jun);
+    const lane = (await getRoadmap(roadmap.id))!.lanes[0];
+    const item = await createItem(roadmap.id, lane.id, { title: "Z", startMonth: jan, endMonth: jan });
+    const l1 = await createLabel(roadmap.id, "A", "#4c9fc4");
+    const l2 = await createLabel(roadmap.id, "B", "#c4574c");
+    await setItemLabels(item.id, [l1.id]);
+
+    await setItemLabels(item.id, [l2.id]);
+
+    const loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.lanes[0].items[0].labels.map((l) => l.name)).toEqual(["B"]);
+  });
+});
+
+describe("roadmapRepository — Meilensteine", () => {
+  it("legt Meilensteine an, ändert und löscht sie", async () => {
+    const teamId = await makeTeam();
+    const roadmap = await createRoadmap(teamId, "R", jan, jun);
+    const m = await createMilestone(roadmap.id, "Release 1.0", jan, "#7C9CFF");
+
+    let loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.milestones.map((x) => x.title)).toEqual(["Release 1.0"]);
+
+    await updateMilestone(m.id, { title: "Release 1.1", month: jun });
+    loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.milestones[0].title).toBe("Release 1.1");
+    expect(loaded?.milestones[0].month).toEqual(jun);
+
+    await deleteMilestone(m.id);
+    loaded = await getRoadmap(roadmap.id);
+    expect(loaded?.milestones).toEqual([]);
+  });
+});
+
+describe("roadmapRepository — Story Points & Assignee", () => {
+  it("speichert SP/Assignee am Item und aktualisiert sie im Status-Batch", async () => {
+    const teamId = await makeTeam();
+    const roadmap = await createRoadmap(teamId, "R", jan, jun);
+    const lane = (await getRoadmap(roadmap.id))!.lanes[0];
+    const item = await createItem(roadmap.id, lane.id, {
+      jiraKey: "AB-1", title: "T", startMonth: jan, endMonth: jan, storyPoints: 3, assignee: "Bob",
+    });
+    expect(item.storyPoints).toBe(3);
+    expect(item.assignee).toBe("Bob");
+
+    await updateItemStatuses(roadmap.id, new Map([
+      ["AB-1", { statusCategory: "done", statusLabel: "Fertig", storyPoints: 8, assignee: "Alice" }],
+    ]));
+
+    const updated = await prisma.roadmapItem.findUnique({ where: { id: item.id } });
+    expect(updated?.storyPoints).toBe(8);
+    expect(updated?.assignee).toBe("Alice");
+    expect(updated?.statusCategory).toBe("done");
   });
 });

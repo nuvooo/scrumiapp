@@ -93,7 +93,16 @@ export default async function RoadmapOverviewPage({
                     href={`/roadmap/${roadmap.id}?team=${teamId}`}
                     className="text-[13.5px] font-semibold text-link hover:text-linkhi"
                   >
-                    {roadmap.name} →
+                    {roadmap.name}
+                    {" · "}
+                    <span className="font-mono text-[11.5px] text-faint">
+                      {roadmap.lanes.reduce(
+                        (sum, l) => sum + l.items.reduce((s, i) => s + i.storyPoints, 0),
+                        0,
+                      )}{" "}
+                      SP
+                    </span>
+                    {" →"}
                   </Link>
                   <div
                     className="relative mt-1 grid rounded-[10px] border border-edge bg-field"

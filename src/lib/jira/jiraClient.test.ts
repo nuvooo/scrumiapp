@@ -395,6 +395,8 @@ describe("JiraCloudClient.getIssuesByKeys", () => {
       resolutiondate: null,
       status: { name: "In Arbeit", statusCategory: { key: categoryKey } },
       issuetype: { name: "Epic" },
+      assignee: { displayName: "Alice" },
+      customfield_10016: 8,
     },
   });
 
@@ -413,11 +415,14 @@ describe("JiraCloudClient.getIssuesByKeys", () => {
         issueType: "Epic",
         statusLabel: "In Arbeit",
         statusCategory: "indeterminate",
+        storyPoints: 8,
+        assignee: "Alice",
       },
     ]);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("/rest/api/3/search/jql?jql=");
     expect(decodeURIComponent(url)).toContain('key in ("AB-1")');
+    expect(decodeURIComponent(url)).toContain("assignee");
   });
 
   it("teilt viele Keys in 50er-Blöcke auf", async () => {

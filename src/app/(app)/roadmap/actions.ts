@@ -8,6 +8,8 @@ import {
   createRoadmap, renameRoadmap, updateRoadmapRange, deleteRoadmap,
   createLane, renameLane, moveLane, deleteLane,
   createItem, updateItem, deleteItem, updateItemStatuses,
+  createLabel, updateLabel, deleteLabel, setItemLabels,
+  createMilestone, updateMilestone, deleteMilestone,
 } from "@/lib/repositories/roadmapRepository";
 
 export interface ActionResult<T = undefined> {
@@ -131,6 +133,8 @@ export interface JiraItemInput {
   issueType: string;
   statusCategory: string | null;
   statusLabel: string | null;
+  storyPoints: number;
+  assignee: string | null;
 }
 
 export async function addJiraItemAction(
@@ -155,6 +159,8 @@ export async function addJiraItemAction(
     endMonth: range.end,
     statusCategory: item.statusCategory,
     statusLabel: item.statusLabel,
+    storyPoints: item.storyPoints,
+    assignee: item.assignee,
   });
   refresh(roadmapId);
   return { ok: true, data: { id: created.id } };
@@ -167,11 +173,13 @@ export async function addGoalAction(
   description: string,
   startKey: string,
   endKey: string,
+  storyPoints: number,
 ): Promise<ActionResult<{ id: string }>> {
   const trimmed = title.trim();
   if (!trimmed) return fail("Titel fehlt.");
   const range = monthRange(startKey, endKey);
   if (!range) return fail("Ungültiger Zeitraum.");
+  const sp = Number.isFinite(storyPoints) && storyPoints >= 0 ? storyPoints : 0;
   const lane = await prisma.roadmapLane.findUnique({ where: { id: laneId } });
   if (!lane || lane.roadmapId !== roadmapId) return fail("Bahn nicht gefunden.");
 
@@ -182,6 +190,7 @@ export async function addGoalAction(
     endMonth: range.end,
     statusCategory: "new",
     statusLabel: "Offen",
+    storyPoints: sp,
   });
   refresh(roadmapId);
   return { ok: true, data: { id: created.id } };
@@ -216,9 +225,11 @@ export async function updateGoalAction(
   title: string,
   description: string,
   statusCategory: "new" | "indeterminate" | "done",
+  storyPoints: number,
 ): Promise<ActionResult> {
   const trimmed = title.trim();
   if (!trimmed) return fail("Titel fehlt.");
+  const sp = Number.isFinite(storyPoints) && storyPoints >= 0 ? storyPoints : 0;
   const item = await prisma.roadmapItem.findUnique({ where: { id: itemId } });
   if (!item) return fail("Eintrag nicht gefunden.");
   if (item.jiraKey !== null) return fail("Nur eigene Ziele sind hier bearbeitbar.");
@@ -228,6 +239,7 @@ export async function updateGoalAction(
     description: description.trim() || null,
     statusCategory,
     statusLabel: GOAL_STATUS_LABELS[statusCategory],
+    storyPoints: sp,
   });
   refresh(item.roadmapId);
   return { ok: true };
@@ -259,6 +271,8 @@ export interface RefreshedStatus {
   jiraKey: string;
   statusCategory: string;
   statusLabel: string;
+  storyPoints: number;
+  assignee: string | null;
 }
 
 /** Frischt die Status aller Jira-Items der Roadmap auf; Fehler → ok:false (Status bleibt stehen). */
@@ -278,7 +292,17 @@ export async function refreshStatusesAction(
     const statuses = await client.getIssuesByKeys(keys);
     await updateItemStatuses(
       roadmapId,
-      new Map(statuses.map((s) => [s.jiraKey, { statusCategory: s.statusCategory, statusLabel: s.statusLabel }])),
+      new Map(
+        statuses.map((s) => [
+          s.jiraKey,
+          {
+            statusCategory: s.statusCategory,
+            statusLabel: s.statusLabel,
+            storyPoints: s.storyPoints,
+            assignee: s.assignee,
+          },
+        ]),
+      ),
     );
     return {
       ok: true,
@@ -286,9 +310,110 @@ export async function refreshStatusesAction(
         jiraKey: s.jiraKey,
         statusCategory: s.statusCategory,
         statusLabel: s.statusLabel,
+        storyPoints: s.storyPoints,
+        assignee: s.assignee,
       })),
     };
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Status-Abfrage fehlgeschlagen.");
   }
+}
+
+// ---------- Labels ----------
+
+async function laneRoadmapOfLabel(labelId: string): Promise<string | null> {
+  const label = await prisma.roadmapLabel.findUnique({ where: { id: labelId } });
+  return label?.roadmapId ?? null;
+}
+
+export async function createLabelAction(
+  roadmapId: string,
+  name: string,
+  color: string,
+): Promise<ActionResult<{ id: string }>> {
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Name fehlt.");
+  const roadmap = await prisma.roadmap.findUnique({ where: { id: roadmapId } });
+  if (!roadmap) return fail("Roadmap nicht gefunden.");
+  const created = await createLabel(roadmapId, trimmed, color);
+  refresh(roadmapId);
+  return { ok: true, data: { id: created.id } };
+}
+
+export async function updateLabelAction(
+  labelId: string,
+  name: string,
+  color: string,
+): Promise<ActionResult> {
+  const trimmed = name.trim();
+  if (!trimmed) return fail("Name fehlt.");
+  const roadmapId = await laneRoadmapOfLabel(labelId);
+  if (!roadmapId) return fail("Label nicht gefunden.");
+  await updateLabel(labelId, { name: trimmed, color });
+  refresh(roadmapId);
+  return { ok: true };
+}
+
+export async function deleteLabelAction(labelId: string): Promise<ActionResult> {
+  const roadmapId = await laneRoadmapOfLabel(labelId);
+  if (!roadmapId) return fail("Label nicht gefunden.");
+  await deleteLabel(labelId);
+  refresh(roadmapId);
+  return { ok: true };
+}
+
+export async function setItemLabelsAction(itemId: string, labelIds: string[]): Promise<ActionResult> {
+  const item = await prisma.roadmapItem.findUnique({ where: { id: itemId } });
+  if (!item) return fail("Eintrag nicht gefunden.");
+  const valid = await prisma.roadmapLabel.findMany({
+    where: { id: { in: labelIds }, roadmapId: item.roadmapId },
+    select: { id: true },
+  });
+  await setItemLabels(itemId, valid.map((l) => l.id));
+  refresh(item.roadmapId);
+  return { ok: true };
+}
+
+// ---------- Meilensteine ----------
+
+export async function createMilestoneAction(
+  roadmapId: string,
+  title: string,
+  monthKey: string,
+  color: string,
+): Promise<ActionResult<{ id: string }>> {
+  const trimmed = title.trim();
+  if (!trimmed) return fail("Titel fehlt.");
+  const month = parseMonthKey(monthKey);
+  if (Number.isNaN(month.getTime())) return fail("Ungültiger Monat.");
+  const roadmap = await prisma.roadmap.findUnique({ where: { id: roadmapId } });
+  if (!roadmap) return fail("Roadmap nicht gefunden.");
+  const created = await createMilestone(roadmapId, trimmed, month, color);
+  refresh(roadmapId);
+  return { ok: true, data: { id: created.id } };
+}
+
+export async function updateMilestoneAction(
+  milestoneId: string,
+  title: string,
+  monthKey: string,
+  color: string,
+): Promise<ActionResult> {
+  const trimmed = title.trim();
+  if (!trimmed) return fail("Titel fehlt.");
+  const month = parseMonthKey(monthKey);
+  if (Number.isNaN(month.getTime())) return fail("Ungültiger Monat.");
+  const milestone = await prisma.roadmapMilestone.findUnique({ where: { id: milestoneId } });
+  if (!milestone) return fail("Meilenstein nicht gefunden.");
+  await updateMilestone(milestoneId, { title: trimmed, month, color });
+  refresh(milestone.roadmapId);
+  return { ok: true };
+}
+
+export async function deleteMilestoneAction(milestoneId: string): Promise<ActionResult> {
+  const milestone = await prisma.roadmapMilestone.findUnique({ where: { id: milestoneId } });
+  if (!milestone) return fail("Meilenstein nicht gefunden.");
+  await deleteMilestone(milestoneId);
+  refresh(milestone.roadmapId);
+  return { ok: true };
 }
