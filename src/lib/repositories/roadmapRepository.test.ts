@@ -136,7 +136,7 @@ describe("roadmapRepository — Items", () => {
     const goal = await createItem(roadmap.id, lane.id, { title: "G", startMonth: jan, endMonth: jan });
 
     await updateItemStatuses(roadmap.id, new Map([
-      ["AB-1", { statusCategory: "done", statusLabel: "Fertig" }],
+      ["AB-1", { statusCategory: "done", statusLabel: "Fertig", storyPoints: 0, assignee: null }],
     ]));
     expect((await prisma.roadmapItem.findUnique({ where: { id: a.id } }))?.statusCategory).toBe("done");
     expect((await prisma.roadmapItem.findUnique({ where: { id: goal.id } }))?.statusCategory).toBeNull();
