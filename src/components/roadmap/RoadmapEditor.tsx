@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  addGoalAction, addJiraItemAction, createLaneAction, deleteItemAction, deleteLaneAction,
+  addGoalAction, addJiraItemAction, createLaneAction, createLabelAction, createMilestoneAction,
+  deleteItemAction, deleteLabelAction, deleteLaneAction, deleteMilestoneAction,
   deleteRoadmapAction, moveItemAction, moveLaneAction, refreshStatusesAction,
-  renameLaneAction, renameRoadmapAction, setItemLabelsAction, updateGoalAction, updateRoadmapRangeAction,
+  renameLaneAction, renameRoadmapAction, setItemLabelsAction, updateGoalAction,
+  updateLabelAction, updateMilestoneAction, updateRoadmapRangeAction,
 } from "@/app/(app)/roadmap/actions";
 import {
   addMonths, barGeometry, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
@@ -18,6 +20,8 @@ import { RoadmapGoalDialog } from "./RoadmapGoalDialog";
 import { RoadmapSidePanel, DRAG_MIME, type SidePanelIssue } from "./RoadmapSidePanel";
 import { RoadmapConfirmDialog } from "./RoadmapConfirmDialog";
 import { RoadmapPromptDialog } from "./RoadmapPromptDialog";
+import { RoadmapLabelsDialog } from "./RoadmapLabelsDialog";
+import { RoadmapMilestoneDialog } from "./RoadmapMilestoneDialog";
 import { useIsRoadmapModerator } from "./useRoadmapRole";
 
 export interface RoadmapLaneView {
@@ -77,6 +81,8 @@ export function RoadmapEditor({
   const [lanePromptOpen, setLanePromptOpen] = useState(false);
   const [confirmRoadmapDelete, setConfirmRoadmapDelete] = useState(false);
   const [laneToDelete, setLaneToDelete] = useState<{ id: string; name: string; count: number } | null>(null);
+  const [labelsDialogOpen, setLabelsDialogOpen] = useState(false);
+  const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: MilestoneView | null } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -331,6 +337,16 @@ export function RoadmapEditor({
               >
                 + Bahn
               </button>
+              <button type="button" onClick={() => setLabelsDialogOpen(true)} className="btn-secondary px-3.5 py-[7px]">
+                Labels
+              </button>
+              <button
+                type="button"
+                onClick={() => setMilestoneDialog({ milestone: null })}
+                className="btn-secondary px-3.5 py-[7px]"
+              >
+                + Meilenstein
+              </button>
               <button
                 type="button"
                 onClick={() => setPanelOpen((v) => !v)}
@@ -394,6 +410,25 @@ export function RoadmapEditor({
                       {i === todayIndex && " ·"}
                     </div>
                   ))}
+                </div>
+                <div className="relative grid h-6" style={columnsStyle}>
+                  {roadmap.milestones.map((m) => {
+                    const idx = monthDiff(roadmap.startMonth, m.month);
+                    const col = Math.min(Math.max(idx, 0), monthCount - 1);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={isModerator ? () => setMilestoneDialog({ milestone: m }) : undefined}
+                        title={`${m.title} (${m.month})`}
+                        style={{ gridColumn: col + 1, color: m.color }}
+                        className={`flex items-center gap-1 overflow-hidden whitespace-nowrap text-[10px] ${isModerator ? "cursor-pointer" : ""}`}
+                      >
+                        <span className="flex-none">◆</span>
+                        <span className="truncate">{m.title}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -504,6 +539,17 @@ export function RoadmapEditor({
                         style={{ gridColumn: todayIndex + 1, gridRow: `1 / ${rowCount + 1}` }}
                       />
                     )}
+                    {roadmap.milestones.map((m) => {
+                      const idx = monthDiff(roadmap.startMonth, m.month);
+                      if (idx < 0 || idx >= monthCount) return null;
+                      return (
+                        <div
+                          key={m.id}
+                          className="pointer-events-none border-l border-dashed"
+                          style={{ gridColumn: idx + 1, gridRow: `1 / ${rowCount + 1}`, borderColor: m.color, opacity: 0.5 }}
+                        />
+                      );
+                    })}
                     {bars.map(({ item, geo }) => {
                       const itemLabels = roadmap.labels.filter((l) => item.labelIds.includes(l.id));
                       return (
@@ -680,6 +726,41 @@ export function RoadmapEditor({
               }
             })
           }
+        />
+      )}
+
+      {labelsDialogOpen && (
+        <RoadmapLabelsDialog
+          labels={roadmap.labels}
+          pending={pending}
+          onClose={() => setLabelsDialogOpen(false)}
+          onCreate={(name, color) => run(() => createLabelAction(roadmap.id, name, color))}
+          onUpdate={(id, name, color) => run(() => updateLabelAction(id, name, color))}
+          onDelete={(id) => run(() => deleteLabelAction(id))}
+        />
+      )}
+
+      {milestoneDialog && (
+        <RoadmapMilestoneDialog
+          milestone={milestoneDialog.milestone}
+          defaultMonth={currentMonth}
+          pending={pending}
+          error={error}
+          onClose={() => setMilestoneDialog(null)}
+          onSubmit={(title, month, color) => {
+            const existing = milestoneDialog.milestone;
+            setMilestoneDialog(null);
+            run(() =>
+              existing
+                ? updateMilestoneAction(existing.id, title, month, color)
+                : createMilestoneAction(roadmap.id, title, month, color),
+            );
+          }}
+          onDelete={() => {
+            const existing = milestoneDialog.milestone;
+            setMilestoneDialog(null);
+            if (existing) run(() => deleteMilestoneAction(existing.id));
+          }}
         />
       )}
     </div>
