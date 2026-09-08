@@ -10,6 +10,8 @@ export interface SidePanelIssue {
   issueType: string;
   statusLabel: string | null;
   statusCategory: string | null;
+  storyPoints: number;
+  assignee: string | null;
 }
 
 /** dataTransfer-Format für Drops auf die Timeline. */
@@ -30,6 +32,16 @@ function IssueRow({
       onDragStart={(e) => {
         e.dataTransfer.setData(DRAG_MIME, JSON.stringify(issue));
         e.dataTransfer.effectAllowed = "copy";
+        const panel = document.querySelector<HTMLElement>("[data-roadmap-offcanvas]");
+        const backdrop = panel?.previousElementSibling as HTMLElement | null;
+        if (panel) { panel.style.pointerEvents = "none"; panel.style.opacity = "0.35"; }
+        if (backdrop) backdrop.style.pointerEvents = "none";
+      }}
+      onDragEnd={() => {
+        const panel = document.querySelector<HTMLElement>("[data-roadmap-offcanvas]");
+        const backdrop = panel?.previousElementSibling as HTMLElement | null;
+        if (panel) { panel.style.pointerEvents = ""; panel.style.opacity = ""; }
+        if (backdrop) backdrop.style.pointerEvents = "";
       }}
       className={`flex items-center gap-2 rounded-[8px] border border-edge bg-field px-2.5 py-1.5 ${
         contained ? "opacity-40" : "cursor-grab hover:border-accent/60"
@@ -59,10 +71,12 @@ export function RoadmapSidePanel({
   sprintIssues,
   containedKeys,
   onAdd,
+  onClose,
 }: {
   sprintIssues: SidePanelIssue[];
   containedKeys: Set<string>;
   onAdd: (issue: SidePanelIssue) => void;
+  onClose: () => void;
 }) {
   const [tab, setTab] = useState<"sprint" | "search">("sprint");
   const [filter, setFilter] = useState("");
@@ -86,8 +100,9 @@ export function RoadmapSidePanel({
           summary: r.summary,
           issueType: r.issueType,
           statusLabel: r.status,
-          // Kategorie kommt beim nächsten Status-Refresh aus Jira
           statusCategory: null,
+          storyPoints: r.storyPoints ?? 0,
+          assignee: null,
         })),
       );
     });
@@ -99,7 +114,24 @@ export function RoadmapSidePanel({
   );
 
   return (
-    <aside className="flex w-[290px] flex-none flex-col gap-2.5 rounded-[10px] border border-edge bg-card p-3">
+    <>
+      {/* Backdrop: schließt beim Klick; beim Ticket-Drag durchlässig (siehe Panel). */}
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <aside
+        data-roadmap-offcanvas
+        className="fixed right-0 top-0 z-50 flex h-full w-[320px] flex-col gap-2.5 border-l border-edge bg-card p-3 shadow-[-8px_0_24px_rgba(0,0,0,0.35)]"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-fg">Tickets hinzufügen</span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Schließen"
+            className="rounded-md px-1.5 text-[15px] text-faint hover:bg-chip hover:text-fg"
+          >
+            ✕
+          </button>
+        </div>
       <div className="flex gap-1 rounded-[8px] bg-chip p-1">
         {(
           [
@@ -176,6 +208,7 @@ export function RoadmapSidePanel({
           </div>
         </>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
