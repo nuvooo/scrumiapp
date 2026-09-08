@@ -22,11 +22,17 @@ export const RETRO_ROLES: DockRole[] = [
   { value: "moderator", label: "Moderator", hint: "Spalten, Verdeckt-Modus, Mergen" },
 ];
 
+export const ROADMAP_ROLES: DockRole[] = [
+  { value: "viewer", label: "Betrachter", hint: "sieht die Roadmaps" },
+  { value: "moderator", label: "Moderator", hint: "legt Roadmaps an und bearbeitet sie" },
+];
+
 export interface StoredProfile {
   name: string;
   avatar: string;
   refinementRole: string;
   retroRole: string;
+  roadmapRole: string;
 }
 
 const PROFILE_KEY = "scrumi.profile";
@@ -37,7 +43,13 @@ const SAVED_EVENT = "scrumi:profile-saved";
 
 /** Gespeichertes Profil — belegt Beitritts-Formulare und den Dialog vor. */
 export function storedProfile(): StoredProfile {
-  const fallback: StoredProfile = { name: "", avatar: "", refinementRole: "estimator", retroRole: "member" };
+  const fallback: StoredProfile = {
+    name: "",
+    avatar: "",
+    refinementRole: "estimator",
+    retroRole: "member",
+    roadmapRole: "viewer",
+  };
   try {
     const raw = window.localStorage.getItem(PROFILE_KEY);
     if (!raw) return fallback;
@@ -47,6 +59,7 @@ export function storedProfile(): StoredProfile {
       avatar: parsed.avatar ?? fallback.avatar,
       refinementRole: parsed.refinementRole ?? fallback.refinementRole,
       retroRole: parsed.retroRole ?? fallback.retroRole,
+      roadmapRole: parsed.roadmapRole ?? fallback.roadmapRole,
     };
   } catch {
     return fallback;
@@ -120,6 +133,7 @@ export function ProfileDock() {
   const [avatarSel, setAvatarSel] = useState("");
   const [refinementSel, setRefinementSel] = useState("");
   const [retroSel, setRetroSel] = useState("");
+  const [roadmapSel, setRoadmapSel] = useState("");
 
   useEffect(() => {
     // Slot existiert nur bei ausgeklappter Sidebar — beim Umschalten neu auflösen,
@@ -144,13 +158,20 @@ export function ProfileDock() {
     setAvatarSel(current.avatar);
     setRefinementSel(current.refinementRole);
     setRetroSel(current.retroRole);
+    setRoadmapSel(current.roadmapRole);
     setOpen(true);
   };
 
   const save = () => {
     if (!nameText.trim()) return;
     writeProfile(
-      { name: nameText.trim(), avatar: avatarSel, refinementRole: refinementSel, retroRole: retroSel },
+      {
+        name: nameText.trim(),
+        avatar: avatarSel,
+        refinementRole: refinementSel,
+        retroRole: retroSel,
+        roadmapRole: roadmapSel,
+      },
       true,
     );
     setOpen(false);
@@ -250,6 +271,13 @@ export function ProfileDock() {
               value={retroSel}
               groupName="dock-role-retro"
               onChange={setRetroSel}
+            />
+            <RoleSection
+              title="Rolle in der Roadmap"
+              roles={ROADMAP_ROLES}
+              value={roadmapSel}
+              groupName="dock-role-roadmap"
+              onChange={setRoadmapSel}
             />
             <div className="mt-3.5 flex gap-2">
               <button type="button" onClick={save} className="btn-primary px-4 py-2">

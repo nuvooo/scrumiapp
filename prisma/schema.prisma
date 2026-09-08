@@ -34,6 +34,7 @@ model Team {
   members             TeamMember[]
   refinements         Refinement[]
   retros              Retro[]
+  roadmaps            Roadmap[]
 }
 
 model Sprint {
@@ -293,4 +294,49 @@ model RetroVote {
   cardId        String
   participant   RetroParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   participantId String
+}
+
+/// Roadmap: monatsgenaue Timeline pro Team. Monate als UTC-Monatserster.
+model Roadmap {
+  id         String        @id @default(cuid())
+  team       Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId     String
+  name       String
+  startMonth DateTime
+  endMonth   DateTime
+  createdAt  DateTime      @default(now())
+  lanes      RoadmapLane[]
+  items      RoadmapItem[]
+}
+
+model RoadmapLane {
+  id        String        @id @default(cuid())
+  roadmap   Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  roadmapId String
+  name      String
+  position  Int
+  items     RoadmapItem[]
+}
+
+/// Eintrag auf der Timeline. jiraKey null = eigenes Ziel; sonst Jira-Referenz —
+/// bewusst kein FK auf Issue, weil der Sync Issues per delete+create ersetzt.
+model RoadmapItem {
+  id             String      @id @default(cuid())
+  roadmap        Roadmap     @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  roadmapId      String
+  lane           RoadmapLane @relation(fields: [laneId], references: [id], onDelete: Cascade)
+  laneId         String
+  jiraKey        String?
+  /// Momentaufnahme aus Jira ("Epic", "Story", …); null bei eigenen Zielen
+  issueType      String?
+  title          String
+  /// Nur für eigene Ziele
+  description    String?
+  startMonth     DateTime
+  endMonth       DateTime
+  /// "new" | "indeterminate" | "done"; Jira-Items: beim Öffnen aufgefrischt, Ziele: manuell
+  statusCategory String?
+  statusLabel    String?
+  /// Stapel-Reihenfolge innerhalb der Bahn
+  position       Int
 }
