@@ -8,7 +8,7 @@ import {
   renameLaneAction, renameRoadmapAction, updateGoalAction, updateRoadmapRangeAction,
 } from "@/app/(app)/roadmap/actions";
 import {
-  addMonths, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
+  addMonths, barGeometry, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
 } from "@/lib/view/roadmapGrid";
 import { stackBars } from "@/lib/view/roadmapStack";
 import { barClasses, typeBadge } from "./itemColors";
@@ -156,7 +156,17 @@ export function RoadmapEditor({
     const width = monthWidth();
 
     const onMove = (e: PointerEvent) => {
-      const delta = width > 0 ? Math.round((e.clientX - drag.originClientX) / width) : 0;
+      let delta = width > 0 ? Math.round((e.clientX - drag.originClientX) / width) : 0;
+      // Mindestens ein Monat des Balkens bleibt im Raster — sonst würde er unerreichbar.
+      const rawStart = monthDiff(roadmap.startMonth, drag.origStart);
+      const rawEnd = monthDiff(roadmap.startMonth, drag.origEnd);
+      if (drag.mode === "move") {
+        delta = Math.min(Math.max(delta, -rawEnd), monthCount - 1 - rawStart);
+      } else if (drag.mode === "resize-left") {
+        delta = Math.min(delta, monthCount - 1 - rawStart);
+      } else {
+        delta = Math.max(delta, -rawEnd);
+      }
       const laneId = drag.mode === "move" ? laneAtY(e.clientY) ?? drag.origLaneId : drag.origLaneId;
       let start = drag.origStart;
       let end = drag.origEnd;
@@ -358,17 +368,17 @@ export function RoadmapEditor({
             {/* Bahnen */}
             {roadmap.lanes.map((lane, laneIndex) => {
               const laneItems = items.filter((i) => i.laneId === lane.id);
-              const bars = laneItems
-                .map((item) => {
-                  const rawStart = monthDiff(roadmap.startMonth, item.startMonth);
-                  const rawEnd = monthDiff(roadmap.startMonth, item.endMonth);
-                  if (rawEnd < rawStart || rawEnd < 0 || rawStart > monthCount - 1) return null;
-                  const start = Math.max(rawStart, 0);
-                  const end = Math.min(rawEnd, monthCount - 1);
-                  const geo = { start, span: end - start + 1, clippedLeft: rawStart < 0, clippedRight: rawEnd > monthCount - 1 };
-                  return { item, geo };
-                })
-                .filter((b): b is NonNullable<typeof b> => b !== null);
+              const bars = laneItems.map((item) => {
+                const raw = barGeometry(roadmap.startMonth, monthCount, item.startMonth, item.endMonth);
+                // Komplett außerhalb: als 1-Monats-Marker am nächstgelegenen Rand rendern,
+                // damit der Eintrag klickbar bleibt (Dialog kann den Zeitraum korrigieren).
+                const geo =
+                  raw ??
+                  (monthDiff(roadmap.startMonth, item.endMonth) < 0
+                    ? { start: 0, span: 1, clippedLeft: true, clippedRight: false }
+                    : { start: monthCount - 1, span: 1, clippedLeft: false, clippedRight: true });
+                return { item, geo };
+              });
               const { rowById, rowCount } = stackBars(
                 bars.map((b) => ({
                   id: b.item.id,
