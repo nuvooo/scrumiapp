@@ -21,6 +21,7 @@ class NoopJira implements JiraClient {
   async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
+  async getIssuesByKeys() { return []; }
 }
 
 class FailingJira implements JiraClient {
@@ -31,6 +32,7 @@ class FailingJira implements JiraClient {
   async moveIssuesToSprint() {}
   async searchIssues() { return []; }
   async fetchBacklogUnestimated() { return []; }
+  async getIssuesByKeys() { return []; }
 }
 
 describe("syncAllTeams", () => {

@@ -38,6 +38,16 @@ export interface JiraSearchResult {
   url: string;
 }
 
+export interface JiraIssueStatus {
+  jiraKey: string;
+  summary: string;
+  issueType: string;
+  statusLabel: string;
+  statusCategory: "new" | "indeterminate" | "done";
+  storyPoints: number;
+  assignee: string | null;
+}
+
 export interface JiraClient {
   fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
   fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
@@ -50,6 +60,8 @@ export interface JiraClient {
   searchIssues(query: string): Promise<JiraSearchResult[]>;
   /** Alle unbewerteten, offenen Tickets des Boards (Backlog + Sprints, in Rank-Reihenfolge). */
   fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]>;
+  /** Status-Batch für die Roadmap: Summary, Typ und Status-Kategorie je Key. */
+  getIssuesByKeys(keys: string[]): Promise<JiraIssueStatus[]>;
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -88,6 +100,33 @@ export class JiraCloudClient implements JiraClient {
       `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=20&fields=${fields}`,
     );
     return (page.issues ?? []).map((raw) => this.toSearchResult(raw));
+  }
+
+  // Status-Batch per JQL key in (...): gelöschte Keys lassen die ganze Abfrage
+  // fehlschlagen — der Aufrufer behandelt das als "Status evtl. veraltet".
+  async getIssuesByKeys(keys: string[]): Promise<JiraIssueStatus[]> {
+    const results: JiraIssueStatus[] = [];
+    for (let i = 0; i < keys.length; i += 50) {
+      const chunk = keys.slice(i, i + 50);
+      const jql = `key in (${chunk.map((k) => `"${k}"`).join(",")})`;
+      const fields = ["summary", "status", "issuetype", "assignee", this.config.storyPointsField].join(",");
+      const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
+        `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`,
+      );
+      for (const raw of page.issues ?? []) {
+        const points = raw.fields[this.config.storyPointsField];
+        results.push({
+          jiraKey: raw.key,
+          summary: raw.fields.summary,
+          issueType: raw.fields.issuetype?.name ?? "",
+          statusLabel: raw.fields.status.name,
+          statusCategory: raw.fields.status.statusCategory.key,
+          storyPoints: typeof points === "number" ? points : 0,
+          assignee: raw.fields.assignee?.displayName ?? null,
+        });
+      }
+    }
+    return results;
   }
 
   private toSearchResult(raw: JiraIssueRaw): JiraSearchResult {

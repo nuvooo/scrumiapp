@@ -386,3 +386,60 @@ describe("JiraCloudClient.moveIssuesToSprint", () => {
     await expect(client.moveIssuesToSprint("77", ["AB-1"])).rejects.toThrow(/403/);
   });
 });
+
+describe("JiraCloudClient.getIssuesByKeys", () => {
+  const rawIssue = (key: string, categoryKey: string) => ({
+    key,
+    fields: {
+      summary: `Summary ${key}`,
+      resolutiondate: null,
+      status: { name: "In Arbeit", statusCategory: { key: categoryKey } },
+      issuetype: { name: "Epic" },
+      assignee: { displayName: "Alice" },
+      customfield_10016: 8,
+    },
+  });
+
+  it("fragt per JQL key in (...) ab und mappt Status samt Kategorie", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ issues: [rawIssue("AB-1", "indeterminate")] }),
+    );
+    const client = new JiraCloudClient(config, fetchMock);
+
+    const result = await client.getIssuesByKeys(["AB-1"]);
+
+    expect(result).toEqual([
+      {
+        jiraKey: "AB-1",
+        summary: "Summary AB-1",
+        issueType: "Epic",
+        statusLabel: "In Arbeit",
+        statusCategory: "indeterminate",
+        storyPoints: 8,
+        assignee: "Alice",
+      },
+    ]);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/rest/api/3/search/jql?jql=");
+    expect(decodeURIComponent(url)).toContain('key in ("AB-1")');
+    expect(decodeURIComponent(url)).toContain("assignee");
+  });
+
+  it("teilt viele Keys in 50er-Blöcke auf", async () => {
+    const keys = Array.from({ length: 60 }, (_, i) => `AB-${i + 1}`);
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ issues: [] })));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.getIssuesByKeys(keys);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("liefert leeres Array ohne Keys ohne Jira-Aufruf", async () => {
+    const fetchMock = vi.fn();
+    const client = new JiraCloudClient(config, fetchMock);
+
+    expect(await client.getIssuesByKeys([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
