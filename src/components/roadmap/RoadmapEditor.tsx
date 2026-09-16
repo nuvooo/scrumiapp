@@ -1,66 +1,83 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import "./roadmap.css";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  addGoalAction, addJiraItemAction, createLaneAction, createLabelAction, createMilestoneAction,
-  deleteItemAction, deleteLabelAction, deleteLaneAction, deleteMilestoneAction,
-  deleteRoadmapAction, moveItemAction, moveLaneAction, refreshStatusesAction,
-  renameLaneAction, renameRoadmapAction, setItemLabelsAction, updateGoalAction,
-  updateLabelAction, updateMilestoneAction, updateRoadmapRangeAction,
+  addGoalAction, addJiraItemAction, createBlockAction, createLabelAction, createLaneAction,
+  createMilestoneAction, deleteBlockAction, deleteItemAction, deleteLabelAction, deleteLaneAction,
+  deleteMilestoneAction, deleteRoadmapAction, moveBlockAction, moveItemAction, moveLaneAction,
+  refreshStatusesAction, renameLaneAction, renameRoadmapAction, setItemLabelsAction, shiftBlockAction,
+  updateBlockAction, updateGoalAction, updateLabelAction, updateMilestoneAction, updateRoadmapRangeAction,
 } from "@/app/(app)/roadmap/actions";
-import {
-  addMonths, barGeometry, monthColumns, monthDiff, monthIndexFromOffset, monthKey, quarterGroups,
-} from "@/lib/view/roadmapGrid";
-import { stackBars } from "@/lib/view/roadmapStack";
-import { laneProgress } from "@/lib/view/roadmapProgress";
-import { barClasses, typeBadge, PROGRESS_COLORS } from "./itemColors";
-import { RoadmapItemDialog, type LaneOption, type RoadmapItemView, type LabelView } from "./RoadmapItemDialog";
+import { addDays, dayDiff, dayKey, formatDay, type Zoom } from "@/lib/view/roadmapDays";
+import { INBOX_ID, type DropPosition } from "@/lib/view/roadmapTree";
+import { RoadmapBoard } from "./RoadmapBoard";
+import { RoadmapItemDrawer } from "./RoadmapItemDrawer";
 import { RoadmapGoalDialog } from "./RoadmapGoalDialog";
-import { RoadmapSidePanel, DRAG_MIME, type SidePanelIssue } from "./RoadmapSidePanel";
+import { RoadmapBlockDialog, type BlockOption } from "./RoadmapBlockDialog";
+import { RoadmapLanesDialog } from "./RoadmapLanesDialog";
+import { RoadmapSidePanel, type SidePanelIssue } from "./RoadmapSidePanel";
 import { RoadmapConfirmDialog } from "./RoadmapConfirmDialog";
-import { RoadmapPromptDialog } from "./RoadmapPromptDialog";
 import { RoadmapLabelsDialog } from "./RoadmapLabelsDialog";
 import { RoadmapMilestoneDialog } from "./RoadmapMilestoneDialog";
 import { useIsRoadmapModerator } from "./useRoadmapRole";
+import type { BlockView, LaneView, MilestoneView, Placement, RoadmapItemView, RoadmapView } from "./types";
 
-export interface RoadmapLaneView {
-  id: string;
-  name: string;
+export type { RoadmapView } from "./types";
+
+/** Eingeklappte Blöcke pro Roadmap im localStorage — neue Blöcke sind damit standardmäßig offen. */
+const closedKey = (roadmapId: string) => `roadmap-closed:${roadmapId}`;
+
+function readClosed(roadmapId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(closedKey(roadmapId));
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
 }
 
-export interface MilestoneView {
-  id: string;
-  title: string;
-  /** "YYYY-MM" */
-  month: string;
-  color: string;
+function writeClosed(roadmapId: string, closed: Set<string>) {
+  try {
+    localStorage.setItem(closedKey(roadmapId), JSON.stringify([...closed]));
+  } catch {
+    /* localStorage nicht verfügbar */
+  }
 }
 
-export interface RoadmapView {
-  id: string;
-  name: string;
-  /** "YYYY-MM" */
-  startMonth: string;
-  endMonth: string;
-  lanes: RoadmapLaneView[];
-  items: RoadmapItemView[];
-  labels: LabelView[];
-  milestones: MilestoneView[];
+/** Blöcke als eingerückte Auswahlliste (Baumreihenfolge). */
+function blockOptions(blocks: BlockView[], excludeSubtreeOf: string | null = null): BlockOption[] {
+  const byParent = new Map<string | null, BlockView[]>();
+  for (const b of blocks) {
+    const list = byParent.get(b.parentId) ?? [];
+    list.push(b);
+    byParent.set(b.parentId, list);
+  }
+  const out: BlockOption[] = [];
+  const rec = (parentId: string | null, depth: number, disabled: boolean) => {
+    const list = (byParent.get(parentId) ?? []).sort((a, b) => a.position - b.position);
+    for (const b of list) {
+      const dis = disabled || b.id === excludeSubtreeOf;
+      out.push({ id: b.id, label: `${"  ".repeat(depth)}${depth > 0 ? "└ " : ""}${b.name}`, disabled: dis });
+      rec(b.id, depth + 1, dis);
+    }
+  };
+  rec(null, 0, false);
+  return out;
 }
 
-interface DragState {
-  itemId: string;
-  mode: "move" | "resize-left" | "resize-right";
-  originClientX: number;
-  origStart: string;
-  origEnd: string;
-  origLaneId: string;
-  moved: boolean;
+function blockPath(blocks: BlockView[], blockId: string | null): string {
+  if (!blockId) return "Eingangskorb";
+  const byId = new Map(blocks.map((b) => [b.id, b]));
+  const names: string[] = [];
+  let cur = byId.get(blockId);
+  while (cur) {
+    names.unshift(cur.name);
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return names.join(" › ") || "Eingangskorb";
 }
-
-const LANE_LABEL_WIDTH = 200;
-const ROW_HEIGHT = 56;
 
 export function RoadmapEditor({
   roadmap,
@@ -76,18 +93,21 @@ export function RoadmapEditor({
   const [items, setItems] = useState(roadmap.items);
   const [error, setError] = useState<string | null>(null);
   const [statusStale, setStatusStale] = useState(false);
-  const [dialogItemId, setDialogItemId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<Zoom>("m");
+  const [present, setPresent] = useState(false);
+  const [showDeps, setShowDeps] = useState(true);
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
-  const [lanePromptOpen, setLanePromptOpen] = useState(false);
+  const [blockDialog, setBlockDialog] = useState<{ block: BlockView | null; parentId: string | null } | null>(null);
+  const [blockToDelete, setBlockToDelete] = useState<BlockView | null>(null);
+  const [lanesDialogOpen, setLanesDialogOpen] = useState(false);
+  const [laneToDelete, setLaneToDelete] = useState<{ lane: LaneView; count: number } | null>(null);
   const [confirmRoadmapDelete, setConfirmRoadmapDelete] = useState(false);
-  const [laneToDelete, setLaneToDelete] = useState<{ id: string; name: string; count: number } | null>(null);
   const [labelsDialogOpen, setLabelsDialogOpen] = useState(false);
   const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: MilestoneView | null } | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [drag, setDrag] = useState<DragState | null>(null);
   const [pending, startTransition] = useTransition();
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const laneRefs = useRef(new Map<string, HTMLDivElement>());
 
   // Server-Refresh (revalidatePath) liefert neue Props → lokalen State resyncen.
   const [syncedItems, setSyncedItems] = useState(roadmap.items);
@@ -96,23 +116,40 @@ export function RoadmapEditor({
     setItems(roadmap.items);
   }
 
-  const columns = useMemo(() => monthColumns(roadmap.startMonth, roadmap.endMonth), [roadmap.startMonth, roadmap.endMonth]);
-  const quarters = useMemo(() => quarterGroups(roadmap.startMonth, roadmap.endMonth), [roadmap.startMonth, roadmap.endMonth]);
-  const monthCount = columns.length;
-  const todayIndex = monthDiff(roadmap.startMonth, monthKey(new Date()));
-  const currentMonth =
-    todayIndex < 0 ? roadmap.startMonth : todayIndex >= monthCount ? roadmap.endMonth : monthKey(new Date());
-  const columnsStyle = { gridTemplateColumns: `repeat(${monthCount}, minmax(56px, 1fr))` };
+  // Klappzustand aus dem localStorage (nach dem Mount — kein Hydration-Mismatch).
+  useEffect(() => {
+    setClosed(readClosed(roadmap.id));
+  }, [roadmap.id]);
+
+  const allBlockIds = useMemo(() => [...roadmap.blocks.map((b) => b.id), INBOX_ID], [roadmap.blocks]);
+  const open = useMemo(() => new Set(allBlockIds.filter((id) => !closed.has(id))), [allBlockIds, closed]);
+
+  const today = dayKey(new Date());
+  const todayIndex = dayDiff(roadmap.startDate, today);
+  const totalDays = dayDiff(roadmap.startDate, roadmap.endDate) + 1;
+  const currentDay = todayIndex < 0 ? roadmap.startDate : todayIndex >= totalDays ? roadmap.endDate : today;
+
   const containedKeys = useMemo(
     () => new Set(items.filter((i) => i.jiraKey !== null).map((i) => i.jiraKey as string)),
     [items],
   );
-  const lanes: LaneOption[] = roadmap.lanes;
-  const dialogItem = dialogItemId === null ? null : items.find((i) => i.id === dialogItemId) ?? null;
+  const options = useMemo(() => blockOptions(roadmap.blocks), [roadmap.blocks]);
+  const selectedItem = selectedItemId === null ? null : items.find((i) => i.id === selectedItemId) ?? null;
+  const itemCountByLane = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of items) m.set(i.laneId, (m.get(i.laneId) ?? 0) + 1);
+    return m;
+  }, [items]);
 
-  // Aktuelle Items für den pointerup-Handler ohne Re-Subscribe.
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+  const facts = useMemo(
+    () => ({
+      tickets: items.length,
+      done: items.filter((i) => i.statusCategory === "done").length,
+      sp: items.reduce((s, i) => s + i.storyPoints, 0),
+      blocks: roadmap.blocks.length,
+    }),
+    [items, roadmap.blocks.length],
+  );
 
   // ---------- Status-Refresh beim Öffnen ----------
   useEffect(() => {
@@ -128,7 +165,14 @@ export function RoadmapEditor({
         prev.map((i) => {
           const s = i.jiraKey === null ? undefined : byKey.get(i.jiraKey);
           return s
-            ? { ...i, statusCategory: s.statusCategory, statusLabel: s.statusLabel, storyPoints: s.storyPoints, assignee: s.assignee }
+            ? {
+                ...i,
+                statusCategory: s.statusCategory,
+                statusLabel: s.statusLabel,
+                storyPoints: s.storyPoints,
+                assignee: s.assignee,
+                blockedBy: s.blockedBy,
+              }
             : i;
         }),
       );
@@ -149,104 +193,60 @@ export function RoadmapEditor({
       }
     });
 
-  // ---------- Balken-Drag (Pointer-Events) ----------
-  const monthWidth = () => {
-    const width = gridRef.current?.getBoundingClientRect().width ?? 0;
-    return monthCount > 0 ? width / monthCount : 0;
+  const toggle = (blockId: string) => {
+    const next = new Set(closed);
+    if (next.has(blockId)) next.delete(blockId);
+    else next.add(blockId);
+    setClosed(next);
+    writeClosed(roadmap.id, next);
+  };
+  const collapseAll = () => {
+    const next = new Set(allBlockIds);
+    setClosed(next);
+    writeClosed(roadmap.id, next);
+  };
+  const expandAll = () => {
+    const next = new Set<string>();
+    setClosed(next);
+    writeClosed(roadmap.id, next);
   };
 
-  const laneAtY = (clientY: number): string | null => {
-    for (const [laneId, el] of laneRefs.current) {
-      const rect = el.getBoundingClientRect();
-      if (clientY >= rect.top && clientY <= rect.bottom) return laneId;
-    }
-    return null;
+  const moveItem = (itemId: string, placement: Placement) => {
+    const before = items.find((i) => i.id === itemId);
+    if (!before) return;
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === itemId
+          ? { ...i, laneId: placement.laneId, blockId: placement.blockId, startDate: placement.startDate, endDate: placement.endDate }
+          : i,
+      ),
+    );
+    run(
+      () => moveItemAction(itemId, placement),
+      () => setItems((prev) => prev.map((i) => (i.id === itemId ? before : i))),
+    );
   };
 
-  const startDrag = (e: React.PointerEvent, item: RoadmapItemView, mode: DragState["mode"]) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    setDrag({
-      itemId: item.id,
-      mode,
-      originClientX: e.clientX,
-      origStart: item.startMonth,
-      origEnd: item.endMonth,
-      origLaneId: item.laneId,
-      moved: false,
-    });
+  const shiftBlock = (blockId: string, deltaDays: number, itemIds: string[]) => {
+    const ids = new Set(itemIds);
+    const before = items;
+    setItems((prev) =>
+      prev.map((i) =>
+        ids.has(i.id) ? { ...i, startDate: addDays(i.startDate, deltaDays), endDate: addDays(i.endDate, deltaDays) } : i,
+      ),
+    );
+    run(() => shiftBlockAction(blockId, deltaDays), () => setItems(before));
   };
 
-  useEffect(() => {
-    if (!drag) return;
-    const width = monthWidth();
+  const moveBlock = (blockId: string, targetId: string | null, position: DropPosition) =>
+    run(() => moveBlockAction(blockId, targetId, position));
 
-    const onMove = (e: PointerEvent) => {
-      let delta = width > 0 ? Math.round((e.clientX - drag.originClientX) / width) : 0;
-      // Mindestens ein Monat des Balkens bleibt im Raster — sonst würde er unerreichbar.
-      const rawStart = monthDiff(roadmap.startMonth, drag.origStart);
-      const rawEnd = monthDiff(roadmap.startMonth, drag.origEnd);
-      if (drag.mode === "move") {
-        delta = Math.min(Math.max(delta, -rawEnd), monthCount - 1 - rawStart);
-      } else if (drag.mode === "resize-left") {
-        delta = Math.min(delta, monthCount - 1 - rawStart);
-      } else {
-        delta = Math.max(delta, -rawEnd);
-      }
-      const laneId = drag.mode === "move" ? laneAtY(e.clientY) ?? drag.origLaneId : drag.origLaneId;
-      let start = drag.origStart;
-      let end = drag.origEnd;
-      if (drag.mode === "move") {
-        start = addMonths(drag.origStart, delta);
-        end = addMonths(drag.origEnd, delta);
-      } else if (drag.mode === "resize-left") {
-        start = addMonths(drag.origStart, delta);
-        if (monthDiff(start, end) < 0) start = end;
-      } else {
-        end = addMonths(drag.origEnd, delta);
-        if (monthDiff(start, end) < 0) end = start;
-      }
-      const changed = start !== drag.origStart || end !== drag.origEnd || laneId !== drag.origLaneId;
-      if (changed && !drag.moved) setDrag({ ...drag, moved: true });
-      setItems((prev) =>
-        prev.map((i) => (i.id === drag.itemId ? { ...i, startMonth: start, endMonth: end, laneId } : i)),
-      );
-    };
-
-    const onUp = () => {
-      const item = itemsRef.current.find((i) => i.id === drag.itemId);
-      setDrag(null);
-      if (!item) return;
-      if (!drag.moved) {
-        setDialogItemId(item.id);
-        return;
-      }
-      const rollback = () =>
-        setItems((prev) =>
-          prev.map((i) =>
-            i.id === drag.itemId
-              ? { ...i, startMonth: drag.origStart, endMonth: drag.origEnd, laneId: drag.origLaneId }
-              : i,
-          ),
-        );
-      run(() => moveItemAction(item.id, item.laneId, item.startMonth, item.endMonth), rollback);
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag]);
-
-  // ---------- Hinzufügen (Drop + "+" + Ziel) ----------
-  const addIssueAt = (issue: SidePanelIssue, laneId: string, month: string) =>
+  const addIssue = (issue: SidePanelIssue, laneId: string, blockId: string | null, startDate: string, endDate: string) =>
     run(() =>
       addJiraItemAction(
         roadmap.id,
         laneId,
+        blockId,
         {
           jiraKey: issue.jiraKey,
           title: issue.summary,
@@ -256,121 +256,95 @@ export function RoadmapEditor({
           storyPoints: issue.storyPoints,
           assignee: issue.assignee,
         },
-        month,
-        month,
+        startDate,
+        endDate,
       ),
     );
 
-  const onDropIssue = (e: React.DragEvent, laneId: string) => {
-    const raw = e.dataTransfer.getData(DRAG_MIME);
-    if (!raw) return;
-    e.preventDefault();
-    const issue = JSON.parse(raw) as SidePanelIssue;
-    const laneEl = laneRefs.current.get(laneId);
-    const rect = laneEl?.getBoundingClientRect();
-    const index = rect ? monthIndexFromOffset(e.clientX - rect.left, rect.width / monthCount, monthCount) : 0;
-    addIssueAt(issue, laneId, addMonths(roadmap.startMonth, index));
+  const togglePresent = () => {
+    const next = !present;
+    setPresent(next);
+    if (next) {
+      setSelectedItemId(null);
+      setPanelOpen(false);
+    }
   };
+
+  const zoomButtons: { key: Zoom; label: string }[] = [
+    { key: "q", label: "Quartal" },
+    { key: "m", label: "Monat" },
+    { key: "w", label: "Woche" },
+  ];
 
   // ---------- Render ----------
   return (
-    <div className="flex flex-col gap-3.5">
-      <div className="flex flex-wrap items-center gap-3">
-        {isModerator ? (
-          <input
-            type="text"
-            defaultValue={roadmap.name}
-            aria-label="Roadmap-Name"
-            onBlur={(e) => {
-              if (e.target.value.trim() && e.target.value !== roadmap.name)
-                run(() => renameRoadmapAction(roadmap.id, e.target.value));
-            }}
-            className="min-w-[220px] rounded-[7px] border border-transparent bg-transparent px-2 py-1 text-[22px] font-semibold tracking-[-0.02em] text-fg hover:border-edge focus:border-edge focus:bg-field"
-          />
-        ) : (
-          <h1 className="px-2 py-1 text-[22px] font-semibold tracking-[-0.02em] text-fg">{roadmap.name}</h1>
-        )}
-        {isModerator ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              type="month"
-              defaultValue={roadmap.startMonth}
-              aria-label="Startmonat"
-              onBlur={(e) => {
-                if (e.target.value && e.target.value !== roadmap.startMonth)
-                  run(() => updateRoadmapRangeAction(roadmap.id, e.target.value, roadmap.endMonth));
-              }}
-              className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
-            />
-            <span className="text-[12px] text-faint">–</span>
-            <input
-              type="month"
-              defaultValue={roadmap.endMonth}
-              aria-label="Endmonat"
-              onBlur={(e) => {
-                if (e.target.value && e.target.value !== roadmap.endMonth)
-                  run(() => updateRoadmapRangeAction(roadmap.id, roadmap.startMonth, e.target.value));
-              }}
-              className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
-            />
+    <div className="rm flex flex-col gap-3.5" data-present={present ? "1" : "0"} data-full-width>
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+        <div className="min-w-0">
+          <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-faint">
+            Roadmap · Stand {formatDay(today)}
           </div>
-        ) : (
-          <span className="text-[12px] text-faint">
-            {roadmap.startMonth} – {roadmap.endMonth}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {statusStale && (
-            <span className="text-[11.5px] text-warn" title="Jira nicht erreichbar — angezeigte Status können veraltet sein">
-              Status evtl. veraltet
-            </span>
-          )}
-          {isModerator ? (
-            <>
-              <button type="button" onClick={() => setGoalDialogOpen(true)} className="btn-primary px-3.5 py-[7px]">
-                + Ziel
-              </button>
-              <button
-                type="button"
-                onClick={() => setLanePromptOpen(true)}
-                className="btn-secondary px-3.5 py-[7px]"
-              >
-                + Bahn
-              </button>
-              <button type="button" onClick={() => setLabelsDialogOpen(true)} className="btn-secondary px-3.5 py-[7px]">
-                Labels
-              </button>
-              <button
-                type="button"
-                onClick={() => setMilestoneDialog({ milestone: null })}
-                className="btn-secondary px-3.5 py-[7px]"
-              >
-                + Meilenstein
-              </button>
-              <button
-                type="button"
-                onClick={() => setPanelOpen((v) => !v)}
-                className="btn-secondary px-3.5 py-[7px]"
-                title="Tickets-Offcanvas öffnen"
-              >
-                ⧉ Tickets
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmRoadmapDelete(true)}
-                className="rounded-[9px] border border-[#5a2a2a] px-3 py-[7px] text-[12.5px] text-danger hover:bg-[#1d0e0e]"
-              >
-                Löschen
-              </button>
-            </>
-          ) : (
-            <span
-              className="text-[11.5px] text-faint"
-              title="Zum Bearbeiten die Moderator-Rolle im Profil (unten links) aktivieren"
-            >
-              Nur-Lese-Ansicht
-            </span>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            {isModerator && !present ? (
+              <input
+                type="text"
+                defaultValue={roadmap.name}
+                aria-label="Roadmap-Name"
+                onBlur={(e) => {
+                  if (e.target.value.trim() && e.target.value !== roadmap.name)
+                    run(() => renameRoadmapAction(roadmap.id, e.target.value));
+                }}
+                className="min-w-[240px] rounded-[7px] border border-transparent bg-transparent px-2 py-1 text-[24px] font-semibold tracking-[-0.02em] text-fg hover:border-edge focus:border-edge focus:bg-field"
+              />
+            ) : (
+              <h1 className="px-2 py-1 text-[24px] font-semibold tracking-[-0.02em] text-fg">{roadmap.name}</h1>
+            )}
+            {isModerator && !present ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  defaultValue={roadmap.startDate}
+                  aria-label="Startdatum"
+                  onBlur={(e) => {
+                    if (e.target.value && e.target.value !== roadmap.startDate)
+                      run(() => updateRoadmapRangeAction(roadmap.id, e.target.value, roadmap.endDate));
+                  }}
+                  className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
+                />
+                <span className="text-[12px] text-faint">–</span>
+                <input
+                  type="date"
+                  defaultValue={roadmap.endDate}
+                  aria-label="Enddatum"
+                  onBlur={(e) => {
+                    if (e.target.value && e.target.value !== roadmap.endDate)
+                      run(() => updateRoadmapRangeAction(roadmap.id, roadmap.startDate, e.target.value));
+                  }}
+                  className="rounded-[7px] border border-edge bg-field px-2 py-1 text-[12px] text-mid"
+                />
+              </div>
+            ) : (
+              <span className="text-[12px] text-faint">
+                {formatDay(roadmap.startDate)} – {formatDay(roadmap.endDate)}
+              </span>
+            )}
+            {statusStale && (
+              <span className="text-[11.5px] text-warn" title="Jira nicht erreichbar — angezeigte Status können veraltet sein">
+                Status evtl. veraltet
+              </span>
+            )}
+            {!isModerator && !present && (
+              <span className="text-[11.5px] text-faint" title="Zum Bearbeiten die Moderator-Rolle im Profil (unten links) aktivieren">
+                Nur-Lese-Ansicht
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="rm-facts">
+          <div className="rm-fact"><b>{facts.tickets}</b><span>Tickets</span></div>
+          <div className="rm-fact"><b>{facts.done}</b><span>Erledigt</span></div>
+          <div className="rm-fact"><b>{facts.sp}</b><span>Story Points</span></div>
+          <div className="rm-fact"><b>{facts.blocks}</b><span>Blöcke</span></div>
         </div>
       </div>
 
@@ -380,328 +354,200 @@ export function RoadmapEditor({
         </div>
       )}
 
-      <div className="items-start">
-        <div className="min-w-0 flex-1 overflow-x-auto pb-2">
-          <div style={{ minWidth: LANE_LABEL_WIDTH + monthCount * 56 }}>
-            {/* Kopfzeile: Quartale + Monate */}
-            <div className="grid" style={{ gridTemplateColumns: `${LANE_LABEL_WIDTH}px 1fr` }}>
-              <div />
-              <div>
-                <div className="grid" style={columnsStyle}>
-                  {quarters.map((q) => (
-                    <div
-                      key={q.label}
-                      style={{ gridColumn: `span ${q.span}` }}
-                      className="border-l border-edge px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-faint"
-                    >
-                      {q.label}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid border-b border-edge" style={columnsStyle} ref={gridRef}>
-                  {columns.map((c, i) => (
-                    <div
-                      key={c.key}
-                      className={`border-l border-edge px-1.5 py-0.5 text-[10.5px] ${
-                        i === todayIndex ? "font-semibold text-accent" : "text-faint"
-                      }`}
-                    >
-                      {c.label}
-                      {i === todayIndex && " ·"}
-                    </div>
-                  ))}
-                </div>
-                <div className="relative grid h-6" style={columnsStyle}>
-                  {roadmap.milestones.map((m) => {
-                    const idx = monthDiff(roadmap.startMonth, m.month);
-                    const col = Math.min(Math.max(idx, 0), monthCount - 1);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={isModerator ? () => setMilestoneDialog({ milestone: m }) : undefined}
-                        title={`${m.title} (${m.month})`}
-                        style={{ gridColumn: col + 1, color: m.color }}
-                        className={`flex items-center gap-1 overflow-hidden whitespace-nowrap text-[10px] ${isModerator ? "cursor-pointer" : ""}`}
-                      >
-                        <span className="flex-none">◆</span>
-                        <span className="truncate">{m.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Bahnen */}
-            {roadmap.lanes.map((lane, laneIndex) => {
-              const laneItems = items.filter((i) => i.laneId === lane.id);
-              const bars = laneItems.map((item) => {
-                const raw = barGeometry(roadmap.startMonth, monthCount, item.startMonth, item.endMonth);
-                // Komplett außerhalb: als 1-Monats-Marker am nächstgelegenen Rand rendern,
-                // damit der Eintrag klickbar bleibt (Dialog kann den Zeitraum korrigieren).
-                const geo =
-                  raw ??
-                  (monthDiff(roadmap.startMonth, item.endMonth) < 0
-                    ? { start: 0, span: 1, clippedLeft: true, clippedRight: false }
-                    : { start: monthCount - 1, span: 1, clippedLeft: false, clippedRight: true });
-                return { item, geo };
-              });
-              const { rowById, rowCount } = stackBars(
-                bars.map((b) => ({
-                  id: b.item.id,
-                  start: b.geo.start,
-                  end: b.geo.start + b.geo.span - 1,
-                  position: b.item.position,
-                })),
-              );
-              return (
-                <div
-                  key={lane.id}
-                  className="grid border-b border-edge/60"
-                  style={{ gridTemplateColumns: `${LANE_LABEL_WIDTH}px 1fr` }}
-                >
-                  <div className="flex flex-col gap-1 py-1 pr-2">
-                    <div className="flex items-center gap-1">
-                      {isModerator ? (
-                        <>
-                          <input
-                            type="text"
-                            defaultValue={lane.name}
-                            aria-label={`Bahn ${lane.name} umbenennen`}
-                            onBlur={(e) => {
-                              if (e.target.value.trim() && e.target.value !== lane.name)
-                                run(() => renameLaneAction(lane.id, e.target.value));
-                            }}
-                            className="min-w-0 flex-1 rounded-[6px] border border-transparent bg-transparent px-1.5 py-0.5 text-[12.5px] text-mid hover:border-edge focus:border-edge focus:bg-field"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => run(() => moveLaneAction(lane.id, -1))}
-                            disabled={laneIndex === 0}
-                            aria-label={`Bahn ${lane.name} nach oben`}
-                            className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => run(() => moveLaneAction(lane.id, 1))}
-                            disabled={laneIndex === roadmap.lanes.length - 1}
-                            aria-label={`Bahn ${lane.name} nach unten`}
-                            className="rounded px-1 text-[11px] text-faint hover:text-fg disabled:opacity-30"
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLaneToDelete({ id: lane.id, name: lane.name, count: laneItems.length })}
-                            aria-label={`Bahn ${lane.name} löschen`}
-                            className="rounded px-1 text-[11px] text-faint hover:text-danger"
-                          >
-                            ✕
-                          </button>
-                        </>
-                      ) : (
-                        <span className="min-w-0 flex-1 truncate px-1.5 py-0.5 text-[12.5px] text-mid">{lane.name}</span>
-                      )}
-                    </div>
-                    {(() => {
-                      const p = laneProgress(items.filter((i) => i.laneId === lane.id));
-                      return (
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-[#23262b]">
-                            <div style={{ width: `${p.donePct}%`, backgroundColor: PROGRESS_COLORS.done }} />
-                            <div style={{ width: `${p.inProgressPct}%`, backgroundColor: PROGRESS_COLORS.inProgress }} />
-                          </div>
-                          <span className="flex-none font-mono text-[9.5px] text-faint">
-                            {p.done}/{p.total} SP
-                          </span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div
-                    ref={(el) => {
-                      if (el) laneRefs.current.set(lane.id, el);
-                      else laneRefs.current.delete(lane.id);
-                    }}
-                    onDragOver={(e) => {
-                      if (e.dataTransfer.types.includes(DRAG_MIME)) e.preventDefault();
-                    }}
-                    onDrop={(e) => onDropIssue(e, lane.id)}
-                    className="relative grid py-1"
-                    style={{ ...columnsStyle, gridAutoRows: ROW_HEIGHT }}
-                  >
-                    {todayIndex >= 0 && todayIndex < monthCount && (
-                      <div
-                        className="pointer-events-none border-l border-dashed border-accent/50"
-                        style={{ gridColumn: todayIndex + 1, gridRow: `1 / ${rowCount + 1}` }}
-                      />
-                    )}
-                    {roadmap.milestones.map((m) => {
-                      const idx = monthDiff(roadmap.startMonth, m.month);
-                      if (idx < 0 || idx >= monthCount) return null;
-                      return (
-                        <div
-                          key={m.id}
-                          className="pointer-events-none border-l border-dashed"
-                          style={{ gridColumn: idx + 1, gridRow: `1 / ${rowCount + 1}`, borderColor: m.color, opacity: 0.5 }}
-                        />
-                      );
-                    })}
-                    {bars.map(({ item, geo }) => {
-                      const itemLabels = roadmap.labels.filter((l) => item.labelIds.includes(l.id));
-                      return (
-                        <div
-                          key={item.id}
-                          onPointerDown={isModerator ? (e) => startDrag(e, item, "move") : undefined}
-                          onClick={isModerator ? undefined : () => setDialogItemId(item.id)}
-                          title={`${item.title} (${item.startMonth} – ${item.endMonth})`}
-                          style={{ gridColumn: `${geo.start + 1} / span ${geo.span}`, gridRow: rowById[item.id] + 1 }}
-                          className={`group relative m-[2px] flex select-none flex-col gap-0.5 overflow-hidden rounded-[7px] border px-2 py-1 text-[11.5px] ${isModerator ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${barClasses(item.statusCategory)} ${drag?.itemId === item.id ? "ring-1 ring-accent" : ""}`}
-                        >
-                          {isModerator && (
-                            <span
-                              onPointerDown={(e) => {
-                                e.stopPropagation();
-                                startDrag(e, item, "resize-left");
-                              }}
-                              className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                            />
-                          )}
-                          <div className="flex items-center gap-1.5 overflow-hidden">
-                            {geo.clippedLeft && <span className="flex-none">◂</span>}
-                            <span className="flex-none font-mono text-[9px] uppercase tracking-[0.08em] opacity-70">
-                              {typeBadge(item)}
-                            </span>
-                            {item.jiraKey && <span className="flex-none font-mono text-[9.5px] text-link">{item.jiraKey}</span>}
-                            {item.storyPoints > 0 && (
-                              <span className="flex-none font-mono text-[9.5px] text-faint">{item.storyPoints} SP</span>
-                            )}
-                            {item.assignee && <span className="ml-auto flex-none truncate text-[9.5px] text-faint">👤 {item.assignee}</span>}
-                            {geo.clippedRight && <span className="flex-none">▸</span>}
-                          </div>
-                          <span className="min-w-0 flex-1 truncate font-medium leading-tight">{item.title}</span>
-                          {itemLabels.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {itemLabels.map((l) => (
-                                <span
-                                  key={l.id}
-                                  className="rounded-[4px] px-1 text-[9px] leading-[14px] text-white"
-                                  style={{ backgroundColor: l.color }}
-                                >
-                                  {l.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {isModerator && (
-                            <span
-                              onPointerDown={(e) => {
-                                e.stopPropagation();
-                                startDrag(e, item, "resize-right");
-                              }}
-                              className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 group-hover:bg-accent/40"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+      <div>
+        <div className="rm-toolbar">
+          <div className="rm-seg hidepres" role="group" aria-label="Zoom">
+            {zoomButtons.map((z) => (
+              <button key={z.key} type="button" aria-pressed={zoom === z.key} onClick={() => setZoom(z.key)}>
+                {z.label}
+              </button>
+            ))}
           </div>
+          <div className="rm-tsep hidepres" />
+          <button type="button" className="rm-btn hidepres" onClick={collapseAll}>Alles einklappen</button>
+          <button type="button" className="rm-btn hidepres" onClick={expandAll}>Alles ausklappen</button>
+          <button type="button" className="rm-btn hidepres" aria-pressed={showDeps} onClick={() => setShowDeps((v) => !v)}>
+            Abhängigkeiten
+          </button>
+          {isModerator && (
+            <>
+              <div className="rm-tsep hidepres" />
+              <button type="button" className="rm-btn hidepres" onClick={() => setBlockDialog({ block: null, parentId: null })}>
+                + Block
+              </button>
+              <button type="button" className="rm-btn hidepres" onClick={() => setGoalDialogOpen(true)}>+ Ziel</button>
+              <button type="button" className="rm-btn hidepres" onClick={() => setMilestoneDialog({ milestone: null })}>
+                + Meilenstein
+              </button>
+              <button type="button" className="rm-btn hidepres" onClick={() => setPanelOpen((v) => !v)} title="Tickets aus Jira hinzufügen">
+                ⧉ Tickets
+              </button>
+              <button type="button" className="rm-btn hidepres" onClick={() => setLanesDialogOpen(true)}>Streams</button>
+              <button type="button" className="rm-btn hidepres" onClick={() => setLabelsDialogOpen(true)}>Labels</button>
+              <button type="button" className="rm-btn danger hidepres" onClick={() => setConfirmRoadmapDelete(true)}>
+                Löschen
+              </button>
+            </>
+          )}
+          <div className="rm-spacer" />
+          <div className="rm-legend hidepres">
+            <span><i style={{ background: "var(--open)" }} />Offen</span>
+            <span><i style={{ background: "var(--wip)" }} />In Bearbeitung</span>
+            <span><i style={{ background: "var(--ok)" }} />Ausgeführt</span>
+          </div>
+          <button type="button" className="rm-btn" aria-pressed={present} onClick={togglePresent}>
+            Präsentationsmodus
+          </button>
         </div>
 
-        {isModerator && panelOpen && (
-          <RoadmapSidePanel
-            sprintIssues={sprintIssues}
-            containedKeys={containedKeys}
-            onClose={() => setPanelOpen(false)}
-            onAdd={(issue) => {
-              const firstLane = roadmap.lanes[0];
-              if (firstLane) addIssueAt(issue, firstLane.id, currentMonth);
-            }}
-          />
-        )}
+        <RoadmapBoard
+          roadmap={roadmap}
+          items={items}
+          zoom={zoom}
+          present={present}
+          showDeps={showDeps}
+          open={open}
+          selectedItemId={selectedItemId}
+          isModerator={isModerator && !present}
+          onToggle={toggle}
+          onSelectItem={setSelectedItemId}
+          onMoveItem={moveItem}
+          onShiftBlock={shiftBlock}
+          onMoveBlock={moveBlock}
+          onDropIssue={addIssue}
+          onEditBlock={(id) => {
+            const block = roadmap.blocks.find((b) => b.id === id);
+            if (block) setBlockDialog({ block, parentId: block.parentId });
+          }}
+          onEditMilestone={(m) => setMilestoneDialog({ milestone: m })}
+        />
       </div>
 
-      {dialogItem && (
-        <RoadmapItemDialog
-          item={dialogItem}
-          lanes={lanes}
+      {isModerator && panelOpen && (
+        <RoadmapSidePanel
+          sprintIssues={sprintIssues}
+          containedKeys={containedKeys}
+          onClose={() => setPanelOpen(false)}
+          onAdd={(issue) => {
+            const firstLane = roadmap.lanes[0];
+            if (firstLane) addIssue(issue, firstLane.id, null, currentDay, addDays(currentDay, 13));
+          }}
+        />
+      )}
+
+      {selectedItem && !present && (
+        <RoadmapItemDrawer
+          key={selectedItem.id}
+          item={selectedItem}
+          lanes={roadmap.lanes}
+          blockOptions={options}
+          blockPath={blockPath(roadmap.blocks, selectedItem.blockId)}
           labels={roadmap.labels}
           pending={pending}
           error={error}
           readOnly={!isModerator}
-          onClose={() => setDialogItemId(null)}
+          onClose={() => setSelectedItemId(null)}
           onDelete={() => {
-            setDialogItemId(null);
-            setItems((prev) => prev.filter((i) => i.id !== dialogItem.id));
+            const gone: RoadmapItemView = selectedItem;
+            setSelectedItemId(null);
+            setItems((prev) => prev.filter((i) => i.id !== gone.id));
             run(
-              () => deleteItemAction(dialogItem.id),
-              () => setItems((prev) => [...prev, dialogItem]),
+              () => deleteItemAction(gone.id),
+              () => setItems((prev) => [...prev, gone]),
             );
           }}
-          onSavePlacement={(laneId, start, end) => {
-            setDialogItemId(null);
-            run(() => moveItemAction(dialogItem.id, laneId, start, end));
-          }}
-          onSaveGoal={(title, description, statusCategory, storyPoints) => {
-            setDialogItemId(null);
-            run(() => updateGoalAction(dialogItem.id, title, description, statusCategory, storyPoints));
-          }}
+          onSavePlacement={(placement) => moveItem(selectedItem.id, placement)}
+          onSaveGoal={(title, description, statusCategory, storyPoints) =>
+            run(() => updateGoalAction(selectedItem.id, title, description, statusCategory, storyPoints))
+          }
           onSaveLabels={(labelIds) => {
-            setItems((prev) => prev.map((i) => (i.id === dialogItem.id ? { ...i, labelIds } : i)));
-            run(() => setItemLabelsAction(dialogItem.id, labelIds));
+            setItems((prev) => prev.map((i) => (i.id === selectedItem.id ? { ...i, labelIds } : i)));
+            run(() => setItemLabelsAction(selectedItem.id, labelIds));
           }}
         />
       )}
 
       {goalDialogOpen && (
         <RoadmapGoalDialog
-          lanes={lanes}
-          defaultMonth={currentMonth}
+          lanes={roadmap.lanes}
+          blockOptions={options}
+          defaultDate={currentDay}
           pending={pending}
           error={error}
           onClose={() => setGoalDialogOpen(false)}
-          onCreate={(laneId, title, description, start, end, storyPoints) => {
+          onCreate={(laneId, blockId, title, description, start, end, storyPoints) => {
             setGoalDialogOpen(false);
-            run(() => addGoalAction(roadmap.id, laneId, title, description, start, end, storyPoints));
+            run(() => addGoalAction(roadmap.id, laneId, blockId, title, description, start, end, storyPoints));
           }}
         />
       )}
 
-      {lanePromptOpen && (
-        <RoadmapPromptDialog
-          title="Neue Bahn"
-          label="Name"
-          placeholder="z. B. Frontend"
-          confirmLabel="Anlegen"
+      {blockDialog && (
+        <RoadmapBlockDialog
+          block={blockDialog.block}
+          parentOptions={options}
+          defaultParentId={blockDialog.parentId}
           pending={pending}
-          onClose={() => setLanePromptOpen(false)}
-          onSubmit={(name) => {
-            setLanePromptOpen(false);
-            run(() => createLaneAction(roadmap.id, name));
+          error={error}
+          onClose={() => setBlockDialog(null)}
+          onCreate={(name, parentId, hue) => {
+            setBlockDialog(null);
+            run(() => createBlockAction(roadmap.id, name, parentId, hue));
           }}
+          onUpdate={(name, hue) => {
+            const block = blockDialog.block;
+            setBlockDialog(null);
+            if (block) run(() => updateBlockAction(block.id, name, hue));
+          }}
+          onDelete={() => {
+            const block = blockDialog.block;
+            setBlockDialog(null);
+            if (block) setBlockToDelete(block);
+          }}
+        />
+      )}
+
+      {blockToDelete && (
+        <RoadmapConfirmDialog
+          title="Block löschen"
+          message={`Block „${blockToDelete.name}" samt Unterblöcken löschen? Die Tickets bleiben erhalten und landen im Eingangskorb.`}
+          confirmLabel="Löschen"
+          pending={pending}
+          onClose={() => setBlockToDelete(null)}
+          onConfirm={() => {
+            const id = blockToDelete.id;
+            setBlockToDelete(null);
+            run(() => deleteBlockAction(id));
+          }}
+        />
+      )}
+
+      {lanesDialogOpen && (
+        <RoadmapLanesDialog
+          lanes={roadmap.lanes}
+          itemCountByLane={itemCountByLane}
+          pending={pending}
+          onClose={() => setLanesDialogOpen(false)}
+          onCreate={(name) => run(() => createLaneAction(roadmap.id, name))}
+          onRename={(id, name) => run(() => renameLaneAction(id, name))}
+          onMove={(id, direction) => run(() => moveLaneAction(id, direction))}
+          onDelete={(lane, count) => setLaneToDelete({ lane, count })}
         />
       )}
 
       {laneToDelete && (
         <RoadmapConfirmDialog
-          title="Bahn löschen"
+          title="Stream löschen"
           message={
             laneToDelete.count > 0
-              ? `Bahn „${laneToDelete.name}" mit ${laneToDelete.count} ${laneToDelete.count === 1 ? "Eintrag" : "Einträgen"} löschen? Die Einträge werden mitgelöscht.`
-              : `Bahn „${laneToDelete.name}" löschen?`
+              ? `Stream „${laneToDelete.lane.name}" mit ${laneToDelete.count} ${laneToDelete.count === 1 ? "Ticket" : "Tickets"} löschen? Die Tickets werden mitgelöscht.`
+              : `Stream „${laneToDelete.lane.name}" löschen?`
           }
           confirmLabel="Löschen"
           pending={pending}
           onClose={() => setLaneToDelete(null)}
           onConfirm={() => {
-            const id = laneToDelete.id;
+            const id = laneToDelete.lane.id;
             setLaneToDelete(null);
             run(() => deleteLaneAction(id));
           }}
@@ -711,7 +557,7 @@ export function RoadmapEditor({
       {confirmRoadmapDelete && (
         <RoadmapConfirmDialog
           title="Roadmap löschen"
-          message={`Roadmap „${roadmap.name}" mit allen Bahnen und Einträgen wirklich löschen?`}
+          message={`Roadmap „${roadmap.name}" mit allen Blöcken, Streams und Einträgen wirklich löschen?`}
           confirmLabel="Löschen"
           pending={pending}
           onClose={() => setConfirmRoadmapDelete(false)}
@@ -743,17 +589,17 @@ export function RoadmapEditor({
       {milestoneDialog && (
         <RoadmapMilestoneDialog
           milestone={milestoneDialog.milestone}
-          defaultMonth={currentMonth}
+          defaultDate={currentDay}
           pending={pending}
           error={error}
           onClose={() => setMilestoneDialog(null)}
-          onSubmit={(title, month, color) => {
+          onSubmit={(title, date, color) => {
             const existing = milestoneDialog.milestone;
             setMilestoneDialog(null);
             run(() =>
               existing
-                ? updateMilestoneAction(existing.id, title, month, color)
-                : createMilestoneAction(roadmap.id, title, month, color),
+                ? updateMilestoneAction(existing.id, title, date, color)
+                : createMilestoneAction(roadmap.id, title, date, color),
             );
           }}
           onDelete={() => {

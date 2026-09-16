@@ -30,6 +30,8 @@ export interface JiraSearchResult {
   summary: string;
   issueType: string;
   status: string;
+  /** Jira-Statuskategorie ("new" | "indeterminate" | "done") */
+  statusCategory: "new" | "indeterminate" | "done";
   /** Beschreibung als gekürzter Klartext (aus ADF). */
   description: string;
   /** Aktuelle Schätzung (null = unbewertet). */
@@ -46,6 +48,8 @@ export interface JiraIssueStatus {
   statusCategory: "new" | "indeterminate" | "done";
   storyPoints: number;
   assignee: string | null;
+  /** Keys der Tickets, die dieses Ticket blockieren (Issue-Links „is blocked by") */
+  blockedBy: string[];
 }
 
 export interface JiraClient {
@@ -62,6 +66,13 @@ export interface JiraClient {
   fetchBacklogUnestimated(boardId: string): Promise<JiraSearchResult[]>;
   /** Status-Batch für die Roadmap: Summary, Typ und Status-Kategorie je Key. */
   getIssuesByKeys(keys: string[]): Promise<JiraIssueStatus[]>;
+}
+
+/** Inward-Links vom Typ „blocks" (Jira: „is blocked by") → Keys der Blocker. */
+function blockedByKeys(raw: JiraIssueRaw): string[] {
+  return (raw.fields.issuelinks ?? [])
+    .filter((l) => l.inwardIssue && /block/i.test(l.type.inward))
+    .map((l) => l.inwardIssue!.key);
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
@@ -109,7 +120,7 @@ export class JiraCloudClient implements JiraClient {
     for (let i = 0; i < keys.length; i += 50) {
       const chunk = keys.slice(i, i + 50);
       const jql = `key in (${chunk.map((k) => `"${k}"`).join(",")})`;
-      const fields = ["summary", "status", "issuetype", "assignee", this.config.storyPointsField].join(",");
+      const fields = ["summary", "status", "issuetype", "assignee", "issuelinks", this.config.storyPointsField].join(",");
       const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
         `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=50&fields=${fields}`,
       );
@@ -123,6 +134,7 @@ export class JiraCloudClient implements JiraClient {
           statusCategory: raw.fields.status.statusCategory.key,
           storyPoints: typeof points === "number" ? points : 0,
           assignee: raw.fields.assignee?.displayName ?? null,
+          blockedBy: blockedByKeys(raw),
         });
       }
     }
@@ -136,6 +148,7 @@ export class JiraCloudClient implements JiraClient {
       summary: raw.fields.summary,
       issueType: raw.fields.issuetype?.name ?? "",
       status: raw.fields.status.name,
+      statusCategory: raw.fields.status.statusCategory.key,
       description: adfToText(raw.fields.description),
       storyPoints: typeof points === "number" ? points : null,
       url: `${this.config.baseUrl.replace(/\/$/, "")}/browse/${raw.key}`,

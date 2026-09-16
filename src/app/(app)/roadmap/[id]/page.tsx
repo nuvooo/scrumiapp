@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getRoadmap } from "@/lib/repositories/roadmapRepository";
-import { monthKey } from "@/lib/view/roadmapGrid";
-import { RoadmapEditor, type RoadmapView } from "@/components/roadmap/RoadmapEditor";
-import type { RoadmapItemView } from "@/components/roadmap/RoadmapItemDialog";
+import { dayKey } from "@/lib/view/roadmapDays";
+import { RoadmapEditor } from "@/components/roadmap/RoadmapEditor";
+import type { RoadmapItemView, RoadmapView } from "@/components/roadmap/types";
 import type { SidePanelIssue } from "@/components/roadmap/RoadmapSidePanel";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export default async function RoadmapEditorPage({
 
   const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
 
-  // Seitenleiste: Board-Tickets des aktiven und der geplanten Sprints, dedupliziert.
+  // Offcanvas: Board-Tickets des aktiven und der geplanten Sprints, dedupliziert.
   const sprints = await prisma.sprint.findMany({
     where: { teamId: roadmap.teamId, state: { in: ["ACTIVE", "FUTURE"] } },
     include: { issues: { orderBy: { jiraKey: "asc" } } },
@@ -62,40 +62,36 @@ export default async function RoadmapEditorPage({
     }
   }
 
-  const items: RoadmapItemView[] = roadmap.lanes.flatMap((lane) =>
-    lane.items.map((item) => ({
-      id: item.id,
-      laneId: lane.id,
-      jiraKey: item.jiraKey,
-      issueType: item.issueType,
-      title: item.title,
-      description: item.description,
-      startMonth: monthKey(item.startMonth),
-      endMonth: monthKey(item.endMonth),
-      statusCategory: item.statusCategory,
-      statusLabel: item.statusLabel,
-      position: item.position,
-      url: item.jiraKey && jiraBase ? `${jiraBase}/browse/${item.jiraKey}` : null,
-      storyPoints: item.storyPoints,
-      assignee: item.assignee,
-      labelIds: item.labels.map((l) => l.id),
-    })),
-  );
+  const items: RoadmapItemView[] = roadmap.items.map((item) => ({
+    id: item.id,
+    laneId: item.laneId,
+    blockId: item.blockId,
+    jiraKey: item.jiraKey,
+    issueType: item.issueType,
+    title: item.title,
+    description: item.description,
+    startDate: dayKey(item.startDate),
+    endDate: dayKey(item.endDate),
+    statusCategory: item.statusCategory,
+    statusLabel: item.statusLabel,
+    position: item.position,
+    url: item.jiraKey && jiraBase ? `${jiraBase}/browse/${item.jiraKey}` : null,
+    storyPoints: item.storyPoints,
+    assignee: item.assignee,
+    blockedBy: item.blockedBy,
+    labelIds: item.labels.map((l) => l.id),
+  }));
 
   const view: RoadmapView = {
     id: roadmap.id,
     name: roadmap.name,
-    startMonth: monthKey(roadmap.startMonth),
-    endMonth: monthKey(roadmap.endMonth),
+    startDate: dayKey(roadmap.startDate),
+    endDate: dayKey(roadmap.endDate),
     lanes: roadmap.lanes.map((l) => ({ id: l.id, name: l.name })),
+    blocks: roadmap.blocks.map((b) => ({ id: b.id, parentId: b.parentId, name: b.name, hue: b.hue, position: b.position })),
     items,
     labels: roadmap.labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
-    milestones: roadmap.milestones.map((m) => ({
-      id: m.id,
-      title: m.title,
-      month: monthKey(m.month),
-      color: m.color,
-    })),
+    milestones: roadmap.milestones.map((m) => ({ id: m.id, title: m.title, date: dayKey(m.date), color: m.color })),
   };
 
   return (

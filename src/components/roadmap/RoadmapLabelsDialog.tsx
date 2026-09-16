@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ROADMAP_PALETTE } from "./itemColors";
-import type { LabelView } from "./RoadmapItemDialog";
+import type { LabelView } from "./types";
 
 /** Palette-Verwaltung: Labels anlegen, umbenennen, färben, löschen. */
 export function RoadmapLabelsDialog({

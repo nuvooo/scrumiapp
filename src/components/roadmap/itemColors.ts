@@ -1,5 +1,6 @@
-/** Statusfarben und Typ-Badges der Roadmap-Balken (Editor + Gesamtübersicht). */
+/** Farben und Badges der Roadmap (Editor + Gesamtübersicht). */
 
+/** Statusfarben der Übersichts-Balken (Tailwind-Klassen). */
 export function barClasses(statusCategory: string | null): string {
   if (statusCategory === "done") return "border-[#2a4a33] bg-[#0e1d13] text-ok";
   if (statusCategory === "indeterminate") return "border-[#24404a] bg-[#0a1418] text-link";
@@ -22,6 +23,25 @@ export const ROADMAP_PALETTE = [
   "#c47ba0", // rosa
   "#7f8896", // grau
 ] as const;
+
+/** Farbtöne (HSL-Hue) für Blöcke; „erben" ist null. */
+export const BLOCK_HUES: { hue: number; name: string }[] = [
+  { hue: 212, name: "Blau" },
+  { hue: 262, name: "Violett" },
+  { hue: 318, name: "Magenta" },
+  { hue: 168, name: "Türkis" },
+  { hue: 140, name: "Grün" },
+  { hue: 28, name: "Orange" },
+  { hue: 0, name: "Rot" },
+  { hue: 48, name: "Gelb" },
+];
+
+/** Farbtöne der Stream-Avatare, nach Stream-Index. */
+export const LANE_HUES = [212, 150, 28, 300, 190, 60] as const;
+
+export function laneHue(index: number): number {
+  return LANE_HUES[index % LANE_HUES.length];
+}
 
 /** Hintergrund-/Textfarben der Fortschrittssegmente (inline styles, da dynamisch). */
 export const PROGRESS_COLORS = {

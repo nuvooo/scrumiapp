@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { ROADMAP_PALETTE } from "./itemColors";
-import type { MilestoneView } from "./RoadmapEditor";
+import type { MilestoneView } from "./types";
 
-/** Meilenstein anlegen oder bearbeiten. */
+/** Meilenstein anlegen oder bearbeiten (tagesgenau). */
 export function RoadmapMilestoneDialog({
   milestone,
-  defaultMonth,
+  defaultDate,
   pending,
   error,
   onClose,
@@ -15,16 +15,17 @@ export function RoadmapMilestoneDialog({
   onDelete,
 }: {
   milestone: MilestoneView | null;
-  defaultMonth: string;
+  /** "YYYY-MM-DD" */
+  defaultDate: string;
   pending: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (title: string, month: string, color: string) => void;
+  onSubmit: (title: string, date: string, color: string) => void;
   onDelete: () => void;
 }) {
   const [title, setTitle] = useState(milestone?.title ?? "");
-  const [month, setMonth] = useState(milestone?.month ?? defaultMonth);
-  const [color, setColor] = useState<string>(milestone?.color ?? ROADMAP_PALETTE[4]);
+  const [date, setDate] = useState(milestone?.date ?? defaultDate);
+  const [color, setColor] = useState<string>(milestone?.color ?? ROADMAP_PALETTE[2]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -37,16 +38,16 @@ export function RoadmapMilestoneDialog({
             value={title}
             autoFocus
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="z. B. Release 1.0"
+            placeholder="z. B. Release Cockpit 2.0"
             className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"
           />
         </label>
         <label className="mt-3 block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Monat</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Datum</span>
           <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
             className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"
           />
         </label>
@@ -83,8 +84,8 @@ export function RoadmapMilestoneDialog({
             </button>
             <button
               type="button"
-              disabled={pending || !title.trim()}
-              onClick={() => onSubmit(title.trim(), month, color)}
+              disabled={pending || !title.trim() || !date}
+              onClick={() => onSubmit(title.trim(), date, color)}
               className="btn-primary px-3.5 py-[7px] disabled:opacity-40"
             >
               Speichern

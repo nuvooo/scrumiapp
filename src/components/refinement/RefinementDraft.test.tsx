@@ -13,8 +13,8 @@ const handlers = {
   onLoadBacklog: vi.fn(async () => ({
     ok: true,
     data: [
-      { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-20" },
-      { jiraKey: "AB-21", summary: "Backlog zwei", issueType: "Bug", status: "Backlog", description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-21" },
+      { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", statusCategory: "new" as const, description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-20" },
+      { jiraKey: "AB-21", summary: "Backlog zwei", issueType: "Bug", status: "Backlog", statusCategory: "new" as const, description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-21" },
     ],
   })),
   onAdd: vi.fn(),
@@ -92,7 +92,7 @@ describe("RefinementDraft", () => {
   it("zieht ein Backlog-Ticket per Drag & Drop in die Auswahl", async () => {
     render(<RefinementDraft tickets={tickets} isAdmin {...handlers} />);
     await waitFor(() => expect(screen.getByTestId("backlog-grid")).toBeInTheDocument());
-    const ticket = { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-20" };
+    const ticket = { jiraKey: "AB-20", summary: "Backlog eins", issueType: "Story", status: "Backlog", statusCategory: "new" as const, description: "", storyPoints: null, url: "https://x.atlassian.net/browse/AB-20" };
     fireEvent.drop(screen.getByTestId("selected-panel"), {
       dataTransfer: {
         types: ["application/x-backlog-ticket"],

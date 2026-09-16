@@ -20,16 +20,16 @@ enum StatusCategory {
 }
 
 model Team {
-  id                  String   @id @default(cuid())
+  id                  String       @id @default(cuid())
   name                String
   jiraBoardId         String
-  syncIntervalMinutes Int      @default(60)
+  syncIntervalMinutes Int          @default(60)
   metricsSince        DateTime?
   /// Jira-Board-Spalten als JSON: [{ name, statuses: string[] }] (Status-Namen)
   boardColumns        String?
   lastSyncedAt        DateTime?
   lastSyncError       String?
-  createdAt           DateTime @default(now())
+  createdAt           DateTime     @default(now())
   sprints             Sprint[]
   members             TeamMember[]
   refinements         Refinement[]
@@ -38,8 +38,8 @@ model Team {
 }
 
 model Sprint {
-  id              String       @id @default(cuid())
-  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id              String          @id @default(cuid())
+  team            Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId          String
   jiraSprintId    String
   name            String
@@ -47,8 +47,8 @@ model Sprint {
   startDate       DateTime?
   endDate         DateTime?
   completeDate    DateTime?
-  committedPoints Float        @default(0)
-  completedPoints Float        @default(0)
+  committedPoints Float           @default(0)
+  completedPoints Float           @default(0)
   issues          Issue[]
   burndownPoints  BurndownPoint[]
   capacityEntries CapacityEntry[]
@@ -73,35 +73,35 @@ model CarryOverPlan {
 }
 
 model Issue {
-  id                   String         @id @default(cuid())
-  sprint               Sprint         @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  sprintId             String
-  jiraKey              String
-  summary              String
-  issueType            String         @default("")
-  storyPoints          Float          @default(0)
-  status               String
-  statusCategory       StatusCategory
-  resolvedAt           DateTime?
-  addedAfterSprintStart Boolean       @default(false)
+  id                    String         @id @default(cuid())
+  sprint                Sprint         @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId              String
+  jiraKey               String
+  summary               String
+  issueType             String         @default("")
+  storyPoints           Float          @default(0)
+  status                String
+  statusCategory        StatusCategory
+  resolvedAt            DateTime?
+  addedAfterSprintStart Boolean        @default(false)
   /// Sichtbar auf dem Jira-Board (Board-Filter + Spalten-Mapping)
-  onBoard              Boolean        @default(true)
+  onBoard               Boolean        @default(true)
   /// Anzeigename des Bearbeiters aus Jira (null = nicht zugewiesen)
-  assignee             String?
+  assignee              String?
   /// Zeitpunkt des letzten Status-Wechsels in Jira (null = noch nie gesynct)
-  statusSince          DateTime?
+  statusSince           DateTime?
 
   @@unique([sprintId, jiraKey])
 }
 
 model BurndownPoint {
-  id              String   @id @default(cuid())
-  sprint          Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  sprintId        String
-  date            DateTime
-  remainingPoints Float
-  completedPoints Float
-  remainingBugs   Int      @default(0)
+  id               String   @id @default(cuid())
+  sprint           Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sprintId         String
+  date             DateTime
+  remainingPoints  Float
+  completedPoints  Float
+  remainingBugs    Int      @default(0)
   remainingTickets Int      @default(0)
 
   @@unique([sprintId, date])
@@ -144,14 +144,14 @@ enum RefinementTicketState {
 }
 
 model Refinement {
-  id             String              @id @default(cuid())
-  team           Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id             String                  @id @default(cuid())
+  team           Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId         String
   name           String
-  state          RefinementState     @default(DRAFT)
+  state          RefinementState         @default(DRAFT)
   /// Gerade besprochenes Ticket (null = keines gewählt)
   activeTicketId String?
-  createdAt      DateTime            @default(now())
+  createdAt      DateTime                @default(now())
   tickets        RefinementTicket[]
   participants   RefinementParticipant[]
 }
@@ -298,19 +298,22 @@ model RetroVote {
 
 /// Roadmap: monatsgenaue Timeline pro Team. Monate als UTC-Monatserster.
 model Roadmap {
-  id         String        @id @default(cuid())
-  team       Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id         String             @id @default(cuid())
+  team       Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId     String
   name       String
-  startMonth DateTime
-  endMonth   DateTime
-  createdAt  DateTime      @default(now())
+  /// Sichtbarer Zeitraum, tagesgenau (UTC-Tag)
+  startDate  DateTime
+  endDate    DateTime
+  createdAt  DateTime           @default(now())
   lanes      RoadmapLane[]
+  blocks     RoadmapBlock[]
   items      RoadmapItem[]
   labels     RoadmapLabel[]
   milestones RoadmapMilestone[]
 }
 
+/// Spur/Stream (Frontend, Backend, UX …): je Block eine Zeile pro Spur mit Tickets.
 model RoadmapLane {
   id        String        @id @default(cuid())
   roadmap   Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
@@ -320,30 +323,53 @@ model RoadmapLane {
   items     RoadmapItem[]
 }
 
+/// Beliebig tief geschachtelter Block der Roadmap. Start/Ende werden aus den
+/// Tickets berechnet; Farbe entweder eigen (hue) oder vom Vorfahren geerbt.
+model RoadmapBlock {
+  id        String         @id @default(cuid())
+  roadmap   Roadmap        @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  roadmapId String
+  parent    RoadmapBlock?  @relation("BlockTree", fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String?
+  children  RoadmapBlock[] @relation("BlockTree")
+  name      String
+  /// HSL-Farbton 0–359; null = erbt vom nächsten Vorfahren
+  hue       Int?
+  /// Reihenfolge unter den Geschwistern
+  position  Int
+  items     RoadmapItem[]
+}
+
 /// Eintrag auf der Timeline. jiraKey null = eigenes Ziel; sonst Jira-Referenz —
 /// bewusst kein FK auf Issue, weil der Sync Issues per delete+create ersetzt.
 model RoadmapItem {
-  id             String      @id @default(cuid())
-  roadmap        Roadmap     @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  id             String         @id @default(cuid())
+  roadmap        Roadmap        @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   roadmapId      String
-  lane           RoadmapLane @relation(fields: [laneId], references: [id], onDelete: Cascade)
+  lane           RoadmapLane    @relation(fields: [laneId], references: [id], onDelete: Cascade)
   laneId         String
+  /// null = Eingangskorb (keinem Block zugeordnet)
+  block          RoadmapBlock?  @relation(fields: [blockId], references: [id], onDelete: SetNull)
+  blockId        String?
   jiraKey        String?
   /// Momentaufnahme aus Jira ("Epic", "Story", …); null bei eigenen Zielen
   issueType      String?
   title          String
   /// Nur für eigene Ziele
   description    String?
-  startMonth     DateTime
-  endMonth       DateTime
+  /// Tagesgenau (UTC-Tag), inklusive
+  startDate      DateTime
+  endDate        DateTime
   /// "new" | "indeterminate" | "done"; Jira-Items: beim Öffnen aufgefrischt, Ziele: manuell
   statusCategory String?
   statusLabel    String?
   storyPoints    Float          @default(0)
   /// Anzeigename des Bearbeiters aus Jira (null bei eigenen Zielen)
   assignee       String?
+  /// Jira-Keys, die dieses Ticket blockieren (Issue-Links „is blocked by")
+  blockedBy      String[]       @default([])
   labels         RoadmapLabel[]
-  /// Stapel-Reihenfolge innerhalb der Bahn
+  /// Stapel-Reihenfolge innerhalb der Spur
   position       Int
 }
 
@@ -359,14 +385,14 @@ model RoadmapLabel {
   items     RoadmapItem[]
 }
 
-/// Roadmap-weiter Zeitpunkt-Marker (vertikale Linie über alle Bahnen).
+/// Roadmap-weiter Zeitpunkt-Marker (Raute + vertikale Linie über alle Blöcke).
 model RoadmapMilestone {
   id        String   @id @default(cuid())
   roadmap   Roadmap  @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
   roadmapId String
   title     String
-  /// UTC-Monatserster
-  month     DateTime
+  /// UTC-Tag
+  date      DateTime
   /// Hex-Farbe aus fester Palette
   color     String
 }
