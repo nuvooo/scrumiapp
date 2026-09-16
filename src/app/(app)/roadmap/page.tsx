@@ -21,9 +21,9 @@ export default async function RoadmapOverviewPage({
 
   const roadmaps = await listRoadmaps(teamId);
 
-  // Gemeinsame Zeitachse: frühester Start- bis spätester Endmonat aller Roadmaps.
-  const startKeys = roadmaps.map((r) => monthKey(r.startMonth));
-  const endKeys = roadmaps.map((r) => monthKey(r.endMonth));
+  // Gemeinsame Zeitachse (monatsweise): frühester Start- bis spätester Endmonat aller Roadmaps.
+  const startKeys = roadmaps.map((r) => monthKey(r.startDate));
+  const endKeys = roadmaps.map((r) => monthKey(r.endDate));
   const gridStart = startKeys.length ? startKeys.reduce((a, b) => (a < b ? a : b)) : monthKey(new Date());
   const gridEnd = endKeys.length ? endKeys.reduce((a, b) => (a > b ? a : b)) : gridStart;
   const columns = monthColumns(gridStart, gridEnd);
@@ -75,18 +75,17 @@ export default async function RoadmapOverviewPage({
             </div>
 
             {roadmaps.map((roadmap) => {
-              const items = roadmap.lanes.flatMap((lane, laneIndex) =>
-                lane.items.map((item) => ({ item, sortKey: laneIndex * 1000 + item.position })),
-              );
-              const bars = items
-                .map(({ item, sortKey }) => {
-                  const geo = barGeometry(gridStart, columns.length, monthKey(item.startMonth), monthKey(item.endMonth));
-                  return geo ? { item, geo, sortKey } : null;
+              const laneIndex = new Map(roadmap.lanes.map((l, i) => [l.id, i]));
+              const bars = roadmap.items
+                .map((item) => {
+                  const geo = barGeometry(gridStart, columns.length, monthKey(item.startDate), monthKey(item.endDate));
+                  return geo ? { item, geo, sortKey: (laneIndex.get(item.laneId) ?? 0) * 1000 + item.position } : null;
                 })
                 .filter((b): b is NonNullable<typeof b> => b !== null);
               const { rowById, rowCount } = stackBars(
                 bars.map((b) => ({ id: b.item.id, start: b.geo.start, end: b.geo.start + b.geo.span - 1, position: b.sortKey })),
               );
+              const totalSp = roadmap.items.reduce((s, i) => s + i.storyPoints, 0);
               return (
                 <div key={roadmap.id} className="mt-3">
                   <Link
@@ -96,11 +95,7 @@ export default async function RoadmapOverviewPage({
                     {roadmap.name}
                     {" · "}
                     <span className="font-mono text-[11.5px] text-faint">
-                      {roadmap.lanes.reduce(
-                        (sum, l) => sum + l.items.reduce((s, i) => s + i.storyPoints, 0),
-                        0,
-                      )}{" "}
-                      SP
+                      {roadmap.blocks.length} {roadmap.blocks.length === 1 ? "Block" : "Blöcke"} · {roadmap.items.length} Tickets · {totalSp} SP
                     </span>
                     {" →"}
                   </Link>

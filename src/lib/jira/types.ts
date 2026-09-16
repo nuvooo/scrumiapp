@@ -28,6 +28,18 @@ export interface JiraChangelog {
   histories: JiraChangelogHistory[];
 }
 
+export interface JiraIssueLinkRaw {
+  type: { name: string; inward: string; outward: string };
+  inwardIssue?: { key: string };
+  outwardIssue?: { key: string };
+}
+
+export interface JiraIssueLinkRaw {
+  type: { name: string; inward: string; outward: string };
+  inwardIssue?: { key: string };
+  outwardIssue?: { key: string };
+}
+
 export interface JiraIssueRaw {
   key: string;
   changelog?: JiraChangelog;
@@ -39,6 +51,8 @@ export interface JiraIssueRaw {
     parent?: { key: string };
     assignee?: { displayName?: string } | null;
     created?: string;
+    /** Issue-Links (Roadmap-Abhängigkeiten: „is blocked by") */
+    issuelinks?: JiraIssueLinkRaw[];
     [storyPointsField: string]: unknown;
   };
 }

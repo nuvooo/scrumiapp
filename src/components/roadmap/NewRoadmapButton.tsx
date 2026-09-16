@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createRoadmapAction } from "@/app/(app)/roadmap/actions";
-import { monthKey, addMonths } from "@/lib/view/roadmapGrid";
+import { dayKey, addDays } from "@/lib/view/roadmapDays";
 import { useIsRoadmapModerator } from "./useRoadmapRole";
 
 export function NewRoadmapButton({ teamId }: { teamId: string }) {
@@ -11,8 +11,8 @@ export function NewRoadmapButton({ teamId }: { teamId: string }) {
   const isModerator = useIsRoadmapModerator();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [start, setStart] = useState(() => monthKey(new Date()));
-  const [end, setEnd] = useState(() => addMonths(monthKey(new Date()), 11));
+  const [start, setStart] = useState(() => dayKey(new Date()));
+  const [end, setEnd] = useState(() => addDays(dayKey(new Date()), 364));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -62,7 +62,7 @@ export function NewRoadmapButton({ teamId }: { teamId: string }) {
               <label className="flex-1">
                 <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Von</span>
                 <input
-                  type="month"
+                  type="date"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
                   className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"
@@ -71,7 +71,7 @@ export function NewRoadmapButton({ teamId }: { teamId: string }) {
               <label className="flex-1">
                 <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Bis</span>
                 <input
-                  type="month"
+                  type="date"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
                   className="mt-1 w-full rounded-[7px] border border-edge bg-field px-2.5 py-1.5 text-[13px] text-fg"

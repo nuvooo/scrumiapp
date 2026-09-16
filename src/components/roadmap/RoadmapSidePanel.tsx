@@ -35,13 +35,13 @@ function IssueRow({
         const panel = document.querySelector<HTMLElement>("[data-roadmap-offcanvas]");
         const backdrop = panel?.previousElementSibling as HTMLElement | null;
         if (panel) { panel.style.pointerEvents = "none"; panel.style.opacity = "0.35"; }
-        if (backdrop) backdrop.style.pointerEvents = "none";
+        if (backdrop) { backdrop.style.pointerEvents = "none"; backdrop.style.opacity = "0"; }
       }}
       onDragEnd={() => {
         const panel = document.querySelector<HTMLElement>("[data-roadmap-offcanvas]");
         const backdrop = panel?.previousElementSibling as HTMLElement | null;
         if (panel) { panel.style.pointerEvents = ""; panel.style.opacity = ""; }
-        if (backdrop) backdrop.style.pointerEvents = "";
+        if (backdrop) { backdrop.style.pointerEvents = ""; backdrop.style.opacity = ""; }
       }}
       className={`flex items-center gap-2 rounded-[8px] border border-edge bg-field px-2.5 py-1.5 ${
         contained ? "opacity-40" : "cursor-grab hover:border-accent/60"
@@ -58,7 +58,7 @@ function IssueRow({
         type="button"
         onClick={() => onAdd(issue)}
         disabled={contained}
-        title={contained ? "Bereits auf der Roadmap" : "In die erste Bahn einfügen"}
+        title={contained ? "Bereits auf der Roadmap" : "In den Eingangskorb legen (ab heute)"}
         className="flex-none rounded-md px-1.5 text-[13px] text-faint hover:bg-chip hover:text-link disabled:cursor-default disabled:hover:bg-transparent"
       >
         +
@@ -100,7 +100,7 @@ export function RoadmapSidePanel({
           summary: r.summary,
           issueType: r.issueType,
           statusLabel: r.status,
-          statusCategory: null,
+          statusCategory: r.statusCategory,
           storyPoints: r.storyPoints ?? 0,
           assignee: null,
         })),

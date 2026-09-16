@@ -248,7 +248,7 @@ describe("JiraCloudClient.searchIssues", () => {
     expect(decodeURIComponent(url as string)).toContain('text ~ "login flow" ORDER BY updated DESC');
     expect(url).toContain("maxResults=20");
     expect(results).toEqual([
-      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", description: "", storyPoints: 5, url: "https://example.atlassian.net/browse/AB-7" },
+      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", statusCategory: "new", description: "", storyPoints: 5, url: "https://example.atlassian.net/browse/AB-7" },
     ]);
   });
 
@@ -295,7 +295,7 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
     expect(url).toContain("cf[10016] is EMPTY");
     expect(url).toContain("statusCategory != Done");
     expect(results).toEqual([
-      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", description: "", storyPoints: null, url: "https://example.atlassian.net/browse/AB-30" },
+      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", statusCategory: "new", description: "", storyPoints: null, url: "https://example.atlassian.net/browse/AB-30" },
     ]);
   });
 
@@ -397,6 +397,11 @@ describe("JiraCloudClient.getIssuesByKeys", () => {
       issuetype: { name: "Epic" },
       assignee: { displayName: "Alice" },
       customfield_10016: 8,
+      issuelinks: [
+        { type: { name: "Blocks", inward: "is blocked by", outward: "blocks" }, inwardIssue: { key: "AB-0" } },
+        { type: { name: "Blocks", inward: "is blocked by", outward: "blocks" }, outwardIssue: { key: "AB-9" } },
+        { type: { name: "Relates", inward: "relates to", outward: "relates to" }, inwardIssue: { key: "AB-7" } },
+      ],
     },
   });
 
@@ -417,12 +422,14 @@ describe("JiraCloudClient.getIssuesByKeys", () => {
         statusCategory: "indeterminate",
         storyPoints: 8,
         assignee: "Alice",
+        blockedBy: ["AB-0"],
       },
     ]);
     const [url] = fetchMock.mock.calls[0];
     expect(url).toContain("/rest/api/3/search/jql?jql=");
     expect(decodeURIComponent(url)).toContain('key in ("AB-1")');
     expect(decodeURIComponent(url)).toContain("assignee");
+    expect(decodeURIComponent(url)).toContain("issuelinks");
   });
 
   it("teilt viele Keys in 50er-Blöcke auf", async () => {
