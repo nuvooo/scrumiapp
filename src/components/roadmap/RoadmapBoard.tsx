@@ -52,8 +52,11 @@ export function RoadmapBoard({
   showDeps,
   open,
   selectedItemId,
+  activeBlockId,
+  todayRequest,
   isModerator,
   onToggle,
+  onFocusBlock,
   onSelectItem,
   onMoveItem,
   onShiftBlock,
@@ -69,8 +72,13 @@ export function RoadmapBoard({
   showDeps: boolean;
   open: Set<string>;
   selectedItemId: string | null;
+  /** Zuletzt angeklickter Block (hervorgehoben; Kontext für „Hinzufügen“) */
+  activeBlockId: string | null;
+  /** Jede Änderung scrollt zum heutigen Tag */
+  todayRequest: number;
   isModerator: boolean;
   onToggle: (blockId: string) => void;
+  onFocusBlock: (blockId: string | null) => void;
   onSelectItem: (itemId: string | null) => void;
   onMoveItem: (itemId: string, placement: Placement) => void;
   onShiftBlock: (blockId: string, deltaDays: number, itemIds: string[]) => void;
@@ -136,6 +144,38 @@ export function RoadmapBoard({
     el.scrollLeft = Math.max(0, px(todayIndex) - 120);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // „Heute“-Button in der Werkzeugleiste: sanft zum heutigen Tag scrollen.
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!todayRequest || !el || todayIndex < 0) return;
+    el.scrollTo({ left: Math.max(0, px(todayIndex) - 120), behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayRequest]);
+
+  // Das Board füllt die freie Höhe bis zum unteren Rand des Viewports (statt
+  // einer festen Maximalhöhe): Fensterhöhe minus Oberkante des Boards minus
+  // unterer Innenabstand von <main>. Neu messen bei Resize und wenn sich der
+  // Kopfbereich darüber umbricht (Body-Größe ändert sich).
+  useLayoutEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const main = el.closest("main");
+    const update = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+      const h = Math.max(320, Math.floor(window.innerHeight - top - pad));
+      el.style.setProperty("--rm-board-h", `${h}px`);
+    };
+    update();
+    window.addEventListener("resize", update);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", update);
+      ro?.disconnect();
+    };
+  }, [present]);
 
   // Overlay: Höhe, Breite der linken Spalte und Abhängigkeitspfeile aus den gemessenen Balken.
   useLayoutEffect(() => {
@@ -537,14 +577,22 @@ export function RoadmapBoard({
           const dropClass =
             treeDrag && treeDrag.targetId === n.id && treeDrag.pos && treeDrag.pos !== "root" ? `drop${treeDrag.pos}` : ticketDrop ? "dropinto" : "";
           const srcClass = treeDrag?.blockId === n.id ? "srcdrag" : "";
+          const activeClass = !r.inbox && activeBlockId === n.id ? "active" : "";
           return (
             <div
               key={`block:${n.id}`}
-              className={`rm-row block lvl${Math.min(n.depth, 4)} ${r.groupFirst ? "grpfirst" : ""} ${dropClass} ${srcClass}`}
+              className={`rm-row block lvl${Math.min(n.depth, 4)} ${r.groupFirst ? "grpfirst" : ""} ${dropClass} ${srcClass} ${activeClass}`}
               data-blockid={r.inbox ? undefined : n.id}
               style={{ "--rh": n.effectiveHue } as React.CSSProperties}
             >
-              <div className="rm-cl" style={{ height: rowH }} onClick={() => onToggle(n.id)}>
+              <div
+                className="rm-cl"
+                style={{ height: rowH }}
+                onClick={() => {
+                  onToggle(n.id);
+                  onFocusBlock(r.inbox ? null : n.id);
+                }}
+              >
                 <div className="rm-tw" style={{ paddingLeft: IND(n.depth) }}>
                   {guides(n.depth)}
                   {isModerator && !r.inbox ? (
@@ -632,7 +680,7 @@ export function RoadmapBoard({
                     className="rm-nm"
                     style={{ position: "absolute", left: 10, top: 12, color: "var(--ink-3)", fontWeight: 400, fontSize: 11, marginLeft: 0 }}
                   >
-                    {r.inbox ? "" : "noch keine Tickets — per Drag hierher oder über „+ Ziel"}
+                    {r.inbox ? "" : "noch keine Tickets — per Drag hierher oder über „+ Hinzufügen“"}
                   </span>
                 )}
               </div>
