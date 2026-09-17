@@ -96,11 +96,20 @@ model RoadmapBlock {
 - `roadmap.css`: die Design-Styles (Farbtreppe per `--rh`, Balken per `--h`,
   Sticky-Linksspalte, Overlay) auf das dunkle App-Theme abgestimmt.
 - `RoadmapEditor.tsx`: Kopf mit Kennzahlen (Tickets, Erledigt, SP, Blöcke),
-  Werkzeugleiste (Zoom, Ein-/Ausklappen, Abhängigkeiten, Legende,
-  Präsentationsmodus, Moderator-Aktionen), Board mit Zeilen und SVG-Overlay
+  Werkzeugleiste (Stand 17.09.: „+ Hinzufügen“-Menü mit kontextabhängigen
+  Einträgen Projekt / Teilprojekt / Bereich / Ticket aus Jira / Ziel /
+  Meilenstein, Zoom, „Heute“-Sprung, Ein-/Ausklappen und Abhängigkeiten als
+  Icon-Buttons, rechts Einstellungs-Menü mit Streams, Labels, Legende und
+  Roadmap löschen sowie „Präsentation“), Board mit Zeilen und SVG-Overlay
   (Heute-Linie, Meilensteinlinien, Pfeile), Drag-Logik (Ticket/Block
   horizontal, Ticket vertikal in Spur/Block, Griff zum Umhängen), Tastatur
   (←/→ tageweise, Shift = Woche, Enter = Details).
+- Kontext des Hinzufügen-Menüs: der zuletzt links angeklickte Block (oder der
+  Block des ausgewählten Tickets) ist der „aktive Block“ (gepunktet
+  unterstrichen). „Bereich“ legt darin einen Unterblock an, „Teilprojekt“ im
+  obersten Projekt darüber, „Ticket aus Jira“ landet direkt in ihm.
+- Das Board füllt die freie Höhe bis zum unteren Viewport-Rand (gemessen,
+  `--rm-board-h`) statt einer festen Maximalhöhe.
 - `RoadmapItemDrawer.tsx` ersetzt `RoadmapItemDialog.tsx`.
 - `RoadmapBlockDialog.tsx`: Block anlegen/umbenennen/färben/löschen.
 - Ziel-/Meilenstein-Dialoge mit Datumsfeldern; Ziel-Dialog mit Block-Auswahl.

@@ -21,6 +21,7 @@ import { RoadmapSidePanel, type SidePanelIssue } from "./RoadmapSidePanel";
 import { RoadmapConfirmDialog } from "./RoadmapConfirmDialog";
 import { RoadmapLabelsDialog } from "./RoadmapLabelsDialog";
 import { RoadmapMilestoneDialog } from "./RoadmapMilestoneDialog";
+import { RoadmapMenu, icons, type MenuEntry } from "./RoadmapMenu";
 import { useIsRoadmapModerator } from "./useRoadmapRole";
 import type { BlockView, LaneView, MilestoneView, Placement, RoadmapItemView, RoadmapView } from "./types";
 
@@ -107,6 +108,10 @@ export function RoadmapEditor({
   const [labelsDialogOpen, setLabelsDialogOpen] = useState(false);
   const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: MilestoneView | null } | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  /** Zuletzt angeklickter Block — Kontext für „Hinzufügen“ (Teilprojekt/Bereich/Ticket). */
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
+  /** Zähler: jede Erhöhung lässt das Board zu „heute“ scrollen. */
+  const [todayRequest, setTodayRequest] = useState(0);
   const [pending, startTransition] = useTransition();
 
   // Server-Refresh (revalidatePath) liefert neue Props → lokalen State resyncen.
@@ -135,6 +140,33 @@ export function RoadmapEditor({
   );
   const options = useMemo(() => blockOptions(roadmap.blocks), [roadmap.blocks]);
   const selectedItem = selectedItemId === null ? null : items.find((i) => i.id === selectedItemId) ?? null;
+
+  // Kontext für das Hinzufügen-Menü: aktiver Block und dessen oberstes Projekt.
+  const blockById = useMemo(() => new Map(roadmap.blocks.map((b) => [b.id, b])), [roadmap.blocks]);
+  const activeBlock = activeBlockId ? blockById.get(activeBlockId) ?? null : null;
+  const firstRoot = useMemo(
+    () => roadmap.blocks.filter((b) => b.parentId === null).sort((a, b) => a.position - b.position)[0] ?? null,
+    [roadmap.blocks],
+  );
+  const projectBlock = (() => {
+    if (!activeBlock) return firstRoot;
+    let cur: BlockView = activeBlock;
+    while (cur.parentId) {
+      const parent = blockById.get(cur.parentId);
+      if (!parent) break;
+      cur = parent;
+    }
+    return cur;
+  })();
+
+  /** Ticket auswählen — dessen Block wird zum Kontext für „Hinzufügen“. */
+  const selectItem = (itemId: string | null) => {
+    setSelectedItemId(itemId);
+    if (itemId) {
+      const item = items.find((i) => i.id === itemId);
+      if (item?.blockId) setActiveBlockId(item.blockId);
+    }
+  };
   const itemCountByLane = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of items) m.set(i.laneId, (m.get(i.laneId) ?? 0) + 1);
@@ -276,6 +308,73 @@ export function RoadmapEditor({
     { key: "w", label: "Woche" },
   ];
 
+  const inQuotes = (name: string) => `in „${name}“`;
+  const addEntries: MenuEntry[] = [
+    {
+      key: "project",
+      icon: icons.layers,
+      label: "Projekt",
+      hint: "auf oberster Ebene",
+      onSelect: () => setBlockDialog({ block: null, parentId: null }),
+    },
+    {
+      key: "subproject",
+      icon: icons.folder,
+      label: "Teilprojekt",
+      hint: projectBlock ? inQuotes(projectBlock.name) : "zuerst ein Projekt anlegen",
+      disabled: !projectBlock,
+      onSelect: () => setBlockDialog({ block: null, parentId: projectBlock?.id ?? null }),
+    },
+    {
+      key: "area",
+      icon: icons.rows,
+      label: "Bereich",
+      hint: activeBlock ? inQuotes(activeBlock.name) : "links einen Block anklicken",
+      disabled: !activeBlock,
+      onSelect: () => setBlockDialog({ block: null, parentId: activeBlock?.id ?? null }),
+    },
+    { key: "sep1", separator: true },
+    {
+      key: "ticket",
+      icon: icons.ticket,
+      label: "Ticket aus Jira …",
+      hint: activeBlock ? inQuotes(activeBlock.name) : "in den Eingangskorb",
+      onSelect: () => setPanelOpen(true),
+    },
+    {
+      key: "goal",
+      icon: icons.target,
+      label: "Ziel",
+      hint: "eigener Eintrag ohne Jira-Ticket",
+      onSelect: () => setGoalDialogOpen(true),
+    },
+    {
+      key: "milestone",
+      icon: icons.diamond,
+      label: "Meilenstein",
+      hint: "über alle Blöcke sichtbar",
+      onSelect: () => setMilestoneDialog({ milestone: null }),
+    },
+  ];
+
+  const legend = (
+    <div className="rm-legend">
+      <span><i style={{ background: "var(--open)" }} />Offen</span>
+      <span><i style={{ background: "var(--wip)" }} />In Bearbeitung</span>
+      <span><i style={{ background: "var(--ok)" }} />Ausgeführt</span>
+    </div>
+  );
+  const settingsEntries: MenuEntry[] = isModerator
+    ? [
+        { key: "lanes", icon: icons.rows, label: "Streams …", hint: "Spuren je Block verwalten", onSelect: () => setLanesDialogOpen(true) },
+        { key: "labels", icon: icons.ticket, label: "Labels …", hint: "Kennzeichnungen für Tickets", onSelect: () => setLabelsDialogOpen(true) },
+        { key: "sep1", separator: true },
+        { key: "legend", content: legend },
+        { key: "sep2", separator: true },
+        { key: "delete", label: "Roadmap löschen", danger: true, onSelect: () => setConfirmRoadmapDelete(true) },
+      ]
+    : [{ key: "legend", content: legend }];
+
   // ---------- Render ----------
   return (
     <div className="rm flex flex-col gap-3.5" data-present={present ? "1" : "0"} data-full-width>
@@ -356,6 +455,14 @@ export function RoadmapEditor({
 
       <div>
         <div className="rm-toolbar">
+          {isModerator && (
+            <RoadmapMenu
+              className="hidepres"
+              triggerClassName="rm-btn primary"
+              trigger={<>{icons.plus}<span>Hinzufügen</span>{icons.chevronDown}</>}
+              entries={addEntries}
+            />
+          )}
           <div className="rm-seg hidepres" role="group" aria-label="Zoom">
             {zoomButtons.map((z) => (
               <button key={z.key} type="button" aria-pressed={zoom === z.key} onClick={() => setZoom(z.key)}>
@@ -363,40 +470,38 @@ export function RoadmapEditor({
               </button>
             ))}
           </div>
-          <div className="rm-tsep hidepres" />
-          <button type="button" className="rm-btn hidepres" onClick={collapseAll}>Alles einklappen</button>
-          <button type="button" className="rm-btn hidepres" onClick={expandAll}>Alles ausklappen</button>
-          <button type="button" className="rm-btn hidepres" aria-pressed={showDeps} onClick={() => setShowDeps((v) => !v)}>
-            Abhängigkeiten
+          <button type="button" className="rm-btn hidepres" title="Zum heutigen Tag scrollen" onClick={() => setTodayRequest((n) => n + 1)}>
+            Heute
           </button>
-          {isModerator && (
-            <>
-              <div className="rm-tsep hidepres" />
-              <button type="button" className="rm-btn hidepres" onClick={() => setBlockDialog({ block: null, parentId: null })}>
-                + Block
-              </button>
-              <button type="button" className="rm-btn hidepres" onClick={() => setGoalDialogOpen(true)}>+ Ziel</button>
-              <button type="button" className="rm-btn hidepres" onClick={() => setMilestoneDialog({ milestone: null })}>
-                + Meilenstein
-              </button>
-              <button type="button" className="rm-btn hidepres" onClick={() => setPanelOpen((v) => !v)} title="Tickets aus Jira hinzufügen">
-                ⧉ Tickets
-              </button>
-              <button type="button" className="rm-btn hidepres" onClick={() => setLanesDialogOpen(true)}>Streams</button>
-              <button type="button" className="rm-btn hidepres" onClick={() => setLabelsDialogOpen(true)}>Labels</button>
-              <button type="button" className="rm-btn danger hidepres" onClick={() => setConfirmRoadmapDelete(true)}>
-                Löschen
-              </button>
-            </>
-          )}
+          <div className="rm-tsep hidepres" />
+          <button type="button" className="rm-btn icon hidepres" aria-label="Alles einklappen" title="Alles einklappen" onClick={collapseAll}>
+            {icons.chevronsUp}
+          </button>
+          <button type="button" className="rm-btn icon hidepres" aria-label="Alles ausklappen" title="Alles ausklappen" onClick={expandAll}>
+            {icons.chevronsDown}
+          </button>
+          <button
+            type="button"
+            className="rm-btn icon hidepres"
+            aria-pressed={showDeps}
+            aria-label="Abhängigkeiten anzeigen"
+            title="Abhängigkeiten (Jira „is blocked by“) anzeigen"
+            onClick={() => setShowDeps((v) => !v)}
+          >
+            {icons.dependency}
+          </button>
           <div className="rm-spacer" />
-          <div className="rm-legend hidepres">
-            <span><i style={{ background: "var(--open)" }} />Offen</span>
-            <span><i style={{ background: "var(--wip)" }} />In Bearbeitung</span>
-            <span><i style={{ background: "var(--ok)" }} />Ausgeführt</span>
-          </div>
+          <RoadmapMenu
+            className="hidepres"
+            triggerClassName="rm-btn icon"
+            ariaLabel="Einstellungen"
+            title="Einstellungen und Legende"
+            trigger={icons.sliders}
+            entries={settingsEntries}
+            align="right"
+          />
           <button type="button" className="rm-btn" aria-pressed={present} onClick={togglePresent}>
-            Präsentationsmodus
+            Präsentation
           </button>
         </div>
 
@@ -408,9 +513,12 @@ export function RoadmapEditor({
           showDeps={showDeps}
           open={open}
           selectedItemId={selectedItemId}
+          activeBlockId={activeBlock?.id ?? null}
+          todayRequest={todayRequest}
           isModerator={isModerator && !present}
           onToggle={toggle}
-          onSelectItem={setSelectedItemId}
+          onFocusBlock={setActiveBlockId}
+          onSelectItem={selectItem}
           onMoveItem={moveItem}
           onShiftBlock={shiftBlock}
           onMoveBlock={moveBlock}
@@ -430,7 +538,7 @@ export function RoadmapEditor({
           onClose={() => setPanelOpen(false)}
           onAdd={(issue) => {
             const firstLane = roadmap.lanes[0];
-            if (firstLane) addIssue(issue, firstLane.id, null, currentDay, addDays(currentDay, 13));
+            if (firstLane) addIssue(issue, firstLane.id, activeBlock?.id ?? null, currentDay, addDays(currentDay, 13));
           }}
         />
       )}
