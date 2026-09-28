@@ -159,3 +159,4 @@ Next.js 15 (App Router) · React 19 · Prisma + PostgreSQL · WebSockets · Vite
 ## Lizenz
 
 MIT
+
