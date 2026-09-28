@@ -18,19 +18,44 @@ export const WEEKDAYS = [
 ] as const;
 
 export interface DailyConfig {
-  /** ISO-Wochentage kommagetrennt, z. B. "1,2,3,4,5". */
-  dailyDays: string;
-  /** "HH:MM" oder null (kein Daily). */
-  dailyTime: string | null;
+  /** JSON: ISO-Wochentag → "HH:MM", z. B. {"1":"09:30","3":"10:00"}. */
+  dailySchedule: string;
 }
 
-/** "1,2,5" → [1, 2, 5] (nur gültige ISO-Wochentage, sortiert, ohne Duplikate). */
-export function parseDailyDays(raw: string): number[] {
-  const days = raw
-    .split(",")
-    .map((d) => Number.parseInt(d.trim(), 10))
-    .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7);
-  return [...new Set(days)].sort((a, b) => a - b);
+/** Uhrzeit je ISO-Wochentag (1 = Mo … 7 = So). */
+export type DailySchedule = Partial<Record<number, string>>;
+
+/** JSON-Zeitplan lesen; ungültige Tage/Uhrzeiten werden verworfen. */
+export function parseDailySchedule(raw: string): DailySchedule {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw || "{}");
+  } catch {
+    return {};
+  }
+  if (!data || typeof data !== "object") return {};
+  const schedule: DailySchedule = {};
+  for (const [day, time] of Object.entries(data as Record<string, unknown>)) {
+    const iso = Number(day);
+    const normalized = typeof time === "string" ? normalizeDailyTime(time) : null;
+    if (Number.isInteger(iso) && iso >= 1 && iso <= 7 && normalized) schedule[iso] = normalized;
+  }
+  return schedule;
+}
+
+/** Zeitplan als JSON speichern (Tage aufsteigend). */
+export function serializeDailySchedule(schedule: DailySchedule): string {
+  const sorted = Object.keys(schedule)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((d) => [String(d), schedule[d]]);
+  return JSON.stringify(Object.fromEntries(sorted));
+}
+
+/** Serie = alle Daily-Tage haben dieselbe Uhrzeit; liefert sie, sonst null. */
+export function seriesTime(schedule: DailySchedule): string | null {
+  const times = new Set(Object.values(schedule));
+  return times.size === 1 ? [...times][0] ?? null : null;
 }
 
 /** "9:05" / "09:05" → "09:05"; ungültig → null. */
@@ -43,9 +68,9 @@ export function normalizeDailyTime(raw: string): string | null {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-/** Ist ein Daily konfiguriert (Uhrzeit und mindestens ein Tag)? */
+/** Ist ein Daily konfiguriert (mindestens ein Tag mit Uhrzeit)? */
 export function hasDaily(config: DailyConfig): boolean {
-  return config.dailyTime !== null && parseDailyDays(config.dailyDays).length > 0;
+  return Object.keys(parseDailySchedule(config.dailySchedule)).length > 0;
 }
 
 interface ZonedParts {
@@ -83,13 +108,12 @@ export function zonedParts(date: Date, timeZone = DAILY_TIME_ZONE): ZonedParts {
 }
 
 /**
- * Soll jetzt der Snapshot laufen? Genau in der Minute vor dem Daily, an einem
- * der Daily-Tage (maßgeblich ist der Tag des Dailys, auch bei 00:00).
+ * Soll jetzt der Snapshot laufen? Genau in der Minute vor dem Daily des
+ * jeweiligen Wochentags (maßgeblich ist der Tag des Dailys, auch bei 00:00).
  */
 export function isSnapshotMinute(config: DailyConfig, now: Date, timeZone = DAILY_TIME_ZONE): boolean {
-  if (!hasDaily(config)) return false;
   const daily = zonedParts(new Date(now.getTime() + 60_000), timeZone);
-  return daily.time === config.dailyTime && parseDailyDays(config.dailyDays).includes(daily.isoWeekday);
+  return parseDailySchedule(config.dailySchedule)[daily.isoWeekday] === daily.time;
 }
 
 /**

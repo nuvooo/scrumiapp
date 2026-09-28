@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { editTeam, removeTeam } from "@/app/(app)/settings/teams/actions";
-import { WEEKDAYS, parseDailyDays } from "@/lib/sync/daily";
+import { DailyScheduleField } from "@/components/DailyScheduleField";
 
 interface TeamEditorProps {
   team: {
@@ -13,10 +13,8 @@ interface TeamEditorProps {
     syncIntervalMinutes: number;
     /** Stichtag im Format YYYY-MM-DD oder null (alle Sprints zählen). */
     metricsSince: string | null;
-    /** ISO-Wochentage des Dailys, kommagetrennt. */
-    dailyDays?: string;
-    /** Daily-Uhrzeit "HH:MM" oder null. */
-    dailyTime?: string | null;
+    /** Daily-Zeitplan als JSON: ISO-Wochentag → "HH:MM". */
+    dailySchedule?: string;
   };
   status: { text: string; tone: "ok" | "error" | "none" };
 }
@@ -28,7 +26,6 @@ export function TeamEditor({ team, status }: TeamEditorProps) {
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const formId = `team-edit-${team.id}`;
-  const dailyDays = new Set(parseDailyDays(team.dailyDays ?? ""));
 
   async function syncNow() {
     if (syncing) return;
@@ -82,38 +79,7 @@ export function TeamEditor({ team, status }: TeamEditorProps) {
             className="input-field font-mono [color-scheme:dark]"
           />
         </div>
-        <fieldset className="md:col-span-4">
-          <legend className="mono-label mb-[7px] block">Daily</legend>
-          <div className="flex flex-wrap items-center gap-2">
-            {WEEKDAYS.map((d) => (
-              <label
-                key={d.iso}
-                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-edge bg-field px-2.5 py-1 text-[12.5px] text-mid has-[:checked]:border-accent has-[:checked]:text-fg"
-              >
-                <input
-                  type="checkbox"
-                  name="dailyDays"
-                  value={d.iso}
-                  defaultChecked={dailyDays.has(d.iso)}
-                  className="h-3.5 w-3.5 accent-[#6e8ff6]"
-                />
-                {d.short}
-              </label>
-            ))}
-            <input
-              aria-label="Daily-Uhrzeit"
-              name="dailyTime"
-              type="time"
-              defaultValue={team.dailyTime ?? ""}
-              className="input-field w-[120px] font-mono [color-scheme:dark]"
-            />
-          </div>
-          <p className="mt-1.5 text-[12px] text-dim">
-            1 Minute vor dem Daily wird synchronisiert und der Burndown-Stand als Ergebnis des Vortags
-            gespeichert — spätere Syncs verändern ihn nicht mehr. Ohne Uhrzeit schreibt jeder Sync den
-            aktuellen Tag.
-          </p>
-        </fieldset>
+        <DailyScheduleField initial={team.dailySchedule ?? "{}"} />
       </form>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-3">

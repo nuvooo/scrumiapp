@@ -168,7 +168,7 @@ describe("syncTeam", () => {
   it("with a daily only records burndown at the snapshot, dated the previous working day", async () => {
     const team = await createTeam({ name: "Eta", jiraBoardId: "12" });
     teams.push(team.id);
-    await prisma.team.update({ where: { id: team.id }, data: { dailyDays: "1,2,3,4,5", dailyTime: "09:30" } });
+    await prisma.team.update({ where: { id: team.id }, data: { dailySchedule: '{"1":"09:30","2":"09:30","3":"09:30","4":"09:30","5":"09:30"}' } });
 
     const client = new FakeJira(
       [{ jiraSprintId: "400", name: "S", state: "ACTIVE", startDate: new Date("2026-09-21T08:00:00Z"), endDate: new Date("2026-10-02T16:00:00Z"), completeDate: null }],

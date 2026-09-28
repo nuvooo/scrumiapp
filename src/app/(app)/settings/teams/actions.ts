@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createTeam, updateTeam, deleteTeam } from "@/lib/repositories/teamRepository";
 import { addMember, renameMember, removeMember, setMemberDefaultDays } from "@/lib/repositories/teamMemberRepository";
-import { normalizeDailyTime, parseDailyDays } from "@/lib/sync/daily";
+import { parseDailySchedule, serializeDailySchedule } from "@/lib/sync/daily";
 
 export async function addTeam(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -35,17 +35,15 @@ export async function editTeam(formData: FormData) {
     metricsSince = parsed;
   }
 
-  // Daily: Wochentage als Checkboxen, Uhrzeit leer = kein Daily-Snapshot
-  const dailyDays = parseDailyDays(formData.getAll("dailyDays").map(String).join(",")).join(",");
-  const dailyTime = normalizeDailyTime(String(formData.get("dailyTime") ?? ""));
+  // Daily: Uhrzeit je Wochentag (bei „Serie" für alle gewählten Tage dieselbe); ungültiges wird verworfen
+  const dailySchedule = serializeDailySchedule(parseDailySchedule(String(formData.get("dailySchedule") ?? "{}")));
 
   await updateTeam(id, {
     name,
     jiraBoardId,
     syncIntervalMinutes: Number.isFinite(syncIntervalMinutes) && syncIntervalMinutes > 0 ? syncIntervalMinutes : 60,
     metricsSince,
-    dailyDays,
-    dailyTime,
+    dailySchedule,
   });
   revalidatePath("/settings/teams");
 }
