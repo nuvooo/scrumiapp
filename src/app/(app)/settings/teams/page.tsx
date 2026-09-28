@@ -63,8 +63,7 @@ export default async function TeamsPage({
               jiraBoardId: t.jiraBoardId,
               syncIntervalMinutes: t.syncIntervalMinutes,
               metricsSince: t.metricsSince ? t.metricsSince.toISOString().slice(0, 10) : null,
-              dailyDays: t.dailyDays,
-              dailyTime: t.dailyTime,
+              dailySchedule: t.dailySchedule,
             }}
             status={syncStatus(t)}
           />
