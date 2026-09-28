@@ -52,6 +52,10 @@ export interface UpdateTeamInput {
   syncIntervalMinutes: number;
   /** Stichtag, ab dem Sprints in Auswertungen einfließen (null = alle). */
   metricsSince: Date | null;
+  /** ISO-Wochentage des Dailys, kommagetrennt ("" = kein Daily). */
+  dailyDays?: string;
+  /** Daily-Uhrzeit "HH:MM" (null = kein Daily-Snapshot). */
+  dailyTime?: string | null;
 }
 
 /** Aktualisiert die Stammdaten eines Teams. */

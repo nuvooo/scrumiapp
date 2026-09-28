@@ -9,6 +9,17 @@ export interface ReportIssue {
   url: string | null;
 }
 
+/** Aus dem Vorsprint mitgenommenes Ticket mit gespeicherten Rest-SP. */
+export interface ReportCarriedItem {
+  jiraKey: string;
+  summary: string;
+  /** Schätzung am Ticket zum Zeitpunkt der Mitnahme. */
+  storyPoints: number;
+  /** Im Planning festgelegte Rest-SP. */
+  remainingPoints: number;
+  url: string | null;
+}
+
 export interface ReportData {
   teamName: string;
   sprintName: string;
@@ -20,7 +31,13 @@ export interface ReportData {
   generatedAt: string;
   committed: number;
   completed: number;
+  /** Mitgenommene SP (Rest-SP aus dem Planning bzw. automatisch erkannt). */
   carryOverPoints: number;
+  /** Neu eingeplante SP (Commitment ohne Mitgenommenes). */
+  newPoints: number;
+  /** true = Mitnahme im Planning gespeichert, false = automatisch erkannt. */
+  carriedFromPlanning: boolean;
+  carriedItems: ReportCarriedItem[];
   ticketsDone: number;
   ticketsTotal: number;
   bugsClosed: number;
@@ -44,6 +61,15 @@ function issueLine(i: ReportIssue, withStatus: boolean): string {
   return `- ${key} · ${i.summary} (${meta})`;
 }
 
+function carriedList(items: ReportCarriedItem[]): string {
+  return items
+    .map((c) => {
+      const key = c.url ? `[${c.jiraKey}](${c.url})` : c.jiraKey;
+      return `- ${key} · ${c.summary} (Rest ${formatPoints(c.remainingPoints)} von ${formatPoints(c.storyPoints)} SP)`;
+    })
+    .join("\n");
+}
+
 function issueList(issues: ReportIssue[], withStatus: boolean): string {
   if (issues.length === 0) return "– keine –";
   return issues.map((i) => issueLine(i, withStatus)).join("\n");
@@ -54,11 +80,17 @@ export function buildReportMarkdown(d: ReportData): string {
   const quote =
     d.committed > 0 ? `${Math.round((d.completed / d.committed) * 100)} %` : "–";
   const kpis: [string, string][] = [
-    ["Commitment", `${formatPoints(d.committed)} SP`],
+    [
+      "Commitment",
+      `${formatPoints(d.committed)} SP (${formatPoints(d.carryOverPoints)} mitgenommen + ${formatPoints(d.newPoints)} neu)`,
+    ],
     ["Geliefert", `${formatPoints(d.completed)} SP`],
     ["Zielerreichung", quote],
     ["Differenz", `${formatDelta(d.completed - d.committed)} SP`],
-    ["Carry-Over", `${formatPoints(d.carryOverPoints)} SP`],
+    [
+      "Mitgenommen",
+      `${formatPoints(d.carryOverPoints)} SP (${d.carriedFromPlanning ? "aus dem Planning" : "automatisch erkannt"})`,
+    ],
     ["Tickets", `${d.ticketsDone} von ${d.ticketsTotal} erledigt`],
     ["Bugs", `${d.bugsClosed} von ${d.bugsTotal} geschlossen`],
     ["Kapazität", `${formatPoints(d.actualPersonDays)} von ${formatPoints(d.plannedPersonDays)} PT`],
@@ -94,6 +126,9 @@ export function buildReportMarkdown(d: ReportData): string {
     "| --- | ---: | ---: | ---: |",
     capacityRows || "| – | – | – | – |",
     "",
+    ...(d.carriedItems.length > 0
+      ? [`## Mitgenommen aus dem Vorsprint (${d.carriedItems.length})`, "", carriedList(d.carriedItems), ""]
+      : []),
     `## Geliefert (${d.delivered.length})`,
     "",
     issueList(d.delivered, false),

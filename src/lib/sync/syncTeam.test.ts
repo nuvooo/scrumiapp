@@ -5,7 +5,7 @@ import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
 import { listIssuesForSprint } from "@/lib/repositories/issueRepository";
 import { listBurndownForSprint } from "@/lib/repositories/burndownRepository";
 import { syncTeam } from "./syncTeam";
-import type { JiraClient, MappedSprint } from "@/lib/jira/jiraClient";
+import type { JiraClient, MappedSprint, JiraSprintStateFilter } from "@/lib/jira/jiraClient";
 import type { DomainIssue } from "@/lib/domain/types";
 
 const teams: string[] = [];
@@ -24,8 +24,11 @@ class FakeJira implements JiraClient {
   async fetchBacklogUnestimated() { return []; }
   async getIssuesByKeys() { return []; }
   async fetchBoardColumns() { return []; }
-  constructor(private sprints: MappedSprint[], private issues: Record<string, DomainIssue[]>) {}
-  async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
+  constructor(public sprints: MappedSprint[], private issues: Record<string, DomainIssue[]>) {}
+  async fetchBoardSprints(_b: string, states?: JiraSprintStateFilter[]): Promise<MappedSprint[]> {
+    return states ? this.sprints.filter((s) => states.includes(s.state.toLowerCase() as JiraSprintStateFilter)) : this.sprints;
+  }
+  async fetchSprint(id: string) { return this.sprints.find((s) => s.jiraSprintId === id) ?? null; }
   async fetchSprintIssues(_boardId: string, sprintId: string): Promise<DomainIssue[]> { return this.issues[sprintId] ?? []; }
 }
 
@@ -37,6 +40,7 @@ class FailingJira implements JiraClient {
   async getIssuesByKeys() { return []; }
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("401 Unauthorized"); }
+  async fetchSprint() { return null; }
   async fetchSprintIssues(): Promise<DomainIssue[]> { return []; }
 }
 
@@ -48,8 +52,17 @@ class CountingJira implements JiraClient {
   async getIssuesByKeys() { return []; }
   async fetchBoardColumns() { return []; }
   issueCalls: string[] = [];
-  constructor(private sprints: MappedSprint[]) {}
-  async fetchBoardSprints(): Promise<MappedSprint[]> { return this.sprints; }
+  sprintListCalls: string[] = [];
+  sprintCalls: string[] = [];
+  constructor(public sprints: MappedSprint[]) {}
+  async fetchBoardSprints(_b: string, states?: JiraSprintStateFilter[]): Promise<MappedSprint[]> {
+    this.sprintListCalls.push(states ? states.join(",") : "all");
+    return states ? this.sprints.filter((s) => states.includes(s.state.toLowerCase() as JiraSprintStateFilter)) : this.sprints;
+  }
+  async fetchSprint(id: string) {
+    this.sprintCalls.push(id);
+    return this.sprints.find((s) => s.jiraSprintId === id) ?? null;
+  }
   async fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]> {
     this.issueCalls.push(`${boardId}:${sprintId}`);
     return [];
@@ -119,6 +132,60 @@ describe("syncTeam", () => {
     // Zweiter Sync: der abgeschlossene Sprint wird nicht erneut geladen
     await syncTeam(team.id, client);
     expect(client.issueCalls).toEqual(["11:300", "11:301", "11:301"]);
+  });
+
+  it("asks Jira only for active and planned sprints once sprints are stored", async () => {
+    const team = await createTeam({ name: "Zeta", jiraBoardId: "11" });
+    teams.push(team.id);
+
+    const client = new CountingJira([
+      { jiraSprintId: "300", name: "Alt", state: "CLOSED", startDate: null, endDate: null, completeDate: null },
+      { jiraSprintId: "301", name: "Läuft", state: "ACTIVE", startDate: null, endDate: null, completeDate: null },
+      { jiraSprintId: "302", name: "Geplant", state: "FUTURE", startDate: null, endDate: null, completeDate: null },
+    ]);
+    await syncTeam(team.id, client);
+    expect(client.sprintListCalls).toEqual(["all"]);
+
+    // Sprintwechsel in Jira: 301 abgeschlossen, 302 läuft
+    client.sprints = [
+      { ...client.sprints[0] },
+      { ...client.sprints[1], state: "CLOSED" },
+      { ...client.sprints[2], state: "ACTIVE" },
+    ];
+    client.issueCalls = [];
+    await syncTeam(team.id, client);
+    expect(client.sprintListCalls).toEqual(["all", "active,future"]);
+    expect(client.sprintCalls).toEqual(["301"]);
+    expect(client.issueCalls.sort()).toEqual(["11:301", "11:302"]);
+
+    // Danach ist 301 gespeichert und wird nicht mehr angefragt
+    client.issueCalls = [];
+    await syncTeam(team.id, client);
+    expect(client.sprintCalls).toEqual(["301"]);
+    expect(client.issueCalls).toEqual(["11:302"]);
+  });
+
+  it("with a daily only records burndown at the snapshot, dated the previous working day", async () => {
+    const team = await createTeam({ name: "Eta", jiraBoardId: "12" });
+    teams.push(team.id);
+    await prisma.team.update({ where: { id: team.id }, data: { dailyDays: "1,2,3,4,5", dailyTime: "09:30" } });
+
+    const client = new FakeJira(
+      [{ jiraSprintId: "400", name: "S", state: "ACTIVE", startDate: new Date("2026-09-21T08:00:00Z"), endDate: new Date("2026-10-02T16:00:00Z"), completeDate: null }],
+      { "400": [
+        { jiraKey: "AB-1", summary: "AB-1", issueType: "Story", storyPoints: 5, status: "To Do", statusCategory: "TODO", resolvedAt: null, addedAfterSprintStart: false, onBoard: true, assignee: null, statusSince: null },
+      ] },
+    );
+
+    // Normaler Sync am Nachmittag: kein Burndown-Punkt
+    await syncTeam(team.id, client, new Set(["bug"]), { now: new Date("2026-09-29T14:00:00Z") });
+    const [sprint] = await listSprintsForTeam(team.id);
+    expect(await listBurndownForSprint(sprint.id)).toEqual([]);
+
+    // Snapshot Mi 09:29 Berlin → Punkt für Di
+    await syncTeam(team.id, client, new Set(["bug"]), { snapshot: true, now: new Date("2026-09-30T07:29:00Z") });
+    const points = await listBurndownForSprint(sprint.id);
+    expect(points.map((p) => [p.date.toISOString(), p.remainingPoints])).toEqual([["2026-09-29T00:00:00.000Z", 5]]);
   });
 
   it("reloads closed sprints when full is set", async () => {

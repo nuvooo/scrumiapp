@@ -11,7 +11,14 @@ export interface VelocitySprintRow {
   state: "ACTIVE" | "CLOSED" | "FUTURE";
   /** Vorformatierter Sprint-Zeitraum, z. B. "13.07.26 – 24.07.26". */
   period: string;
+  /** Commitment = mitgenommen + neu. */
   committed: number;
+  /** Mitgenommene SP (Rest-SP aus dem Planning bzw. automatisch erkannt). */
+  carried?: number;
+  /** Neu eingeplante SP. */
+  fresh?: number;
+  /** true = Mitnahme im Planning gespeichert. */
+  carriedFromPlanning?: boolean;
   completed: number;
   plannedPersonDays: number;
   forecast: number | null;
@@ -74,7 +81,21 @@ export function VelocityTable({ rows, teamId }: { rows: VelocitySprintRow[]; tea
             </div>
             <div className="whitespace-nowrap font-mono text-[12px] text-muted">{r.period}</div>
             <Cell label="Commitment">
-              <span className="font-mono text-mid">{formatPoints(r.committed)} SP</span>
+              <span className="text-right">
+                <span className="font-mono text-mid">{formatPoints(r.committed)} SP</span>
+                {r.carried !== undefined && r.fresh !== undefined && r.carried > 0 && (
+                  <span
+                    className="block font-mono text-[10.5px] text-faint"
+                    title={
+                      r.carriedFromPlanning
+                        ? "Mitgenommen (Rest-SP aus dem Planning) + neu eingeplant"
+                        : "Mitgenommen (automatisch erkannt) + neu eingeplant"
+                    }
+                  >
+                    {formatPoints(r.carried)} mitg. + {formatPoints(r.fresh)} neu
+                  </span>
+                )}
+              </span>
             </Cell>
             <Cell label="Abgeschlossen">
               <span className="font-mono text-fg">{done ? `${formatPoints(r.completed)} SP` : "–"}</span>

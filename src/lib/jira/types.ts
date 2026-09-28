@@ -48,7 +48,9 @@ export interface JiraIssueRaw {
     resolutiondate: string | null;
     status: { name: string; statusCategory: JiraStatusCategory };
     issuetype?: { name: string; subtask?: boolean };
-    parent?: { key: string };
+    parent?: { key: string; fields?: { summary?: string } };
+    labels?: string[];
+    components?: { name: string }[];
     assignee?: { displayName?: string } | null;
     created?: string;
     /** Issue-Links (Roadmap-Abhängigkeiten: „is blocked by") */

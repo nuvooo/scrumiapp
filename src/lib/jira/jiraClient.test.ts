@@ -36,6 +36,27 @@ describe("JiraCloudClient.fetchBoardSprints", () => {
     expect(auth).toBe("Basic " + Buffer.from("me@example.com:token123").toString("base64"));
   });
 
+  it("can restrict the requested sprint states", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ values: [], isLast: true }));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    await client.fetchBoardSprints("42", ["active", "future"]);
+
+    expect(fetchMock.mock.calls[0][0]).toContain("state=active%2Cfuture");
+  });
+
+  it("fetches a single sprint and returns null when it was deleted", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 7, name: "S7", state: "closed", completeDate: "2026-09-25T15:00:00.000Z" }))
+      .mockResolvedValueOnce(jsonResponse({}, 404));
+    const client = new JiraCloudClient(config, fetchMock);
+
+    expect(await client.fetchSprint("7")).toMatchObject({ jiraSprintId: "7", state: "CLOSED" });
+    expect(fetchMock.mock.calls[0][0]).toContain("/rest/agile/1.0/sprint/7");
+    expect(await client.fetchSprint("8")).toBeNull();
+  });
+
   it("follows pagination until isLast is true", async () => {
     const fetchMock = vi
       .fn()
@@ -248,7 +269,7 @@ describe("JiraCloudClient.searchIssues", () => {
     expect(decodeURIComponent(url as string)).toContain('text ~ "login flow" ORDER BY updated DESC');
     expect(url).toContain("maxResults=20");
     expect(results).toEqual([
-      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", statusCategory: "new", description: "", storyPoints: 5, url: "https://example.atlassian.net/browse/AB-7" },
+      { jiraKey: "AB-7", summary: "Issue AB-7", issueType: "Story", status: "To Do", statusCategory: "new", description: "", storyPoints: 5, url: "https://example.atlassian.net/browse/AB-7", parent: null, labels: [], components: [] },
     ]);
   });
 
@@ -282,6 +303,9 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
         resolutiondate: null,
         status: { name: "Backlog", statusCategory: { key: "new" } },
         issuetype: { name: "Story" },
+        parent: { key: "AB-1", fields: { summary: "Checkout" } },
+        labels: ["web"],
+        components: [{ name: "Frontend" }],
         customfield_10016: null,
       },
     };
@@ -295,7 +319,7 @@ describe("JiraCloudClient.fetchBacklogUnestimated", () => {
     expect(url).toContain("cf[10016] is EMPTY");
     expect(url).toContain("statusCategory != Done");
     expect(results).toEqual([
-      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", statusCategory: "new", description: "", storyPoints: null, url: "https://example.atlassian.net/browse/AB-30" },
+      { jiraKey: "AB-30", summary: "Backlog-Ticket", issueType: "Story", status: "Backlog", statusCategory: "new", description: "", storyPoints: null, url: "https://example.atlassian.net/browse/AB-30", parent: "AB-1 · Checkout", labels: ["web"], components: ["Frontend"] },
     ]);
   });
 

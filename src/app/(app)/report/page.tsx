@@ -8,6 +8,7 @@ import { SprintSelect } from "@/components/TeamSprintSelector";
 import { formatPoints, formatDelta, roundTo1 } from "@/lib/format";
 import { mergeBurndownRows } from "@/lib/view/burndownRows";
 import { reportBadge, type ReportIssue } from "@/lib/report/markdown";
+import { CarriedList } from "@/components/CarriedList";
 
 export const dynamic = "force-dynamic";
 
@@ -106,10 +107,24 @@ export default async function ReportPage({
       </div>
 
       <div className="mt-[26px] grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3.5">
-        <KpiCard label="Commitment" value={formatPoints(d.committed)} unit="SP" size="md" />
+        <KpiCard
+          label="Commitment"
+          value={formatPoints(d.committed)}
+          unit="SP"
+          size="md"
+          hint={`${formatPoints(d.carryOverPoints)} mitgenommen + ${formatPoints(d.newPoints)} neu`}
+          monoHint
+        />
         <KpiCard label="Geliefert" value={formatPoints(d.completed)} unit="SP" size="md" />
         <KpiCard label="Zielerreichung" value={quote} size="md" hint={`Differenz ${formatDelta(diff)} SP`} monoHint />
-        <KpiCard label="Carry-Over" value={formatPoints(d.carryOverPoints)} unit="SP" size="md" />
+        <KpiCard
+          label="Mitgenommen"
+          value={formatPoints(d.carryOverPoints)}
+          unit="SP"
+          size="md"
+          hint={d.carriedFromPlanning ? `${d.carriedItems.length} Tickets aus dem Planning` : "automatisch erkannt"}
+          monoHint
+        />
         <KpiCard
           label="Tickets / Bugs"
           value={`${d.ticketsDone}/${d.ticketsTotal}`}
@@ -158,6 +173,7 @@ export default async function ReportPage({
       </div>
 
       <div className="mt-3.5 flex flex-col gap-3.5">
+        {d.carriedItems.length > 0 && <CarriedList items={d.carriedItems} />}
         <IssueList title="Geliefert" issues={d.delivered} withStatus={false} />
         <IssueList title="Nicht geschafft" issues={d.open} withStatus />
       </div>

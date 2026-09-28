@@ -119,7 +119,7 @@ export interface RetroStateView {
   musicOn: boolean;
   /** Hintergrundbild des Boards (Preset-Key oder Bild-URL) — vom Moderator für alle gesetzt. */
   background: string;
-  you: { name: string; avatar: string; isAdmin: boolean; revealed: boolean } | null;
+  you: { name: string; avatar: string; isAdmin: boolean; revealed: boolean; done?: boolean } | null;
   participants: {
     name: string;
     avatar: string;
@@ -127,6 +127,8 @@ export interface RetroStateView {
     online: boolean;
     /** Eigene Karten trotz Verdeckt-Modus aufgedeckt (z. B. beim Vortragen). */
     revealed: boolean;
+    /** Hat sich als fertig gemeldet (Karten geschrieben bzw. Stimmen vergeben). */
+    done?: boolean;
     /** Bereits vergebene Voting-Stimmen. */
     votesUsed: number;
   }[];
