@@ -1,5 +1,6 @@
 import { listTeams, getTeam, listTeamsWithMembers } from "@/lib/repositories/teamRepository";
-import { listSprintsForTeam } from "@/lib/repositories/sprintRepository";
+import { listSprintsForTeam, sortPlannedSprints } from "@/lib/repositories/sprintRepository";
+import { listCarriedIntoSprints } from "@/lib/repositories/carryOverRepository";
 import { listBurndownForSprint } from "@/lib/repositories/burndownRepository";
 import { listCapacityForSprint, listCapacityForSprints } from "@/lib/repositories/capacityRepository";
 import { prisma } from "@/lib/db";
@@ -8,7 +9,7 @@ import { calcBurndown, calcBugBurndown, calcTicketBurndown } from "@/lib/metrics
 import { calcVelocityTrend } from "@/lib/metrics/velocity";
 import { calcCapacityEfficiency, scaleToSprintLength, typicalSprintLength } from "@/lib/metrics/capacity";
 import { calcForecast } from "@/lib/metrics/forecast";
-import { calcCarryOver } from "@/lib/metrics/carryOver";
+import { calcCarryOver, calcCommitmentSplit } from "@/lib/metrics/carryOver";
 import { calcCelebration, type CelebrationEffect } from "@/lib/metrics/celebration";
 import { buildStandupGroups, previousWorkingDay, workingDaysInStatus, STALE_AFTER_WORKING_DAYS } from "@/lib/metrics/standup";
 import { workingDaysBetween } from "@/lib/metrics/workingDays";
@@ -174,6 +175,14 @@ export async function loadDashboard(sprintId: string) {
         ).map((i) => i.jiraKey),
       )
     : new Set<string>();
+  const carriedPlans = await listCarriedIntoSprints([sprintId]);
+  const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
+  const commitment = calcCommitmentSplit(
+    sprint.committedPoints,
+    committedIssues,
+    carriedPlans,
+    calcCarryOver(committedIssues, previousKeys),
+  );
 
   return {
     sprintName: sprint.name,
@@ -184,8 +193,16 @@ export async function loadDashboard(sprintId: string) {
     workingDayCount: days.length,
     dayIndex: Math.min(Math.max(dayIndex, 0), days.length),
     velocity: sprint.completedPoints,
-    committed: sprint.committedPoints,
-    carriedOver: calcCarryOver(committedIssues, previousKeys),
+    committed: commitment.total,
+    commitment,
+    carriedOver: commitment.carried,
+    carriedItems: carriedPlans.map((p) => ({
+      jiraKey: p.jiraKey,
+      summary: p.summary,
+      storyPoints: p.storyPoints,
+      remainingPoints: p.remainingPoints,
+      url: jiraBase ? `${jiraBase}/browse/${p.jiraKey}` : null,
+    })),
     totalPlanned: capacity.totalPlanned,
     totalActual: capacity.totalActual,
     efficiency: capacity.efficiency,
@@ -320,17 +337,30 @@ export async function loadVelocity(teamId: string) {
     list.push(row);
     issuesBySprint.set(row.sprintId, list);
   }
-  const carryOverOf = (s: (typeof all)[number]) => {
+  // Im Planning gespeicherte Mitnahmen haben Vorrang vor der automatischen Erkennung.
+  const plansBySprint = new Map<string, { jiraKey: string; remainingPoints: number }[]>();
+  for (const plan of await listCarriedIntoSprints(all.map((s) => s.id))) {
+    const list = plansBySprint.get(plan.targetSprintId as string) ?? [];
+    list.push(plan);
+    plansBySprint.set(plan.targetSprintId as string, list);
+  }
+  const commitmentOf = (s: (typeof all)[number]) => {
+    const committed = committedIssuesOf(issuesBySprint.get(s.id) ?? [], s);
     const previous = previousClosedSprint(all, s);
-    if (!previous) return 0;
-    const previousKeys = new Set((issuesBySprint.get(previous.id) ?? []).map((i) => i.jiraKey));
-    return calcCarryOver(committedIssuesOf(issuesBySprint.get(s.id) ?? [], s), previousKeys);
+    const previousKeys = new Set(previous ? (issuesBySprint.get(previous.id) ?? []).map((i) => i.jiraKey) : []);
+    return calcCommitmentSplit(
+      s.committedPoints,
+      committed,
+      plansBySprint.get(s.id) ?? [],
+      calcCarryOver(committed, previousKeys),
+    );
   };
+  const commitments = new Map(all.map((s) => [s.id, commitmentOf(s)]));
 
   const nonFuture = all.filter((s) => s.state !== "FUTURE");
   const inputs = nonFuture.map((s) => ({
-    sprint: toDomainSprint(s),
-    carriedOver: carryOverOf(s),
+    sprint: { ...toDomainSprint(s), committedPoints: commitments.get(s.id)!.total },
+    carriedOver: commitments.get(s.id)!.carried,
     plannedPersonDays: plannedBySprint.get(s.id) ?? 0,
     actualPersonDays: actualBySprint.get(s.id) ?? 0,
   }));
@@ -364,7 +394,10 @@ export async function loadVelocity(teamId: string) {
       name: s.name,
       state: s.state,
       period: s.startDate && s.endDate ? `${formatDay(s.startDate)} – ${formatDay(s.endDate)}` : "–",
-      committed: s.committedPoints,
+      committed: commitments.get(s.id)!.total,
+      carried: commitments.get(s.id)!.carried,
+      fresh: commitments.get(s.id)!.fresh,
+      carriedFromPlanning: commitments.get(s.id)!.source === "planning",
       completed: s.completedPoints,
       plannedPersonDays: planned,
       forecast: forecast ? forecast.possiblePoints : null,
@@ -411,12 +444,7 @@ export async function loadPlanning(teamId: string) {
     include: { issues: { orderBy: { jiraKey: "asc" } } },
   });
   if (future.length === 0) return null;
-  const sortedFuture = [...future].sort((a, b) => {
-    if (a.startDate && b.startDate) return a.startDate.getTime() - b.startDate.getTime();
-    if (a.startDate) return -1;
-    if (b.startDate) return 1;
-    return a.name.localeCompare(b.name, "de");
-  });
+  const sortedFuture = sortPlannedSprints(future);
   const sprint = sortedFuture[0];
 
   const jiraBase = (process.env.JIRA_BASE_URL ?? "").replace(/\/$/, "");
@@ -547,6 +575,9 @@ export async function loadReport(
       committed: dash.committed,
       completed: dash.velocity,
       carryOverPoints: dash.carriedOver,
+      newPoints: dash.commitment.fresh,
+      carriedFromPlanning: dash.commitment.source === "planning",
+      carriedItems: dash.carriedItems,
       ticketsDone: dash.tickets.done,
       ticketsTotal: dash.tickets.total,
       bugsClosed: dash.bugs.closed,

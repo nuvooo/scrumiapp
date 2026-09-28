@@ -10,6 +10,11 @@ const base: ReportData = {
   committed: 24,
   completed: 20,
   carryOverPoints: 5,
+  newPoints: 19,
+  carriedFromPlanning: true,
+  carriedItems: [
+    { jiraKey: "AB-7", summary: "Suche", storyPoints: 8, remainingPoints: 5, url: null },
+  ],
   ticketsDone: 8,
   ticketsTotal: 10,
   bugsClosed: 2,
@@ -35,11 +40,13 @@ describe("buildReportMarkdown", () => {
     expect(md).toContain("**Team:** Growth Web");
     expect(md).toContain("**Zeitraum:** 13.07.2026 – 24.07.2026");
     expect(md).toContain("Abschlussbericht");
-    expect(md).toContain("| Commitment | 24 SP |");
+    expect(md).toContain("| Commitment | 24 SP (5 mitgenommen + 19 neu) |");
+    expect(md).toContain("| Mitgenommen | 5 SP (aus dem Planning) |");
+    expect(md).toContain("## Mitgenommen aus dem Vorsprint (1)");
+    expect(md).toContain("- AB-7 · Suche (Rest 5 von 8 SP)");
     expect(md).toContain("| Geliefert | 20 SP |");
     expect(md).toContain("| Zielerreichung | 83 % |");
     expect(md).toContain("| Differenz | −4 SP |");
-    expect(md).toContain("| Carry-Over | 5 SP |");
     expect(md).toContain("| Tickets | 8 von 10 erledigt |");
     expect(md).toContain("| Bugs | 2 von 3 geschlossen |");
     expect(md).toContain("| Kapazität | 18 von 20 PT |");

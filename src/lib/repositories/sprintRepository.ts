@@ -49,3 +49,22 @@ export async function listSprintsForTeam(teamId: string): Promise<Sprint[]> {
     orderBy: { startDate: { sort: "asc", nulls: "last" } },
   });
 }
+
+/**
+ * Geplante Sprints in Planning-Reihenfolge: frühestes Startdatum zuerst,
+ * Sprints ohne Startdatum danach nach Name. Der erste ist „der nächste Sprint".
+ */
+export function sortPlannedSprints<T extends { startDate: Date | null; name: string }>(sprints: T[]): T[] {
+  return [...sprints].sort((a, b) => {
+    if (a.startDate && b.startDate) return a.startDate.getTime() - b.startDate.getTime();
+    if (a.startDate) return -1;
+    if (b.startDate) return 1;
+    return a.name.localeCompare(b.name, "de");
+  });
+}
+
+/** Der nächste geplante Sprint eines Teams (Ziel des Plannings) oder null. */
+export async function findNextPlannedSprint(teamId: string): Promise<Sprint | null> {
+  const future = await prisma.sprint.findMany({ where: { teamId, state: "FUTURE" } });
+  return sortPlannedSprints(future)[0] ?? null;
+}

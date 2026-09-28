@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { JiraCloudClient, jiraConfigFromEnv } from "@/lib/jira/jiraClient";
 import { upsertCarryOverMark } from "@/lib/repositories/carryOverRepository";
+import { findNextPlannedSprint } from "@/lib/repositories/sprintRepository";
 
 export interface ActionResult<T = undefined> {
   ok: boolean;
@@ -50,8 +51,17 @@ export async function saveCarryOverMark(
   });
   if (!issue) return fail("Ticket nicht im Sprint gefunden.");
 
-  await upsertCarryOverMark(sprintId, jiraKey, takeAlong, remainingPoints);
+  // Ziel ist der Sprint, den das Planning gerade plant — so bleibt nach dem
+  // Sprintwechsel gespeichert, was mit welchem Rest in welchen Sprint ging.
+  const source = await prisma.sprint.findUnique({ where: { id: sprintId }, select: { teamId: true } });
+  const target = source ? await findNextPlannedSprint(source.teamId) : null;
+  await upsertCarryOverMark(sprintId, jiraKey, takeAlong, remainingPoints, {
+    targetSprintId: target?.id ?? null,
+    summary: issue.summary,
+    storyPoints: issue.storyPoints,
+  });
   revalidatePath("/planning");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

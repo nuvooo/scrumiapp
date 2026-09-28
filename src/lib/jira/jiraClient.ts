@@ -1,5 +1,5 @@
 import type { DomainIssue } from "@/lib/domain/types";
-import type { JiraSprintPage, JiraIssuePage, JiraIssueRaw, JiraChangelogHistory } from "./types";
+import type { JiraSprintPage, JiraSprintRaw, JiraIssuePage, JiraIssueRaw, JiraChangelogHistory } from "./types";
 import { mapIssue, mapSprintState } from "./mapper";
 import { adfToText } from "./adf";
 
@@ -38,6 +38,10 @@ export interface JiraSearchResult {
   storyPoints: number | null;
   /** Link zum Ticket in Jira. */
   url: string;
+  /** Übergeordnetes Ticket (Epic), z. B. "AB-10 · Checkout" (null = keins). */
+  parent?: string | null;
+  labels?: string[];
+  components?: string[];
 }
 
 export interface JiraIssueStatus {
@@ -53,7 +57,10 @@ export interface JiraIssueStatus {
 }
 
 export interface JiraClient {
-  fetchBoardSprints(boardId: string): Promise<MappedSprint[]>;
+  /** Sprints des Boards, optional auf Zustände eingeschränkt (Standard: alle). */
+  fetchBoardSprints(boardId: string, states?: JiraSprintStateFilter[]): Promise<MappedSprint[]>;
+  /** Einzelner Sprint (z. B. um einen inzwischen abgeschlossenen nachzuladen); null = gelöscht. */
+  fetchSprint(jiraSprintId: string): Promise<MappedSprint | null>;
   fetchSprintIssues(boardId: string, sprintId: string): Promise<DomainIssue[]>;
   fetchBoardColumns(boardId: string): Promise<BoardColumn[]>;
   /** Schreibt die Schätzung ins konfigurierte Story-Points-Feld des Tickets. */
@@ -76,6 +83,19 @@ function blockedByKeys(raw: JiraIssueRaw): string[] {
 }
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+export type JiraSprintStateFilter = "active" | "closed" | "future";
+
+function toMappedSprint(s: JiraSprintRaw): MappedSprint {
+  return {
+    jiraSprintId: String(s.id),
+    name: s.name,
+    state: mapSprintState(s.state),
+    startDate: s.startDate ? new Date(s.startDate) : null,
+    endDate: s.endDate ? new Date(s.endDate) : null,
+    completeDate: s.completeDate ? new Date(s.completeDate) : null,
+  };
+}
 
 export class JiraCloudClient implements JiraClient {
   constructor(
@@ -106,7 +126,7 @@ export class JiraCloudClient implements JiraClient {
     const jql = isKey
       ? `key = "${text.toUpperCase()}" OR text ~ "${text}"`
       : `text ~ "${text}" ORDER BY updated DESC`;
-    const fields = ["summary", "status", "issuetype", "description", this.config.storyPointsField].join(",");
+    const fields = ["summary", "status", "issuetype", "description", "parent", "labels", "components", this.config.storyPointsField].join(",");
     const page = await this.getJson<{ issues?: JiraIssueRaw[] }>(
       `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=20&fields=${fields}`,
     );
@@ -152,6 +172,11 @@ export class JiraCloudClient implements JiraClient {
       description: adfToText(raw.fields.description),
       storyPoints: typeof points === "number" ? points : null,
       url: `${this.config.baseUrl.replace(/\/$/, "")}/browse/${raw.key}`,
+      parent: raw.fields.parent
+        ? [raw.fields.parent.key, raw.fields.parent.fields?.summary].filter(Boolean).join(" · ")
+        : null,
+      labels: raw.fields.labels ?? [],
+      components: (raw.fields.components ?? []).map((c) => c.name),
     };
   }
 
@@ -164,7 +189,7 @@ export class JiraCloudClient implements JiraClient {
     const fieldId = this.config.storyPointsField.match(/(\d+)$/)?.[1];
     const emptyClause = fieldId ? `cf[${fieldId}] is EMPTY AND ` : "";
     const jql = `${emptyClause}statusCategory != Done ORDER BY Rank ASC`;
-    const fields = ["summary", "status", "issuetype", "description", this.config.storyPointsField].join(",");
+    const fields = ["summary", "status", "issuetype", "description", "parent", "labels", "components", this.config.storyPointsField].join(",");
 
     const raws: JiraIssueRaw[] = [];
     let startAt = 0;
@@ -212,27 +237,33 @@ export class JiraCloudClient implements JiraClient {
     }
   }
 
-  async fetchBoardSprints(boardId: string): Promise<MappedSprint[]> {
+  async fetchBoardSprints(
+    boardId: string,
+    states: JiraSprintStateFilter[] = ["active", "closed", "future"],
+  ): Promise<MappedSprint[]> {
     const sprints: MappedSprint[] = [];
+    const stateParam = encodeURIComponent(states.join(","));
     let startAt = 0;
     for (;;) {
       const page = await this.getJson<JiraSprintPage>(
-        `/rest/agile/1.0/board/${boardId}/sprint?state=active%2Cclosed%2Cfuture&startAt=${startAt}&maxResults=50`,
+        `/rest/agile/1.0/board/${boardId}/sprint?state=${stateParam}&startAt=${startAt}&maxResults=50`,
       );
-      for (const s of page.values) {
-        sprints.push({
-          jiraSprintId: String(s.id),
-          name: s.name,
-          state: mapSprintState(s.state),
-          startDate: s.startDate ? new Date(s.startDate) : null,
-          endDate: s.endDate ? new Date(s.endDate) : null,
-          completeDate: s.completeDate ? new Date(s.completeDate) : null,
-        });
-      }
+      for (const s of page.values) sprints.push(toMappedSprint(s));
       if (page.isLast || page.values.length === 0) break;
       startAt += page.values.length;
     }
     return sprints;
+  }
+
+  async fetchSprint(jiraSprintId: string): Promise<MappedSprint | null> {
+    const res = await this.fetchFn(`${this.config.baseUrl}/rest/agile/1.0/sprint/${jiraSprintId}`, {
+      headers: { Authorization: this.authHeader(), Accept: "application/json" },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`Jira request failed: ${res.status} ${res.statusText} (/sprint/${jiraSprintId})`);
+    }
+    return toMappedSprint((await res.json()) as JiraSprintRaw);
   }
 
   // Spalten der Board-Ansicht: die Konfiguration liefert Status-IDs, die über

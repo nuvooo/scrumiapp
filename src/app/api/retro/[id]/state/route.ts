@@ -99,13 +99,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         return [];
       }
     })(),
-    you: you ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin, revealed: you.revealed } : null,
+    you: you
+      ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin, revealed: you.revealed, done: you.done }
+      : null,
     participants: retro.participants.map((p) => ({
       name: p.name,
       avatar: p.avatar,
       isAdmin: p.isAdmin,
       online: isOnline(p),
       revealed: p.revealed,
+      done: p.done,
       votesUsed: votesUsedById.get(p.id) ?? 0,
     })),
     columns: retro.columns.map((c) => ({

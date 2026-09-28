@@ -9,6 +9,7 @@ import {
   deleteRetro,
   setRetroHidden,
   setRetroParticipantRevealed,
+  setRetroParticipantDone,
   addRetroColumn,
   renameRetroColumn,
   setRetroColumnColor,
@@ -619,6 +620,20 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               {state.you.revealed ? "🙉 Meine Karten verdecken" : "🎤 Meine Karten aufdecken"}
             </button>
           )}
+          <button
+            type="button"
+            title={
+              state.you.done
+                ? "Du hast dich als fertig gemeldet — Klick nimmt das zurück"
+                : state.votingOpen
+                ? "Zeigt allen, dass du deine Stimmen vergeben hast"
+                : "Zeigt allen, dass du mit dem Schreiben fertig bist"
+            }
+            onClick={() => run(() => setRetroParticipantDone(retroId, t, !state.you!.done))}
+            className={`px-3.5 py-[7px] ${state.you.done ? "btn-secondary" : "btn-primary"}`}
+          >
+            {state.you.done ? "↩ Doch nicht fertig" : "✅ Ich bin fertig"}
+          </button>
           {isAdmin && (
             <button type="button" onClick={remove} className="btn-danger px-3.5 py-[7px]">
               Löschen
@@ -630,6 +645,20 @@ export function RetroRoom({ retroId }: { retroId: string }) {
 
       {/* Wer ist da? */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        {(() => {
+          const online = state.participants.filter((p) => p.online);
+          const done = online.filter((p) => p.done).length;
+          if (online.length === 0) return null;
+          return (
+            <span
+              className={`rounded-full border px-2.5 py-1 font-mono text-[11.5px] ${
+                done === online.length ? "border-[#1F3D2B] bg-[#0F1A14] text-ok" : "border-edge bg-field text-dim"
+              }`}
+            >
+              {done === online.length ? "✓ alle fertig" : `${done} von ${online.length} fertig`}
+            </span>
+          );
+        })()}
         {state.participants
           .filter((p) => p.online)
           .map((p) => (
@@ -648,6 +677,11 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               {p.name}
               {p.name === state.you?.name && <span className="font-mono text-[10px] uppercase text-faint">du</span>}
               {p.isAdmin && <span className="font-mono text-[10px] uppercase text-faint">Mod</span>}
+              {p.done && (
+                <span title={`${p.name} ist fertig`} className="font-mono text-[10.5px] text-ok">
+                  ✓ fertig
+                </span>
+              )}
               {state.votingOpen && (
                 <span
                   title={

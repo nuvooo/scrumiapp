@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { syncAllTeams } from "@/lib/sync/syncAll";
+import { withSyncLock } from "@/lib/sync/lock";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const full = request.nextUrl.searchParams.get("full") === "1";
-    await syncAllTeams(undefined, { full });
+    await withSyncLock(() => syncAllTeams(undefined, { full }));
     return NextResponse.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

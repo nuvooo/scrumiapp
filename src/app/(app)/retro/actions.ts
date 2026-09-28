@@ -157,10 +157,25 @@ export async function deleteRetro(retroId: string, token: string): Promise<Actio
   return { ok: true };
 }
 
-/** Voting freigeben oder wieder sperren — nur der Moderator. */
+/**
+ * Voting freigeben oder wieder sperren — nur der Moderator. Mit dem
+ * Phasenwechsel setzen sich die Fertig-Meldungen zurück.
+ */
 export async function setRetroVotingOpen(retroId: string, token: string, open: boolean): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
-  await prisma.retro.update({ where: { id: retroId }, data: { votingOpen: open } });
+  await prisma.$transaction([
+    prisma.retro.update({ where: { id: retroId }, data: { votingOpen: open } }),
+    prisma.retroParticipant.updateMany({ where: { retroId }, data: { done: false } }),
+  ]);
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+/** Sich selbst als fertig melden (bzw. die Meldung zurücknehmen). */
+export async function setRetroParticipantDone(retroId: string, token: string, done: boolean): Promise<ActionResult> {
+  const actor = await requireParticipant(retroId, token);
+  if (!actor) return fail("Nicht im Retro angemeldet.");
+  await prisma.retroParticipant.update({ where: { id: actor.id }, data: { done } });
   bumpRetro(retroId);
   return { ok: true };
 }

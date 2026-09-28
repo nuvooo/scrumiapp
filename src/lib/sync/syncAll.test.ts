@@ -16,6 +16,7 @@ afterEach(async () => {
 class NoopJira implements JiraClient {
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { return []; }
+  async fetchSprint() { return null; }
   async fetchSprintIssues() { return []; }
   async setStoryPoints() {}
   async moveIssuesToSprint() {}
@@ -27,6 +28,7 @@ class NoopJira implements JiraClient {
 class FailingJira implements JiraClient {
   async fetchBoardColumns() { return []; }
   async fetchBoardSprints(): Promise<MappedSprint[]> { throw new Error("boom"); }
+  async fetchSprint() { return null; }
   async fetchSprintIssues(): Promise<[]> { return []; }
   async setStoryPoints() {}
   async moveIssuesToSprint() {}

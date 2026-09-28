@@ -4,6 +4,7 @@ import { Celebration } from "@/components/Celebration";
 import { loadTeams, loadSprints, loadDashboard, loadCelebration } from "@/lib/view/loaders";
 import { resolveTeamId, resolveSprintId, sprintOptions } from "@/lib/view/selection";
 import { SprintSelect } from "@/components/TeamSprintSelector";
+import { CarriedList } from "@/components/CarriedList";
 import { formatPoints, formatDateShort } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function DashboardPage({
           label="Commitment"
           value={formatPoints(data.committed)}
           unit="SP"
-          hint={`davon ${formatPoints(data.carriedOver)} SP übernommen`}
+          hint={`${formatPoints(data.commitment.carried)} SP mitgenommen + ${formatPoints(data.commitment.fresh)} SP neu`}
         />
         <KpiCard
           label="Kapazität"
@@ -110,6 +111,12 @@ export default async function DashboardPage({
           footerLeft={`${data.bugs.closed} von ${data.bugs.total} Bugs geschlossen`}
         />
       </div>
+
+      {data.carriedItems.length > 0 && (
+        <div className="mt-3.5">
+          <CarriedList items={data.carriedItems} />
+        </div>
+      )}
     </div>
   );
 }

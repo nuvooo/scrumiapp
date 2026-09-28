@@ -15,6 +15,47 @@ import type { JiraSearchResult } from "@/lib/jira/jiraClient";
 
 const columnHelper = createColumnHelper<JiraSearchResult>();
 
+type FacetKey = "issueType" | "status" | "parent" | "label" | "component";
+
+const FACETS: { key: FacetKey; label: string; all: string }[] = [
+  { key: "issueType", label: "Typ", all: "Alle Typen" },
+  { key: "status", label: "Status", all: "Alle Status" },
+  { key: "parent", label: "Epic", all: "Alle Epics" },
+  { key: "label", label: "Label", all: "Alle Labels" },
+  { key: "component", label: "Komponente", all: "Alle Komponenten" },
+];
+
+/** Sentinel für „ohne Epic/Label/Komponente". */
+const NONE = "__none__";
+
+/** Werte eines Tickets für eine Filter-Facette (leer = „ohne"). */
+function facetValues(r: JiraSearchResult, key: FacetKey): string[] {
+  switch (key) {
+    case "issueType":
+      return [r.issueType];
+    case "status":
+      return [r.status];
+    case "parent":
+      return r.parent ? [r.parent] : [];
+    case "label":
+      return r.labels ?? [];
+    case "component":
+      return r.components ?? [];
+  }
+}
+
+/** Filtert Tickets nach den gewählten Facetten (UND-verknüpft, "" = alle). */
+export function filterBacklog(rows: JiraSearchResult[], filters: Partial<Record<FacetKey, string>>): JiraSearchResult[] {
+  return rows.filter((r) =>
+    FACETS.every(({ key }) => {
+      const want = filters[key];
+      if (!want) return true;
+      const values = facetValues(r, key);
+      return want === NONE ? values.length === 0 : values.includes(want);
+    }),
+  );
+}
+
 /** Griff-Punkte: signalisieren, dass die Zeile per Drag & Drop verschiebbar ist. */
 export function DragHandle() {
   return (
@@ -49,6 +90,25 @@ export function BacklogTable({
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [filters, setFilters] = useState<Partial<Record<FacetKey, string>>>({});
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  // Auswahlwerte je Facette aus den geladenen Tickets; „ohne …" nur, wenn es solche Tickets gibt.
+  const facetOptions = useMemo(() => {
+    const result = {} as Record<FacetKey, { values: string[]; hasNone: boolean }>;
+    for (const { key } of FACETS) {
+      const values = new Set<string>();
+      let hasNone = false;
+      for (const r of rows) {
+        const v = facetValues(r, key);
+        if (v.length === 0) hasNone = true;
+        v.forEach((x) => values.add(x));
+      }
+      result[key] = { values: [...values].sort((a, b) => a.localeCompare(b, "de")), hasNone };
+    }
+    return result;
+  }, [rows]);
+  const filteredRows = useMemo(() => filterBacklog(rows, filters), [rows, filters]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [adding, setAdding] = useState(false);
 
@@ -128,7 +188,14 @@ export function BacklogTable({
       }),
       columnHelper.accessor("summary", {
         header: "Titel",
-        cell: (info) => <span className="block max-w-[520px] truncate text-[12.5px] text-fg">{info.getValue()}</span>,
+        cell: (info) => (
+          <span className="block max-w-[520px]">
+            <span className="block truncate text-[12.5px] text-fg">{info.getValue()}</span>
+            {info.row.original.parent && (
+              <span className="block truncate font-mono text-[10.5px] text-faint">↳ {info.row.original.parent}</span>
+            )}
+          </span>
+        ),
       }),
       columnHelper.display({
         id: "aktion",
@@ -150,7 +217,7 @@ export function BacklogTable({
   );
 
   const table = useReactTable({
-    data: rows,
+    data: filteredRows,
     columns,
     state: { sorting, globalFilter, rowSelection },
     getRowId: (r) => r.jiraKey,
@@ -184,7 +251,34 @@ export function BacklogTable({
           placeholder="Filtern (Key, Titel, Typ, Status)…"
           className="input-field max-w-[320px]"
         />
-        {globalFilter && (
+        {FACETS.map(({ key, label, all }) => {
+          const opts = facetOptions[key];
+          // Facetten ohne Auswahl (z. B. keine Labels im Backlog) blenden wir aus.
+          if (opts.values.length === 0 || (opts.values.length === 1 && !opts.hasNone)) return null;
+          return (
+            <select
+              key={key}
+              aria-label={`Nach ${label} filtern`}
+              value={filters[key] ?? ""}
+              onChange={(e) => setFilters((f) => ({ ...f, [key]: e.target.value }))}
+              className={`input-field w-auto max-w-[200px] py-[7px] text-[12.5px] ${filters[key] ? "border-accent text-fg" : "text-mid"}`}
+            >
+              <option value="">{all}</option>
+              {opts.values.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+              {opts.hasNone && <option value={NONE}>ohne {label}</option>}
+            </select>
+          );
+        })}
+        {activeFilterCount > 0 && (
+          <button type="button" onClick={() => setFilters({})} className="text-[12px] text-link hover:text-linkhi">
+            Filter zurücksetzen
+          </button>
+        )}
+        {(globalFilter || activeFilterCount > 0) && (
           <span className="text-[12px] text-dim">
             {visible.length} von {rows.length} Tickets
           </span>

@@ -29,6 +29,10 @@ model Team {
   boardColumns        String?
   lastSyncedAt        DateTime?
   lastSyncError       String?
+  /// Daily-Wochentage als ISO-Nummern, kommagetrennt ("1,2,3,4,5" = Mo–Fr); leer = kein Daily
+  dailyDays           String       @default("")
+  /// Daily-Uhrzeit "HH:MM" (Europe/Berlin); null = kein Daily-Snapshot, Burndown aus jedem Sync
+  dailyTime           String?
   createdAt           DateTime     @default(now())
   sprints             Sprint[]
   members             TeamMember[]
@@ -53,6 +57,8 @@ model Sprint {
   burndownPoints  BurndownPoint[]
   capacityEntries CapacityEntry[]
   carryOverPlans  CarryOverPlan[]
+  /// Aus dem Vorsprint mitgenommene Tickets (Planning-Markierungen mit diesem Sprint als Ziel)
+  carriedInPlans  CarryOverPlan[] @relation("CarryOverTarget")
 
   @@unique([teamId, jiraSprintId])
 }
@@ -60,16 +66,26 @@ model Sprint {
 /// Planning-Markierung „mitnehmen" mit Rest-Story-Points für offene Tickets
 /// des aktiven Sprints. Eigene Tabelle statt Feld am Issue, weil der Sync
 /// Issues per delete+create ersetzt. Jira bleibt unangetastet.
+/// Mit Zielsprint und Snapshot (Titel, Original-SP) bleibt dauerhaft
+/// nachvollziehbar, was in welchen Sprint mitgenommen wurde.
 model CarryOverPlan {
   id              String   @id @default(cuid())
   sprint          Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
   sprintId        String
+  /// Sprint, in den das Ticket mitgenommen wird (null = Altbestand ohne Ziel)
+  targetSprint    Sprint?  @relation("CarryOverTarget", fields: [targetSprintId], references: [id], onDelete: SetNull)
+  targetSprintId  String?
   jiraKey         String
+  /// Titel zum Zeitpunkt der Markierung
+  summary         String   @default("")
+  /// Schätzung am Jira-Ticket zum Zeitpunkt der Markierung
+  storyPoints     Float    @default(0)
   takeAlong       Boolean  @default(true)
   remainingPoints Float    @default(0)
   updatedAt       DateTime @updatedAt
 
   @@unique([sprintId, jiraKey])
+  @@index([targetSprintId])
 }
 
 model Issue {
@@ -254,6 +270,8 @@ model RetroParticipant {
   isAdmin    Boolean        @default(false)
   /// Eigene Karten trotz Verdeckt-Modus für alle sichtbar (z. B. beim Vortragen)
   revealed   Boolean        @default(false)
+  /// Meldet sich als fertig (Karten geschrieben bzw. Stimmen vergeben)
+  done       Boolean        @default(false)
   /// Geräte-Token (localStorage) zum Wiedererkennen ohne Login
   token      String         @unique @default(cuid())
   /// Letzter Heartbeat (WebSocket/Poll) — bestimmt, wer als anwesend gilt
