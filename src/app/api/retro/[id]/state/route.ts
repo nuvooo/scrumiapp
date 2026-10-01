@@ -77,6 +77,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
   }
+  let sortOrder: string[] = [];
+  try {
+    sortOrder = JSON.parse(retro.sortOrder) as string[];
+  } catch {
+    sortOrder = [];
+  }
+  // Paket-Rang pro Autor: gruppiert im Zufallsmodus auch verdeckte Karten, ohne den Namen zu verraten.
+  const packetOf = (name: string) => {
+    if (retro.sortMode !== "shuffle") return 0;
+    const index = sortOrder.indexOf(name);
+    return index === -1 ? sortOrder.length : index;
+  };
+  const myVotesOn = (card: { votes: { participantId: string }[] }) =>
+    you ? card.votes.filter((v) => v.participantId === you.id).length : 0;
   const votesLeft = you ? retro.votesPerUser - (votesUsedById.get(you.id) ?? 0) : 0;
 
   return Response.json({
@@ -92,13 +106,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     musicOn: retro.musicOn,
     background: retro.background,
     sortMode: retro.sortMode,
-    sortOrder: (() => {
-      try {
-        return JSON.parse(retro.sortOrder) as string[];
-      } catch {
-        return [];
-      }
-    })(),
+    sortOrder,
+    presenter: retro.sortMode === "shuffle" ? retro.presenter : "",
     you: you
       ? { name: you.name, avatar: you.avatar, isAdmin: you.isAdmin, revealed: you.revealed, done: you.done }
       : null,
@@ -127,8 +136,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           author: covered ? "" : card.author.name,
           // Text auch verdeckt mitschicken — der Client blurred ihn als Vorschau.
           text: card.text,
-          votes: card.votes.length,
-          myVotes: you ? card.votes.filter((v) => v.participantId === you.id).length : 0,
+          packet: packetOf(card.author.name),
+          // Blind-Voting: solange das Voting läuft, nur die eigenen Stimmen zeigen —
+          // niemand soll sich von fremden Stimmen beeinflussen lassen.
+          votes: retro.votingOpen ? myVotesOn(card) : card.votes.length,
+          myVotes: myVotesOn(card),
           comments: covered
             ? []
             : card.comments.map((cm) => ({ id: cm.id, author: cm.author.name, text: cm.text })),

@@ -238,6 +238,8 @@ model Retro {
   sortMode     String             @default("default")
   /// Bei shuffle: gemischte Ersteller-Reihenfolge als JSON-Array
   sortOrder    String             @default("[]")
+  /// Bei shuffle: wer gerade seine Karten vorstellt ("" = noch niemand)
+  presenter    String             @default("")
   /// Hintergrundmusik vom Moderator für alle eingeschaltet
   musicOn      Boolean            @default(false)
   /// Hintergrundbild des Boards (Preset-Key oder Bild-URL) — gilt für alle

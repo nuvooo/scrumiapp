@@ -88,6 +88,8 @@ export interface RetroCardView {
   /** Eigene Stimmen auf dieser Karte (fürs Zurücknehmen). */
   myVotes: number;
   comments: RetroCommentView[];
+  /** Zufallsmodus: Rang des Autor-Pakets (gruppiert auch verdeckte Karten). */
+  packet?: number;
 }
 
 export interface RetroColumnView {
@@ -115,6 +117,8 @@ export interface RetroStateView {
   sortMode: "default" | "votes" | "author" | "shuffle";
   /** Bei shuffle: die geteilte, gemischte Ersteller-Reihenfolge. */
   sortOrder: string[];
+  /** Bei shuffle: wer gerade seine Karten vorstellt ("" = noch niemand / Runde vorbei). */
+  presenter?: string;
   /** Hintergrundmusik vom Moderator für alle eingeschaltet. */
   musicOn: boolean;
   /** Hintergrundbild des Boards (Preset-Key oder Bild-URL) — vom Moderator für alle gesetzt. */

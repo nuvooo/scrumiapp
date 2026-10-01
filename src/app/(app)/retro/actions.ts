@@ -212,20 +212,57 @@ export async function setRetroSortMode(
 ): Promise<ActionResult> {
   if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
   if (!["default", "votes", "author", "shuffle"].includes(mode)) return fail("Unbekannte Sortierung.");
-  let sortOrder = "[]";
-  if (mode === "shuffle") {
-    const cards = await prisma.retroCard.findMany({
-      where: { column: { retroId } },
-      include: { author: { select: { name: true } } },
-    });
-    const authors = [...new Set(cards.map((c) => c.author.name))];
-    for (let i = authors.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [authors[i], authors[j]] = [authors[j], authors[i]];
-    }
-    sortOrder = JSON.stringify(authors);
+  const sortOrder = mode === "shuffle" ? JSON.stringify(shuffle(await cardAuthors(retroId))) : "[]";
+  // Neu mischen beginnt die Vorstellrunde von vorn.
+  await prisma.retro.update({ where: { id: retroId }, data: { sortMode: mode, sortOrder, presenter: "" } });
+  bumpRetro(retroId);
+  return { ok: true };
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
   }
-  await prisma.retro.update({ where: { id: retroId }, data: { sortMode: mode, sortOrder } });
+  return result;
+}
+
+/** Namen aller Teilnehmer, die mindestens eine Karte geschrieben haben. */
+async function cardAuthors(retroId: string): Promise<string[]> {
+  const cards = await prisma.retroCard.findMany({
+    where: { column: { retroId } },
+    include: { author: { select: { name: true } } },
+  });
+  return [...new Set(cards.map((c) => c.author.name))];
+}
+
+/**
+ * Zufalls-Vorstellrunde: die nächste Person aus der gemischten Reihenfolge
+ * ist dran — ihre Karten werden für alle aufgedeckt. Wer erst nach dem
+ * Mischen Karten geschrieben hat, kommt zufällig hinten dran. Nach der
+ * letzten Person endet die Runde (presenter = "").
+ */
+export async function nextRetroPresenter(retroId: string, token: string): Promise<ActionResult> {
+  if (!(await requireParticipant(retroId, token, true))) return fail("Nur der Moderator darf das.");
+  const retro = await prisma.retro.findUnique({ where: { id: retroId } });
+  if (!retro) return fail("Retro nicht gefunden.");
+  let order: string[] = [];
+  try {
+    order = retro.sortMode === "shuffle" ? (JSON.parse(retro.sortOrder) as string[]) : [];
+  } catch {
+    order = [];
+  }
+  const authors = await cardAuthors(retroId);
+  order = [...order.filter((n) => authors.includes(n)), ...shuffle(authors.filter((n) => !order.includes(n)))];
+  const next = order[order.indexOf(retro.presenter) + 1] ?? "";
+  await prisma.retro.update({
+    where: { id: retroId },
+    data: { sortMode: "shuffle", sortOrder: JSON.stringify(order), presenter: next },
+  });
+  if (next) {
+    await prisma.retroParticipant.updateMany({ where: { retroId, name: next }, data: { revealed: true } });
+  }
   bumpRetro(retroId);
   return { ok: true };
 }

@@ -97,6 +97,18 @@ export function RefinementRoom({ refinementId }: { refinementId: string }) {
     }
   }, [state?.you]);
 
+  // Beim Betreten: Avatar aus dem zentralen Profil übernehmen — sonst bleibt in
+  // Sessions, die beim Speichern nicht offen waren, der alte (oder gar keiner) stehen.
+  const avatarSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!state?.you || !token || avatarSyncedRef.current) return;
+    avatarSyncedRef.current = true;
+    const { name, avatar } = storedProfile();
+    if (name === "" || avatar === state.you.avatar) return;
+    const you = state.you;
+    updateProfile(refinementId, token, you.name, avatar, roleOf(you)).then(() => refresh());
+  }, [state?.you, token, refinementId, refresh]);
+
   // Echter Push statt Polling: Der WebSocket (server.mjs) meldet "changed",
   // sobald sich im Raum etwas tut — dann wird der Zustand einmal abgerufen.
   // Fällt der Socket aus, überbrückt Long-Polling, bis die Verbindung wieder steht.

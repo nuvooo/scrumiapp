@@ -31,6 +31,7 @@ import {
   setRetroTimer,
   setRetroMusic,
   setRetroSortMode,
+  nextRetroPresenter,
   setRetroBackground,
 } from "@/app/(app)/retro/actions";
 import { RETRO_BACKGROUNDS, retroBackgroundCss } from "@/lib/retroBackground";
@@ -365,6 +366,18 @@ export function RetroRoom({ retroId }: { retroId: string }) {
     }
   }, [state?.you]);
 
+  // Beim Betreten: Avatar aus dem zentralen Profil übernehmen — sonst bleibt in
+  // Boards, die beim Speichern nicht offen waren, der alte (oder gar keiner) stehen.
+  const avatarSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!state?.you || !token || avatarSyncedRef.current) return;
+    avatarSyncedRef.current = true;
+    const { name, avatar } = storedProfile();
+    if (name === "" || avatar === state.you.avatar) return;
+    const you = state.you;
+    updateRetroProfile(retroId, token, you.name, avatar, you.isAdmin ? "moderator" : "member").then(() => refresh());
+  }, [state?.you, token, retroId, refresh]);
+
   // WebSocket pusht "changed" → Zustand abrufen; ohne Socket Long-Polling.
   useEffect(() => {
     if (!tokenLoaded) return;
@@ -575,7 +588,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
               type="button"
               title={
                 state.votingOpen
-                  ? "Voting läuft — Klick sperrt es wieder"
+                  ? "Voting läuft (blind) — Klick sperrt es und zeigt allen das Ergebnis"
                   : "Voting freigeben, damit alle Stimmen vergeben können"
               }
               onClick={() => run(() => setRetroVotingOpen(retroId, t, !state.votingOpen))}
@@ -742,6 +755,7 @@ export function RetroRoom({ retroId }: { retroId: string }) {
         onSetColumnCollapsed={(columnId, collapsed) => run(() => setRetroColumnCollapsed(retroId, t, columnId, collapsed))}
         onSetSortMode={(mode) => run(() => setRetroSortMode(retroId, t, mode))}
         onDeleteColumn={(columnId) => run(() => deleteRetroColumn(retroId, t, columnId))}
+        onNextPresenter={() => run(() => nextRetroPresenter(retroId, t))}
         onSearchGifs={searchGifs}
         onTyping={(columnId) => {
           // Fire-and-forget: kein refresh(), das Update kommt über den WebSocket.

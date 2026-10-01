@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import { RetroBoard } from "./RetroBoard";
+import { RetroBoard, edgeScrollSpeed } from "./RetroBoard";
 import type { RetroStateView } from "@/lib/view/retroState";
 
 afterEach(cleanup);
@@ -60,7 +60,8 @@ describe("RetroBoard", () => {
     expect(screen.getByTestId("column-Lief gut 👍")).toBeInTheDocument();
     expect(screen.getByTestId("column-Geht besser 🤔")).toBeInTheDocument();
     expect(screen.getByText("Gutes Pairing")).toBeInTheDocument();
-    expect(within(screen.getByTestId("card-k2")).getByText("👍 5")).toBeInTheDocument();
+    // Voting läuft → blind: nur die eigenen Stimmen (Gesamt erst nach Voting-Ende)
+    expect(within(screen.getByTestId("card-k2")).getByText(/👍 0/)).toBeInTheDocument();
     // Autor mit Avatar aus der Teilnehmerliste
     expect(within(screen.getByTestId("card-k2")).getByText(/🦊 Zoe/)).toBeInTheDocument();
     expect(screen.getByText(/Noch 2 von 3 Stimmen/)).toBeInTheDocument();
@@ -160,7 +161,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator ändert die Sortierung für alle", () => {
     const onSetSortMode = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true, revealed: false } });
     render(<RetroBoard state={admin} {...handlers} onSetSortMode={onSetSortMode} />);
     fireEvent.change(screen.getByLabelText("Sortierung"), { target: { value: "author" } });
     expect(onSetSortMode).toHaveBeenCalledWith("author");
@@ -188,7 +189,7 @@ describe("RetroBoard", () => {
     const mixed = baseState({
       sortMode: "shuffle",
       sortOrder: ["Zoe", "Anna"],
-      you: { name: "Anna", avatar: "", isAdmin: true },
+      you: { name: "Anna", avatar: "", isAdmin: true, revealed: false },
       columns: [
         {
           id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
@@ -213,7 +214,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator blendet Spalten aus und wieder ein", () => {
     const onSetColumnCollapsed = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true, revealed: false } });
     const { unmount } = render(<RetroBoard state={admin} {...handlers} onSetColumnCollapsed={onSetColumnCollapsed} />);
     fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 ausblenden" }));
     expect(onSetColumnCollapsed).toHaveBeenCalledWith("c1", true);
@@ -221,7 +222,7 @@ describe("RetroBoard", () => {
 
     // Eingeklappt: schmale Leiste ohne Karten; Moderator kann wieder einblenden
     const collapsed = baseState({
-      you: { name: "Anna", avatar: "", isAdmin: true },
+      you: { name: "Anna", avatar: "", isAdmin: true, revealed: false },
       columns: [
         { id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: true,
           cards: [{ id: "k1", mine: false, covered: false, author: "Zoe", text: "Versteckt", votes: 0, myVotes: 0, comments: [] }] },
@@ -289,7 +290,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator sortiert Spalten per Drag & Drop um", () => {
     const onReorderColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true, revealed: false } });
     render(<RetroBoard state={admin} {...handlers} onReorderColumn={onReorderColumn} />);
     fireEvent.drop(screen.getByTestId("column-Geht besser 🤔"), {
       dataTransfer: {
@@ -307,7 +308,7 @@ describe("RetroBoard", () => {
     unmount();
 
     const onRenameColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true, revealed: false } });
     render(<RetroBoard state={admin} {...handlers} onRenameColumn={onRenameColumn} />);
     fireEvent.click(screen.getByRole("button", { name: "Spalte Lief gut 👍 umbenennen" }));
     fireEvent.change(screen.getByLabelText("Spaltenname"), { target: { value: "Highlights" } });
@@ -317,7 +318,7 @@ describe("RetroBoard", () => {
 
   it("der Moderator legt neue Spalten mit Farbe an", () => {
     const onAddColumn = vi.fn();
-    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true } });
+    const admin = baseState({ you: { name: "Anna", avatar: "", isAdmin: true, revealed: false } });
     render(<RetroBoard state={admin} {...handlers} onAddColumn={onAddColumn} />);
     fireEvent.click(screen.getByRole("button", { name: "+ Spalte" }));
     fireEvent.change(screen.getByLabelText("Name der neuen Spalte"), { target: { value: "Aktionen" } });
@@ -406,6 +407,74 @@ describe("RetroBoard", () => {
     expect(onTyping).toHaveBeenCalledWith("c2");
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(onTyping).toHaveBeenCalledWith(null);
+  });
+
+it("Zufallsmodus gruppiert auch verdeckte Karten über den Paket-Rang", () => {
+    const covered = baseState({
+      sortMode: "shuffle",
+      sortOrder: ["Zoe", "Anna"],
+      columns: [
+        {
+          id: "c1", name: "Lief gut 👍", color: "#4CC38A", collapsed: false,
+          cards: [
+            { id: "k1", mine: false, covered: true, author: "", text: "A1", votes: 0, myVotes: 0, comments: [], packet: 1 },
+            { id: "k2", mine: false, covered: true, author: "", text: "Z1", votes: 0, myVotes: 0, comments: [], packet: 0 },
+            { id: "k3", mine: false, covered: true, author: "", text: "A2", votes: 0, myVotes: 0, comments: [], packet: 1 },
+          ],
+        },
+      ],
+    });
+    render(<RetroBoard state={covered} {...handlers} />);
+    const order = within(screen.getByTestId("column-Lief gut 👍"))
+      .getAllByTestId(/^card-/)
+      .map((c) => c.getAttribute("data-testid"));
+    expect(order).toEqual(["card-k2", "card-k1", "card-k3"]);
+  });
+
+  it("Vorstellrunde: zeigt Reihenfolge, wer dran ist, und der Moderator ruft die nächste Person auf", () => {
+    const onNextPresenter = vi.fn();
+    const state = baseState({
+      sortMode: "shuffle",
+      sortOrder: ["Zoe", "Ben"],
+      presenter: "Zoe",
+      you: { name: "Anna", avatar: "", isAdmin: true, revealed: false },
+    });
+    render(<RetroBoard state={state} {...handlers} onNextPresenter={onNextPresenter} />);
+    const bar = screen.getByTestId("presenter-bar");
+    expect(within(bar).getByText("1. Zoe — ist dran")).toBeInTheDocument();
+    expect(screen.getByTestId("card-k2").className).toContain("ring-[#F59E4A]"); // Zoes Karte hervorgehoben
+    fireEvent.click(within(bar).getByRole("button", { name: "▶ Nächste/r" }));
+    expect(onNextPresenter).toHaveBeenCalled();
+  });
+
+  it("Vorstellrunde: Teilnehmer sehen die Reihenfolge, aber keinen Weiter-Knopf", () => {
+    render(<RetroBoard state={baseState({ sortMode: "shuffle", sortOrder: ["Zoe"], presenter: "" })} {...handlers} onNextPresenter={noop} />);
+    expect(within(screen.getByTestId("presenter-bar")).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("Geister-Karten stehen unter dem eigenen Composer (fremdes Tippen verschiebt ihn nicht)", () => {
+    render(<RetroBoard state={baseState({ typing: [{ columnId: "c2", name: "Zoe", mine: false }] })} {...handlers} />);
+    fireEvent.click(screen.getByRole("button", { name: "Karte in Geht besser 🤔 anlegen" }));
+    const composer = screen.getByRole("textbox", { name: "Neue Karte in Geht besser 🤔" });
+    const ghost = screen.getByTestId("typing-c2-0");
+    expect(composer.compareDocumentPosition(ghost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("Auto-Scroll beim Ziehen: nur in der Randzone, am Rand am schnellsten", () => {
+    expect(edgeScrollSpeed(400, 800)).toBe(0);
+    expect(edgeScrollSpeed(0, 800)).toBeLessThan(edgeScrollSpeed(60, 800));
+    expect(edgeScrollSpeed(60, 800)).toBeLessThan(0);
+    expect(edgeScrollSpeed(790, 800)).toBeGreaterThan(0);
+  });
+
+  it("Blind-Voting: während das Voting läuft, zeigt die Karte nur die eigenen Stimmen", () => {
+    const { unmount } = render(<RetroBoard state={baseState({ votingOpen: true })} {...handlers} />);
+    // k1: 2 Stimmen gesamt, davon 1 eigene → nur die eigene ist sichtbar
+    expect(within(screen.getByTestId("card-k1")).getByText(/👍 1/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("card-k2")).getByText(/👍 0/)).toBeInTheDocument();
+    unmount();
+    render(<RetroBoard state={baseState({ votingOpen: false })} {...handlers} />);
+    expect(within(screen.getByTestId("card-k2")).getByText("👍 5")).toBeInTheDocument();
   });
 
   it("rendert GIF-URLs in Karten als Bild", () => {

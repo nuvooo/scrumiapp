@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { cardSegments } from "@/lib/retroCardText";
 import { EmojiGifPicker, type GifSearch } from "./EmojiGifPicker";
 import {
@@ -19,6 +19,76 @@ const SORT_LABELS: Record<RetroStateView["sortMode"], string> = {
   author: "Nach Ersteller (A–Z)",
   shuffle: "Ersteller-Pakete (zufällig)",
 };
+
+/** Randzone (px), in der beim Ziehen automatisch gescrollt wird. */
+const SCROLL_ZONE = 90;
+const SCROLL_MAX_SPEED = 28;
+
+/**
+ * Scroll-Geschwindigkeit am Rand: negativ = Richtung Anfang, positiv = Richtung
+ * Ende, je näher am Rand desto schneller; außerhalb der Zone 0.
+ */
+export function edgeScrollSpeed(pos: number, size: number): number {
+  if (pos < SCROLL_ZONE) return -Math.ceil(((SCROLL_ZONE - pos) / SCROLL_ZONE) * SCROLL_MAX_SPEED);
+  if (pos > size - SCROLL_ZONE) return Math.ceil(((pos - (size - SCROLL_ZONE)) / SCROLL_ZONE) * SCROLL_MAX_SPEED);
+  return 0;
+}
+
+/**
+ * Natives Drag & Drop scrollt die Seite nicht zuverlässig mit — beim Ziehen
+ * einer Karte nahe am Fensterrand (oben/unten) bzw. am Rand der Spaltenleiste
+ * (links/rechts) selbst scrollen, damit auch weit entfernte Karten erreichbar sind.
+ */
+function useDragAutoScroll(rowRef: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    let dragging = false;
+    let frame = 0;
+    let speedY = 0;
+    let speedX = 0;
+
+    const tick = () => {
+      if (!dragging || (speedY === 0 && speedX === 0)) {
+        frame = 0;
+        return;
+      }
+      if (speedY) window.scrollBy(0, speedY);
+      if (speedX && rowRef.current) rowRef.current.scrollLeft += speedX;
+      frame = requestAnimationFrame(tick);
+    };
+
+    const onDragStart = (e: DragEvent) => {
+      const types = e.dataTransfer?.types ?? [];
+      dragging = types.includes(CARD_DRAG_TYPE) || types.includes(COLUMN_DRAG_TYPE);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!dragging) return;
+      speedY = edgeScrollSpeed(e.clientY, window.innerHeight);
+      const row = rowRef.current?.getBoundingClientRect();
+      speedX = row && e.clientY >= row.top && e.clientY <= row.bottom
+        ? edgeScrollSpeed(e.clientX - row.left, row.width)
+        : 0;
+      if (!frame && (speedY || speedX)) frame = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      dragging = false;
+      speedY = 0;
+      speedX = 0;
+    };
+
+    document.addEventListener("dragstart", onDragStart);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("dragend", stop);
+    document.addEventListener("drop", stop);
+    return () => {
+      stop();
+      cancelAnimationFrame(frame);
+      document.removeEventListener("dragstart", onDragStart);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("dragend", stop);
+      document.removeEventListener("drop", stop);
+    };
+  }, [rowRef]);
+}
 
 /** Kartentext in Freitext und angehängte Bild-URLs zerlegen (fürs Bearbeiten). */
 function splitCardText(text: string): { text: string; gifs: string[] } {
@@ -83,6 +153,7 @@ function Card({
   authorAvatar,
   votesLeft,
   votingOpen,
+  presenting = false,
   searchGifs,
   onUpdate,
   onDelete,
@@ -103,6 +174,8 @@ function Card({
   votesLeft: number;
   /** Voting erst nach Freigabe durch den Moderator. */
   votingOpen: boolean;
+  /** Autor stellt gerade seine Karten vor (Zufalls-Vorstellrunde). */
+  presenting?: boolean;
   searchGifs: GifSearch;
   onUpdate: (text: string) => void;
   onDelete: () => void;
@@ -158,7 +231,7 @@ function Card({
         onMerge(sourceId);
       }}
       className={`rounded-[10px] border border-edge bg-field p-2.5 text-[13px] text-fg ${
-        dragOver ? "ring-2 ring-[#6e8ff6]" : ""
+        dragOver ? "ring-2 ring-[#6e8ff6]" : presenting ? "ring-2 ring-[#F59E4A]" : ""
       } ${canMerge && !card.covered ? "cursor-grab" : ""}`}
       style={{ borderLeft: `3px solid ${color}` }}
     >
@@ -201,7 +274,16 @@ function Card({
           )}
           <div className="mt-2 flex items-center gap-1.5">
             {/* Stimmen */}
-            <span className={`font-mono text-[11.5px] ${card.votes > 0 ? "text-fg" : "text-dim"}`}>👍 {card.votes}</span>
+            {votingOpen ? (
+              <span
+                title="Blind-Voting: du siehst nur deine eigenen Stimmen — das Ergebnis kommt, wenn das Voting gesperrt wird"
+                className={`font-mono text-[11.5px] ${card.myVotes > 0 ? "text-fg" : "text-dim"}`}
+              >
+                👍 {card.myVotes} <span className="text-faint">· 🙈</span>
+              </span>
+            ) : (
+              <span className={`font-mono text-[11.5px] ${card.votes > 0 ? "text-fg" : "text-dim"}`}>👍 {card.votes}</span>
+            )}
             <button
               type="button"
               aria-label="Stimme geben"
@@ -350,6 +432,32 @@ function Column({
   const [columnDragOver, setColumnDragOver] = useState(false);
 
   const cards = sortCards(column.cards);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const composerTopRef = useRef<number | null>(null);
+
+  // Scroll-Anchoring fürs offene Eingabefeld: Fügen andere oberhalb Karten ein,
+  // die Seite um genau diese Höhe mitscrollen — das Feld bleibt, wo es ist.
+  useEffect(() => {
+    if (!composerOpen) return;
+    const remember = () => {
+      composerTopRef.current = composerRef.current?.getBoundingClientRect().top ?? null;
+    };
+    remember();
+    window.addEventListener("scroll", remember, { passive: true });
+    window.addEventListener("resize", remember);
+    return () => {
+      window.removeEventListener("scroll", remember);
+      window.removeEventListener("resize", remember);
+      composerTopRef.current = null;
+    };
+  }, [composerOpen]);
+  useLayoutEffect(() => {
+    const before = composerTopRef.current;
+    const now = composerRef.current?.getBoundingClientRect().top;
+    if (before === null || now === undefined) return;
+    if (Math.abs(now - before) >= 1) window.scrollBy(0, now - before);
+    composerTopRef.current = composerRef.current?.getBoundingClientRect().top ?? null;
+  });
 
   // Solange der Composer offen ist, regelmäßig „schreibt gerade" melden.
   useEffect(() => {
@@ -515,17 +623,6 @@ function Column({
         )}
       </div>
 
-      {/* Geister-Karten: hier schreibt gerade jemand */}
-      {typing.map((t, i) => (
-        <div
-          key={`typing-${i}`}
-          data-testid={`typing-${column.id}-${i}`}
-          className="animate-pulse rounded-[10px] border border-dashed border-edge bg-field p-2.5 text-[12.5px] text-dim"
-        >
-          ✍️ {t.name ? `${t.name} schreibt…` : "Jemand schreibt…"}
-        </div>
-      ))}
-
       {cards.map((card) => (
         <Card key={card.id} {...cardHandlers(card)} />
       ))}
@@ -543,7 +640,7 @@ function Column({
       )}
 
       {composerOpen && (
-        <div className="flex flex-col gap-2 rounded-[10px] border border-edge bg-field p-2.5">
+        <div ref={composerRef} className="flex flex-col gap-2 rounded-[10px] border border-edge bg-field p-2.5">
           <textarea
             aria-label={`Neue Karte in ${column.name}`}
             value={composerText}
@@ -582,6 +679,18 @@ function Column({
           </div>
         </div>
       )}
+
+      {/* Geister-Karten: hier schreibt gerade jemand — unter dem eigenen Composer,
+          damit fremdes Tippen das eigene Eingabefeld nicht verschiebt. */}
+      {typing.map((t, i) => (
+        <div
+          key={`typing-${i}`}
+          data-testid={`typing-${column.id}-${i}`}
+          className="animate-pulse rounded-[10px] border border-dashed border-edge bg-field p-2.5 text-[12.5px] text-dim"
+        >
+          ✍️ {t.name ? `${t.name} schreibt…` : "Jemand schreibt…"}
+        </div>
+      ))}
     </div>
   );
 }
@@ -605,6 +714,7 @@ export function RetroBoard({
   onDeleteColumn,
   onSearchGifs,
   onTyping,
+  onNextPresenter,
 }: {
   state: RetroStateView;
   onAddCard: (columnId: string, text: string) => void;
@@ -628,7 +738,12 @@ export function RetroBoard({
   onSearchGifs: GifSearch;
   /** „Schreibt gerade"-Signal (columnId oder null für Stopp). */
   onTyping: (columnId: string | null) => void;
+  /** Zufalls-Vorstellrunde: nächste Person ist dran (Moderator). */
+  onNextPresenter?: () => void;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  useDragAutoScroll(rowRef);
+  const presenter = state.sortMode === "shuffle" ? (state.presenter ?? "") : "";
   const isAdmin = state.you?.isAdmin ?? false;
   const [addColumnOpen, setAddColumnOpen] = useState(false);
   const [newColumnName, setNewColumnName] = useState("");
@@ -642,7 +757,9 @@ export function RetroBoard({
     if (state.sortMode === "author")
       return [...cards].sort((a, b) => (a.author || "￿").localeCompare(b.author || "￿", "de"));
     if (state.sortMode === "shuffle") {
+      // Der Server liefert den Paket-Rang mit — so landen auch verdeckte Karten im richtigen Paket.
       const rank = (card: RetroCardView) => {
+        if (card.packet !== undefined) return card.packet;
         const index = state.sortOrder.indexOf(card.author);
         return index === -1 ? state.sortOrder.length : index;
       };
@@ -663,7 +780,7 @@ export function RetroBoard({
       <div className="flex flex-wrap items-center gap-3">
         {state.votingOpen ? (
           <span className="font-mono text-[12px] text-mid">
-            🗳️ Noch {state.votesLeft} von {state.votesPerUser} Stimmen
+            🗳️ Noch {state.votesLeft} von {state.votesPerUser} Stimmen · 🙈 Ergebnis nach Voting-Ende
           </span>
         ) : (
           <span className="font-mono text-[12px] text-dim">🗳️ Voting noch nicht freigegeben</span>
@@ -709,6 +826,41 @@ export function RetroBoard({
         )}
       </div>
 
+      {state.sortMode === "shuffle" && (
+        <div data-testid="presenter-bar" className="mt-3 flex flex-wrap items-center gap-1.5 text-[12.5px]">
+          <span className="text-dim">🎤 Vorstellrunde:</span>
+          {state.sortOrder.length === 0 && <span className="text-dim">noch keine Karten</span>}
+          {state.sortOrder.map((name, i) => {
+            const current = name === presenter;
+            const doneAlready = presenter !== "" && i < state.sortOrder.indexOf(presenter);
+            return (
+              <span
+                key={name}
+                className={`rounded-full border px-2.5 py-0.5 ${
+                  current
+                    ? "border-[#F59E4A] bg-[#171106] font-semibold text-[#F59E4A]"
+                    : doneAlready
+                      ? "border-edge text-faint line-through"
+                      : "border-edge bg-field text-mid"
+                }`}
+              >
+                {i + 1}. {name}
+                {current && " — ist dran"}
+              </span>
+            );
+          })}
+          {isAdmin && onNextPresenter && (
+            <button type="button" onClick={onNextPresenter} className="btn-primary ml-1 px-3 py-1 text-[12px]">
+              {presenter === ""
+                ? "🎲 Los geht’s"
+                : state.sortOrder.indexOf(presenter) >= state.sortOrder.length - 1
+                  ? "✓ Runde beenden"
+                  : "▶ Nächste/r"}
+            </button>
+          )}
+        </div>
+      )}
+
       {addColumnOpen && (
         <div className="card mt-3 flex max-w-[460px] flex-wrap items-center gap-2 p-3">
           <input
@@ -737,7 +889,7 @@ export function RetroBoard({
         </div>
       )}
 
-      <div className="mt-3.5 flex items-start gap-3.5 overflow-x-auto pb-4">
+      <div ref={rowRef} className="mt-3.5 flex items-start gap-3.5 overflow-x-auto pb-4">
         {state.columns.map((column) => (
           <Column
             key={column.id}
@@ -763,6 +915,7 @@ export function RetroBoard({
               authorAvatar: state.participants.find((p) => p.name === card.author)?.avatar ?? "",
               votesLeft: state.votesLeft,
               votingOpen: state.votingOpen,
+              presenting: presenter !== "" && card.author === presenter,
               searchGifs: onSearchGifs,
               onUpdate: (text: string) => onUpdateCard(card.id, text),
               onDelete: () => onDeleteCard(card.id),
