@@ -186,7 +186,7 @@
 }
 .rm-row.block:hover .rm-grip { opacity: 0.8; }
 .rm-grip:hover { opacity: 1 !important; color: var(--ink); }
-.rm-grip:active { cursor: grabbing; }
+.rm-grip:active, .rm-grip.active { cursor: grabbing; opacity: 1; color: var(--ink); }
 .rm-grip.gripspace { opacity: 0 !important; cursor: default; }
 .rm-lanemark { flex: 0 0 20px; width: 20px; height: 20px; position: relative; }
 .rm-lanemark::before { content: ""; position: absolute; left: 2px; top: 50%; width: 11px; height: 1px; background: hsl(var(--rh) 30% 50% / 0.5); }
@@ -215,7 +215,7 @@
 
 /* ---------- Balken ---------- */
 .rm-bar {
-  position: absolute; border-radius: 5px; cursor: grab; user-select: none;
+  position: absolute; border-radius: 5px; cursor: grab; user-select: none; touch-action: none;
   display: flex; align-items: center; gap: 6px; padding: 0 8px; overflow: hidden;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
 }
@@ -260,7 +260,18 @@
 .rm-hdl.l { left: -1px; }
 .rm-hdl.r { right: -1px; }
 .rm-bar.dragging { pointer-events: none; z-index: 20; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); cursor: grabbing; }
-.rm-cr.droptarget { background-color: var(--accent-soft); }
+/* Während eines Drags: Zeiger bleibt „greifend“, kein Hover-Flackern */
+.rm-board.dragging, .rm-board.dragging .rm-row > .rm-cl, .rm-board.dragging .rm-bar, .rm-board.dragging .rm-hdl { cursor: grabbing; }
+/* Drop-Ziel: Spurzeile (Spur + Block) */
+.rm-row.lane.droptarget > .rm-cr { background-color: var(--accent-soft); }
+.rm-row.lane.droptarget > .rm-cl { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Live-Anzeige beim Ziehen: Zeitraum, Dauer, Zielspur */
+.rm-dragtip {
+  position: absolute; z-index: 21; pointer-events: none; white-space: nowrap;
+  font: 500 10.5px/1 var(--font-plex-mono), monospace; color: var(--ink);
+  background: var(--surface-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 5px 7px;
+  box-shadow: var(--shadow); font-variant-numeric: tabular-nums;
+}
 
 /* Meilensteine */
 .rm-ms { position: absolute; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; background: transparent; border: 0; padding: 0; cursor: default; }

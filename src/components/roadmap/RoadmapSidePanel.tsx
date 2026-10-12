@@ -12,6 +12,9 @@ export interface SidePanelIssue {
   statusCategory: string | null;
   storyPoints: number;
   assignee: string | null;
+  /** Sprint-Zeitraum aus Jira ("YYYY-MM-DD") als Vorbelegung für Start/Ende; sonst null */
+  sprintStart?: string | null;
+  sprintEnd?: string | null;
 }
 
 /** dataTransfer-Format für Drops auf die Timeline. */

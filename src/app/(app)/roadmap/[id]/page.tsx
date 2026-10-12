@@ -42,6 +42,7 @@ export default async function RoadmapEditorPage({
   // Offcanvas: Board-Tickets des aktiven und der geplanten Sprints, dedupliziert.
   const sprints = await prisma.sprint.findMany({
     where: { teamId: roadmap.teamId, state: { in: ["ACTIVE", "FUTURE"] } },
+    orderBy: { startDate: "asc" },
     include: { issues: { orderBy: { jiraKey: "asc" } } },
   });
   const seen = new Set<string>();
@@ -58,6 +59,9 @@ export default async function RoadmapEditorPage({
         statusCategory: DB_CATEGORY[issue.statusCategory] ?? null,
         storyPoints: issue.storyPoints,
         assignee: issue.assignee,
+        // Sprint-Zeitraum als Vorbelegung von Start/Ende (Skizze: „falls in Jira gepflegt“)
+        sprintStart: sprint.startDate ? dayKey(sprint.startDate) : null,
+        sprintEnd: sprint.endDate ? dayKey(sprint.endDate) : null,
       });
     }
   }

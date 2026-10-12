@@ -208,6 +208,9 @@ export function RoadmapEditor({
             : i;
         }),
       );
+    }).catch(() => {
+      // Server-Action geworfen (z. B. Datenbank nicht erreichbar): Status als veraltet markieren statt Laufzeitfehler.
+      if (!cancelled) setStatusStale(true);
     });
     return () => {
       cancelled = true;
@@ -218,10 +221,16 @@ export function RoadmapEditor({
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, rollback?: () => void) =>
     startTransition(async () => {
       setError(null);
-      const result = await fn();
-      if (!result.ok) {
+      try {
+        const result = await fn();
+        if (!result.ok) {
+          rollback?.();
+          setError(result.error ?? "Aktion fehlgeschlagen.");
+        }
+      } catch {
+        // Server-Action geworfen (Netz/Datenbank): zurückrollen statt unbehandelter Fehler.
         rollback?.();
-        setError(result.error ?? "Aktion fehlgeschlagen.");
+        setError("Aktion fehlgeschlagen — Server nicht erreichbar.");
       }
     });
 
@@ -243,9 +252,25 @@ export function RoadmapEditor({
     writeClosed(roadmap.id, next);
   };
 
+  /** Zielblock samt Vorfahren aufklappen, damit ein verschobenes Ticket sichtbar bleibt (wie in der Skizze). */
+  const ensureOpen = (blockId: string | null) => {
+    if (!blockId) return;
+    const next = new Set(closed);
+    let cur = blockById.get(blockId);
+    while (cur) {
+      next.delete(cur.id);
+      cur = cur.parentId ? blockById.get(cur.parentId) : undefined;
+    }
+    if (next.size !== closed.size) {
+      setClosed(next);
+      writeClosed(roadmap.id, next);
+    }
+  };
+
   const moveItem = (itemId: string, placement: Placement) => {
     const before = items.find((i) => i.id === itemId);
     if (!before) return;
+    if (placement.blockId !== before.blockId) ensureOpen(placement.blockId);
     setItems((prev) =>
       prev.map((i) =>
         i.id === itemId
@@ -270,8 +295,10 @@ export function RoadmapEditor({
     run(() => shiftBlockAction(blockId, deltaDays), () => setItems(before));
   };
 
-  const moveBlock = (blockId: string, targetId: string | null, position: DropPosition) =>
+  const moveBlock = (blockId: string, targetId: string | null, position: DropPosition) => {
+    if (position === "into") ensureOpen(targetId);
     run(() => moveBlockAction(blockId, targetId, position));
+  };
 
   const addIssue = (issue: SidePanelIssue, laneId: string, blockId: string | null, startDate: string, endDate: string) =>
     run(() =>
@@ -364,16 +391,12 @@ export function RoadmapEditor({
       <span><i style={{ background: "var(--ok)" }} />Ausgeführt</span>
     </div>
   );
-  const settingsEntries: MenuEntry[] = isModerator
-    ? [
-        { key: "lanes", icon: icons.rows, label: "Streams …", hint: "Spuren je Block verwalten", onSelect: () => setLanesDialogOpen(true) },
-        { key: "labels", icon: icons.ticket, label: "Labels …", hint: "Kennzeichnungen für Tickets", onSelect: () => setLabelsDialogOpen(true) },
-        { key: "sep1", separator: true },
-        { key: "legend", content: legend },
-        { key: "sep2", separator: true },
-        { key: "delete", label: "Roadmap löschen", danger: true, onSelect: () => setConfirmRoadmapDelete(true) },
-      ]
-    : [{ key: "legend", content: legend }];
+  const settingsEntries: MenuEntry[] = [
+    { key: "lanes", icon: icons.rows, label: "Streams …", hint: "Spuren je Block verwalten", onSelect: () => setLanesDialogOpen(true) },
+    { key: "labels", icon: icons.ticket, label: "Labels …", hint: "Kennzeichnungen für Tickets", onSelect: () => setLabelsDialogOpen(true) },
+    { key: "sep1", separator: true },
+    { key: "delete", label: "Roadmap löschen", danger: true, onSelect: () => setConfirmRoadmapDelete(true) },
+  ];
 
   // ---------- Render ----------
   return (
@@ -474,34 +497,36 @@ export function RoadmapEditor({
             Heute
           </button>
           <div className="rm-tsep hidepres" />
-          <button type="button" className="rm-btn icon hidepres" aria-label="Alles einklappen" title="Alles einklappen" onClick={collapseAll}>
-            {icons.chevronsUp}
+          <button type="button" className="rm-btn hidepres" onClick={collapseAll}>
+            Alles einklappen
           </button>
-          <button type="button" className="rm-btn icon hidepres" aria-label="Alles ausklappen" title="Alles ausklappen" onClick={expandAll}>
-            {icons.chevronsDown}
+          <button type="button" className="rm-btn hidepres" onClick={expandAll}>
+            Alles ausklappen
           </button>
           <button
             type="button"
-            className="rm-btn icon hidepres"
+            className="rm-btn hidepres"
             aria-pressed={showDeps}
-            aria-label="Abhängigkeiten anzeigen"
-            title="Abhängigkeiten (Jira „is blocked by“) anzeigen"
+            title="Abhängigkeiten (Jira „is blocked by“) als Pfeile anzeigen"
             onClick={() => setShowDeps((v) => !v)}
           >
-            {icons.dependency}
+            Abhängigkeiten
           </button>
           <div className="rm-spacer" />
-          <RoadmapMenu
-            className="hidepres"
-            triggerClassName="rm-btn icon"
-            ariaLabel="Einstellungen"
-            title="Einstellungen und Legende"
-            trigger={icons.sliders}
-            entries={settingsEntries}
-            align="right"
-          />
+          <div className="hidepres">{legend}</div>
+          {isModerator && (
+            <RoadmapMenu
+              className="hidepres"
+              triggerClassName="rm-btn icon"
+              ariaLabel="Einstellungen"
+              title="Streams, Labels, Roadmap löschen"
+              trigger={icons.sliders}
+              entries={settingsEntries}
+              align="right"
+            />
+          )}
           <button type="button" className="rm-btn" aria-pressed={present} onClick={togglePresent}>
-            Präsentation
+            Präsentationsmodus
           </button>
         </div>
 
@@ -538,7 +563,12 @@ export function RoadmapEditor({
           onClose={() => setPanelOpen(false)}
           onAdd={(issue) => {
             const firstLane = roadmap.lanes[0];
-            if (firstLane) addIssue(issue, firstLane.id, activeBlock?.id ?? null, currentDay, addDays(currentDay, 13));
+            if (!firstLane) return;
+            // Sprint-Zeitraum aus Jira als Vorbelegung, sonst ab heute zwei Wochen.
+            const fromSprint = issue.sprintStart && issue.sprintEnd && dayDiff(issue.sprintStart, issue.sprintEnd) >= 0;
+            const start = fromSprint ? (issue.sprintStart as string) : currentDay;
+            const end = fromSprint ? (issue.sprintEnd as string) : addDays(currentDay, 13);
+            addIssue(issue, firstLane.id, activeBlock?.id ?? null, start, end);
           }}
         />
       )}
@@ -672,7 +702,7 @@ export function RoadmapEditor({
           onConfirm={() =>
             startTransition(async () => {
               setError(null);
-              const result = await deleteRoadmapAction(roadmap.id);
+              const result = await deleteRoadmapAction(roadmap.id).catch(() => ({ ok: false, error: "Löschen fehlgeschlagen — Server nicht erreichbar." }));
               if (result.ok) router.push(`/roadmap?team=${teamId}`);
               else {
                 setConfirmRoadmapDelete(false);
