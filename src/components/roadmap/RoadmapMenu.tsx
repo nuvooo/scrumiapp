@@ -26,6 +26,7 @@ export function RoadmapMenu({
   entries,
   align = "left",
   className = "",
+  menuClassName = "",
 }: {
   trigger: ReactNode;
   triggerClassName: string;
@@ -34,6 +35,8 @@ export function RoadmapMenu({
   entries: MenuEntry[];
   align?: "left" | "right";
   className?: string;
+  /** Zusatzklasse des Menüs (z. B. „wide“) */
+  menuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -70,7 +73,7 @@ export function RoadmapMenu({
         {trigger}
       </button>
       {open && (
-        <div id={menuId} role="menu" className={`rm-menu ${align === "right" ? "right" : ""}`}>
+        <div id={menuId} role="menu" className={`rm-menu ${align === "right" ? "right" : ""} ${menuClassName}`}>
           {entries.map((entry) => {
             if ("separator" in entry) return <div key={entry.key} className="rm-msep" role="separator" />;
             if ("content" in entry) return <div key={entry.key} className="rm-mcontent">{entry.content}</div>;

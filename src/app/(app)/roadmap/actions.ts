@@ -7,7 +7,7 @@ import { isDayKey, parseDayKey } from "@/lib/view/roadmapDays";
 import {
   createRoadmap, renameRoadmap, updateRoadmapRange, deleteRoadmap,
   createLane, renameLane, moveLane, deleteLane,
-  createBlock, updateBlock, moveBlock, deleteBlock, type BlockDropPosition,
+  createBlock, updateBlock, moveBlock, deleteBlock, shiftBlockSpans, type BlockDropPosition,
   createItem, updateItem, deleteItem, updateItemStatuses, shiftItems,
   createLabel, updateLabel, deleteLabel, setItemLabels,
   createMilestone, updateMilestone, deleteMilestone,
@@ -137,24 +137,40 @@ function validHue(hue: number | null): boolean {
   return hue === null || (Number.isInteger(hue) && hue >= 0 && hue < 360);
 }
 
+/** Block anlegen; `startDate`/`endDate` ("YYYY-MM-DD") ist die geplante Spanne, solange er leer ist. */
 export async function createBlockAction(
   roadmapId: string,
   name: string,
   parentId: string | null,
   hue: number | null,
+  startDate: string,
+  endDate: string,
 ): Promise<ActionResult<{ id: string }>> {
   const trimmed = name.trim();
   if (!trimmed) return fail("Name fehlt.");
   if (!validHue(hue)) return fail("Ungültige Farbe.");
+  const range = dayRange(startDate, endDate);
+  if (!range) return fail("Ungültiger Zeitraum.");
   const roadmap = await prisma.roadmap.findUnique({ where: { id: roadmapId } });
   if (!roadmap) return fail("Roadmap nicht gefunden.");
   if (parentId) {
     const parent = await prisma.roadmapBlock.findUnique({ where: { id: parentId } });
     if (!parent || parent.roadmapId !== roadmapId) return fail("Übergeordneter Block nicht gefunden.");
   }
-  const created = await createBlock(roadmapId, trimmed, parentId, hue);
+  const created = await createBlock(roadmapId, trimmed, parentId, hue, range);
   refresh(roadmapId);
   return { ok: true, data: { id: created.id } };
+}
+
+/** Geplante Spanne eines leeren Blocks setzen (Breite ändern). */
+export async function updateBlockSpanAction(blockId: string, startDate: string, endDate: string): Promise<ActionResult> {
+  const range = dayRange(startDate, endDate);
+  if (!range) return fail("Ungültiger Zeitraum.");
+  const block = await prisma.roadmapBlock.findUnique({ where: { id: blockId } });
+  if (!block) return fail("Block nicht gefunden.");
+  await updateBlock(blockId, { startDate: range.start, endDate: range.end });
+  refresh(block.roadmapId);
+  return { ok: true };
 }
 
 export async function updateBlockAction(
@@ -207,6 +223,8 @@ export async function shiftBlockAction(blockId: string, deltaDays: number): Prom
   }
   const items = await prisma.roadmapItem.findMany({ where: { blockId: { in: ids } }, select: { id: true } });
   await shiftItems(items.map((i) => i.id), deltaDays);
+  // Leere Blöcke im Teilbaum (und der Block selbst, falls leer) wandern über ihre geplante Spanne mit.
+  await shiftBlockSpans(ids, deltaDays);
   refresh(block.roadmapId);
   return { ok: true };
 }

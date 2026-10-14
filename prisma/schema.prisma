@@ -356,6 +356,9 @@ model RoadmapBlock {
   hue       Int?
   /// Reihenfolge unter den Geschwistern
   position  Int
+  /// Geplante Spanne eines leeren Blocks (UTC-Tag, inklusive); mit Inhalt ergibt sie sich aus den Tickets
+  startDate DateTime?
+  endDate   DateTime?
   items     RoadmapItem[]
 }
 

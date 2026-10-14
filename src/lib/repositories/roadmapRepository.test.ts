@@ -28,6 +28,8 @@ async function makeTeam() {
 const d = (m: number, day: number) => new Date(Date.UTC(2026, m - 1, day));
 const jan = d(1, 1);
 const jun = d(6, 30);
+/** Geplante Spanne neuer (leerer) Blöcke */
+const SPAN = { start: d(9, 22), end: d(10, 19) };
 
 async function makeRoadmap() {
   const teamId = await makeTeam();
@@ -105,9 +107,9 @@ describe("roadmapRepository — Streams", () => {
 describe("roadmapRepository — Blöcke", () => {
   it("legt Blöcke mit Parent, Farbe und fortlaufender Position an", async () => {
     const { roadmap } = await makeRoadmap();
-    const root = await createBlock(roadmap.id, "Headless", null, 212);
-    const child = await createBlock(roadmap.id, "Kundencockpit", root.id, null);
-    const child2 = await createBlock(roadmap.id, "Shop", root.id, 318);
+    const root = await createBlock(roadmap.id, "Headless", null, 212, SPAN);
+    const child = await createBlock(roadmap.id, "Kundencockpit", root.id, null, SPAN);
+    const child2 = await createBlock(roadmap.id, "Shop", root.id, 318, SPAN);
 
     expect(root.position).toBe(0);
     expect(child.position).toBe(0);
@@ -121,10 +123,10 @@ describe("roadmapRepository — Blöcke", () => {
 
   it("hängt Blöcke um: into / before / after / oberste Ebene, mit Zyklus-Schutz", async () => {
     const { roadmap } = await makeRoadmap();
-    const a = await createBlock(roadmap.id, "A", null, null);
-    const b = await createBlock(roadmap.id, "B", null, null);
-    const c = await createBlock(roadmap.id, "C", null, null);
-    const a1 = await createBlock(roadmap.id, "A1", a.id, null);
+    const a = await createBlock(roadmap.id, "A", null, null, SPAN);
+    const b = await createBlock(roadmap.id, "B", null, null, SPAN);
+    const c = await createBlock(roadmap.id, "C", null, null, SPAN);
+    const a1 = await createBlock(roadmap.id, "A1", a.id, null, SPAN);
 
     // C als Kind von A ans Ende
     expect(await moveBlock(c.id, a.id, "into")).toBe(true);
@@ -155,8 +157,8 @@ describe("roadmapRepository — Blöcke", () => {
 
   it("löscht Block samt Unterblöcken; Tickets landen im Eingangskorb", async () => {
     const { roadmap, lane } = await makeRoadmap();
-    const root = await createBlock(roadmap.id, "Root", null, null);
-    const child = await createBlock(roadmap.id, "Child", root.id, null);
+    const root = await createBlock(roadmap.id, "Root", null, null, SPAN);
+    const child = await createBlock(roadmap.id, "Child", root.id, null, SPAN);
     const item = await createItem(roadmap.id, lane.id, { blockId: child.id, title: "T", startDate: jan, endDate: jan });
 
     await deleteBlock(root.id);
@@ -169,7 +171,7 @@ describe("roadmapRepository — Blöcke", () => {
 describe("roadmapRepository — Items", () => {
   it("legt Jira-Item und Ziel mit fortlaufender Position an", async () => {
     const { roadmap, lane } = await makeRoadmap();
-    const block = await createBlock(roadmap.id, "B", null, null);
+    const block = await createBlock(roadmap.id, "B", null, null, SPAN);
 
     const jira = await createItem(roadmap.id, lane.id, {
       blockId: block.id, jiraKey: "AB-1", issueType: "Story", title: "Login", startDate: jan, endDate: d(1, 15),
@@ -188,7 +190,7 @@ describe("roadmapRepository — Items", () => {
 
   it("verschiebt ein Item in Stream/Block und ändert den Zeitraum; shiftItems verschiebt tageweise", async () => {
     const { roadmap, lanes } = await makeRoadmap();
-    const block = await createBlock(roadmap.id, "B", null, null);
+    const block = await createBlock(roadmap.id, "B", null, null, SPAN);
     const item = await createItem(roadmap.id, lanes[0].id, { title: "Z", startDate: d(1, 10), endDate: d(1, 20) });
 
     await updateItem(item.id, { laneId: lanes[1].id, blockId: block.id, startDate: d(2, 1), endDate: d(2, 5) });

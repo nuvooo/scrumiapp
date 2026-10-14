@@ -35,6 +35,9 @@ export interface BlockView {
   /** HSL-Farbton oder null = erbt */
   hue: number | null;
   position: number;
+  /** Geplante Spanne ("YYYY-MM-DD"), gilt nur, solange der Block leer ist */
+  startDate: string | null;
+  endDate: string | null;
 }
 
 export interface LabelView {
@@ -57,6 +60,8 @@ export interface RoadmapView {
   /** "YYYY-MM-DD" */
   startDate: string;
   endDate: string;
+  /** Montag, an dem das 14-Tage-Sprintraster hängt (Start des aktiven Sprints), "YYYY-MM-DD" oder null */
+  sprintAnchor: string | null;
   lanes: LaneView[];
   blocks: BlockView[];
   items: RoadmapItemView[];

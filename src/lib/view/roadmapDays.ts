@@ -31,6 +31,16 @@ export function dayDiff(fromKey: string, toKey: string): number {
   return Math.round((parseDayKey(toKey).getTime() - parseDayKey(fromKey).getTime()) / DAY_MS);
 }
 
+/** Absolute Tagesnummer (Tage seit 1970-01-01) eines Keys — Positionsbasis der Boxen. */
+export function dayNumber(key: string): number {
+  return Math.round(parseDayKey(key).getTime() / DAY_MS);
+}
+
+/** Key aus einer absoluten Tagesnummer. */
+export function dayFromNumber(n: number): string {
+  return dayKey(new Date(n * DAY_MS));
+}
+
 /** ISO-8601-Kalenderwoche (Montag = Wochenstart). */
 export function isoWeek(d: Date): number {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));

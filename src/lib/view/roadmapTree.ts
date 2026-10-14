@@ -1,6 +1,8 @@
 /**
- * Blockbaum der Roadmap: Tiefe, Farbvererbung, Zeitspannen aus den Tickets
- * und der Zeilenaufbau der Timeline (Meilensteine, Eingangskorb, Blöcke, Spuren).
+ * Blockbaum der Roadmap: Tiefe, Farbvererbung, Zeitspannen aus Tickets bzw.
+ * geplanter Spanne leerer Blöcke. Tag-Indizes sind absolute Tagesnummern
+ * (siehe `dayNumber` in roadmapDays), damit das wachsende Zeitfenster keine
+ * Umrechnung braucht.
  */
 
 export const DEFAULT_HUE = 212;
@@ -10,34 +12,39 @@ export const INBOX_HUE = 220;
 
 export type BarStatus = "done" | "wip" | "open";
 
+export interface DaySpan {
+  /** Tag-Indizes (inklusive) */
+  start: number;
+  end: number;
+}
+
 export interface BlockInput {
   id: string;
   parentId: string | null;
   name: string;
   hue: number | null;
   position: number;
+  /** Geplante Spanne, gilt nur ohne Inhalt */
+  span: DaySpan | null;
 }
 
 export interface TreeItem {
   id: string;
   blockId: string | null;
   laneId: string;
-  /** Tag-Indizes im Raster (inklusive) */
   start: number;
   end: number;
   statusCategory: string | null;
   storyPoints: number;
   position: number;
+  jiraKey: string | null;
+  title: string;
 }
 
 export interface TreeBlock extends BlockInput {
   depth: number;
   /** Eigener Farbton oder vom nächsten Vorfahren geerbt */
   effectiveHue: number;
-  /** Block, der die Farbe setzt (Gruppengrenze für die Trennlinie) */
-  colorGroup: string;
-  /** Vererbte Farbtöne von außen nach innen (Kopfbänder) */
-  bands: number[];
   children: TreeBlock[];
   /** Direkt zugeordnete Tickets */
   items: TreeItem[];
@@ -63,10 +70,7 @@ const byPosition = <T extends { position: number; id: string }>(a: T, b: T) =>
 export function buildTree(blocks: BlockInput[], items: TreeItem[]): RoadmapTree {
   const byId = new Map<string, TreeBlock>();
   for (const b of blocks) {
-    byId.set(b.id, {
-      ...b, depth: 0, effectiveHue: DEFAULT_HUE, colorGroup: "root", bands: [],
-      children: [], items: [], parent: null,
-    });
+    byId.set(b.id, { ...b, depth: 0, effectiveHue: DEFAULT_HUE, children: [], items: [], parent: null });
   }
   const roots: TreeBlock[] = [];
   for (const node of byId.values()) {
@@ -87,8 +91,6 @@ export function buildTree(blocks: BlockInput[], items: TreeItem[]): RoadmapTree 
     for (const n of list) {
       n.depth = depth;
       n.effectiveHue = n.hue ?? parent?.effectiveHue ?? DEFAULT_HUE;
-      n.colorGroup = n.hue !== null ? n.id : parent?.colorGroup ?? "root";
-      n.bands = n.hue !== null ? [...(parent?.bands ?? []), n.hue] : [...(parent?.bands ?? [])];
       n.items.sort(byPosition);
       walk(n.children, n, depth + 1);
     }
@@ -98,19 +100,50 @@ export function buildTree(blocks: BlockInput[], items: TreeItem[]): RoadmapTree 
   return { roots, byId, orphans };
 }
 
+/** Eingangskorb als Pseudo-Block (oberste Ebene, eigene Farbe). */
+export function inboxBlock(orphans: TreeItem[]): TreeBlock {
+  return {
+    id: INBOX_ID, parentId: null, name: "Eingangskorb", hue: INBOX_HUE, position: -1, span: null,
+    depth: 0, effectiveHue: INBOX_HUE, children: [], items: orphans, parent: null,
+  };
+}
+
 /** Alle Tickets im Teilbaum. */
 export function leaves(block: TreeBlock): TreeItem[] {
   return [...block.items, ...block.children.flatMap(leaves)];
 }
 
+/** Hat der Block Inhalt (Tickets oder Unterblöcke)? Leere Blöcke zeigen ihre geplante Spanne. */
+export const hasContent = (block: TreeBlock) => block.items.length > 0 || block.children.length > 0;
+
 /** Zeitspanne aus den Tickets (min/max); null ohne Tickets. */
-export function span(items: TreeItem[]): { start: number; end: number } | null {
+export function span(items: TreeItem[]): DaySpan | null {
   if (items.length === 0) return null;
   let start = Infinity;
   let end = -Infinity;
   for (const t of items) {
     if (t.start < start) start = t.start;
     if (t.end > end) end = t.end;
+  }
+  return { start, end };
+}
+
+/**
+ * Spanne eines Blocks: aus dem Inhalt (rekursiv über Tickets und Unterblöcke),
+ * sonst die geplante Spanne, sonst `fallback` (heute + vier Wochen).
+ */
+export function blockSpan(block: TreeBlock, fallback: DaySpan): DaySpan {
+  if (!hasContent(block)) return block.span ?? fallback;
+  let start = Infinity;
+  let end = -Infinity;
+  for (const t of block.items) {
+    if (t.start < start) start = t.start;
+    if (t.end > end) end = t.end;
+  }
+  for (const c of block.children) {
+    const s = blockSpan(c, fallback);
+    if (s.start < start) start = s.start;
+    if (s.end > end) end = s.end;
   }
   return { start, end };
 }
@@ -125,12 +158,10 @@ export function isAncestor(a: TreeBlock, b: TreeBlock): boolean {
   return false;
 }
 
-export type DropPosition = "before" | "after" | "into";
-
-/** Umhängen erlaubt? Nicht auf sich selbst und nicht in den eigenen Teilbaum. */
+/** Umhängen erlaubt? Nicht auf sich selbst, nicht in den eigenen Teilbaum, nicht auf den eigenen Elternblock. */
 export function canMoveBlock(node: TreeBlock, target: TreeBlock | null): boolean {
-  if (target === null) return true;
-  return node !== target && !isAncestor(node, target);
+  if (target === null) return node.parent !== null;
+  return node !== target && !isAncestor(node, target) && node.parent !== target;
 }
 
 /** Fortschritt eines Blocks: erledigte Tickets / alle Tickets. */
@@ -139,101 +170,24 @@ export function blockProgress(block: TreeBlock): { done: number; total: number }
   return { done: all.filter((t) => statusOf(t.statusCategory) === "done").length, total: all.length };
 }
 
-/** Greedy-Stapelung überlappender Tickets in Spuren („2 parallel"). */
-export function packTracks(items: TreeItem[]): TreeItem[][] {
-  const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end || byPosition(a, b));
-  const tracks: TreeItem[][] = [];
-  for (const t of sorted) {
-    const track = tracks.find((tr) => tr[tr.length - 1].end < t.start);
-    if (track) track.push(t);
-    else tracks.push([t]);
+/** Pfad der Vorfahren („Projekt › Teilprojekt › Bereich“). */
+export function pathOf(block: TreeBlock | null): string {
+  const names: string[] = [];
+  let cur = block;
+  while (cur) {
+    names.unshift(cur.name);
+    cur = cur.parent;
   }
-  return tracks;
+  return names.join(" › ");
 }
 
-export interface RowMiles {
-  type: "miles";
-}
-export interface RowBlock {
-  type: "block";
-  block: TreeBlock;
-  open: boolean;
-  /** Erste Zeile einer Farbgruppe (kräftige Trennlinie) */
-  groupFirst: boolean;
-  inbox: boolean;
-}
-export interface RowLane {
-  type: "lane";
-  laneId: string;
-  laneName: string;
-  laneIndex: number;
-  block: TreeBlock;
-  tracks: TreeItem[][];
-  inbox: boolean;
-}
-export type Row = RowMiles | RowBlock | RowLane;
+/** Objekttyp aus der Ebene: Projekt → Teilprojekt → Bereich (ab Ebene 2). */
+export const TYPES = [
+  { one: "Projekt", many: "Projekte" },
+  { one: "Teilprojekt", many: "Teilprojekte" },
+  { one: "Bereich", many: "Bereiche" },
+] as const;
 
-export interface LaneDef {
-  id: string;
-  name: string;
-}
-
-export interface RowOptions {
-  /** Aufgeklappte Block-IDs */
-  open: Set<string>;
-  /** Präsentationsmodus: nur oberste zwei Ebenen aufgeklappt */
-  present: boolean;
-}
-
-/** Eingangskorb als Pseudo-Block, damit Spurzeilen einheitlich gebaut werden. */
-export function inboxBlock(orphans: TreeItem[]): TreeBlock {
-  return {
-    id: INBOX_ID, parentId: null, name: "Eingangskorb", hue: INBOX_HUE, position: -1,
-    depth: 0, effectiveHue: INBOX_HUE, colorGroup: INBOX_ID, bands: [INBOX_HUE],
-    children: [], items: orphans, parent: null,
-  };
-}
-
-function laneRows(block: TreeBlock, lanes: LaneDef[], inbox: boolean): RowLane[] {
-  const rows: RowLane[] = [];
-  lanes.forEach((lane, laneIndex) => {
-    const list = block.items.filter((t) => t.laneId === lane.id);
-    if (list.length === 0) return;
-    rows.push({ type: "lane", laneId: lane.id, laneName: lane.name, laneIndex, block, tracks: packTracks(list), inbox });
-  });
-  return rows;
-}
-
-/** Zeilen der Timeline in Anzeigereihenfolge. */
-export function buildRows(tree: RoadmapTree, lanes: LaneDef[], opts: RowOptions): Row[] {
-  const rows: Row[] = [];
-  rows.push({ type: "miles" });
-
-  if (tree.orphans.length > 0) {
-    const inbox = inboxBlock(tree.orphans);
-    const open = opts.open.has(INBOX_ID);
-    rows.push({ type: "block", block: inbox, open, groupFirst: true, inbox: true });
-    if (open) rows.push(...laneRows(inbox, lanes, true));
-  }
-
-  const rec = (list: TreeBlock[]) => {
-    for (const n of list) {
-      const open = opts.open.has(n.id) && !(opts.present && n.depth >= 1);
-      rows.push({ type: "block", block: n, open, groupFirst: false, inbox: false });
-      if (!open) continue;
-      rec(n.children);
-      rows.push(...laneRows(n, lanes, false));
-    }
-  };
-  rec(tree.roots);
-
-  let seen: string | null = null;
-  for (const r of rows) {
-    if (r.type !== "block" || r.inbox) continue;
-    if (r.block.colorGroup !== seen) {
-      r.groupFirst = true;
-      seen = r.block.colorGroup;
-    }
-  }
-  return rows;
+export function typeAt(depth: number): (typeof TYPES)[number] {
+  return TYPES[Math.min(Math.max(depth, 0), TYPES.length - 1)];
 }

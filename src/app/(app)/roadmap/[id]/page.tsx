@@ -92,7 +92,15 @@ export default async function RoadmapEditorPage({
     startDate: dayKey(roadmap.startDate),
     endDate: dayKey(roadmap.endDate),
     lanes: roadmap.lanes.map((l) => ({ id: l.id, name: l.name })),
-    blocks: roadmap.blocks.map((b) => ({ id: b.id, parentId: b.parentId, name: b.name, hue: b.hue, position: b.position })),
+    sprintAnchor: (() => {
+      const active = sprints.find((s) => s.state === "ACTIVE" && s.startDate);
+      return active?.startDate ? dayKey(active.startDate) : null;
+    })(),
+    blocks: roadmap.blocks.map((b) => ({
+      id: b.id, parentId: b.parentId, name: b.name, hue: b.hue, position: b.position,
+      startDate: b.startDate ? dayKey(b.startDate) : null,
+      endDate: b.endDate ? dayKey(b.endDate) : null,
+    })),
     items,
     labels: roadmap.labels.map((l) => ({ id: l.id, name: l.name, color: l.color })),
     milestones: roadmap.milestones.map((m) => ({ id: m.id, title: m.title, date: dayKey(m.date), color: m.color })),

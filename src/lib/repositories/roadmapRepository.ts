@@ -92,20 +92,46 @@ export function deleteLane(id: string): Promise<RoadmapLane> {
 
 // ---------- Blöcke ----------
 
+/** Legt einen Block ans Ende seiner Geschwister; `span` ist die geplante Spanne, solange er leer ist. */
 export async function createBlock(
   roadmapId: string,
   name: string,
   parentId: string | null,
   hue: number | null,
+  span: { start: Date; end: Date },
 ): Promise<RoadmapBlock> {
   const max = await prisma.roadmapBlock.aggregate({ where: { roadmapId, parentId }, _max: { position: true } });
   return prisma.roadmapBlock.create({
-    data: { roadmapId, name, parentId, hue, position: (max._max.position ?? -1) + 1 },
+    data: {
+      roadmapId, name, parentId, hue, position: (max._max.position ?? -1) + 1,
+      startDate: span.start, endDate: span.end,
+    },
   });
 }
 
-export function updateBlock(id: string, patch: { name?: string; hue?: number | null }): Promise<RoadmapBlock> {
+export function updateBlock(
+  id: string,
+  patch: { name?: string; hue?: number | null; startDate?: Date; endDate?: Date },
+): Promise<RoadmapBlock> {
   return prisma.roadmapBlock.update({ where: { id }, data: patch });
+}
+
+/** Verschiebt die geplanten Spannen mehrerer Blöcke um `deltaDays` (Block-Drag: leere Unterblöcke wandern mit). */
+export async function shiftBlockSpans(ids: string[], deltaDays: number): Promise<void> {
+  if (ids.length === 0 || deltaDays === 0) return;
+  const blocks = await prisma.roadmapBlock.findMany({ where: { id: { in: ids }, startDate: { not: null } } });
+  const ms = deltaDays * 86_400_000;
+  await prisma.$transaction(
+    blocks.map((b) =>
+      prisma.roadmapBlock.update({
+        where: { id: b.id },
+        data: {
+          startDate: new Date((b.startDate as Date).getTime() + ms),
+          endDate: new Date((b.endDate ?? (b.startDate as Date)).getTime() + ms),
+        },
+      }),
+    ),
+  );
 }
 
 export type BlockDropPosition = "before" | "after" | "into";
